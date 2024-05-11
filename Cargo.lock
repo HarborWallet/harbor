@@ -999,12 +999,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "float_next_after"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
-
-[[package]]
 name = "font-types"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1388,7 +1382,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "iced"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1401,7 +1395,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "bitflags 2.5.0",
  "bytes",
@@ -1421,7 +1415,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "futures",
  "iced_core",
@@ -1435,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "bitflags 2.5.0",
  "bytemuck",
@@ -1444,7 +1438,6 @@ dependencies = [
  "iced_core",
  "iced_futures",
  "log",
- "lyon_path",
  "once_cell",
  "raw-window-handle",
  "rustc-hash",
@@ -1455,7 +1448,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1467,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "bytes",
  "iced_core",
@@ -1479,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1494,7 +1487,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "bitflags 2.5.0",
  "bytemuck",
@@ -1504,7 +1497,6 @@ dependencies = [
  "guillotiere",
  "iced_graphics",
  "log",
- "lyon",
  "once_cell",
  "rustc-hash",
  "thiserror",
@@ -1514,7 +1506,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "iced_renderer",
  "iced_runtime",
@@ -1527,7 +1519,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.13.0-dev"
-source = "git+https://github.com/iced-rs/iced#718fe5b7de6c705b1797c49d382182182acdbe80"
+source = "git+https://github.com/iced-rs/iced?rev=b30d34f#b30d34f728fdae65d4d2cb0afe2dcade9b4bb0dc"
 dependencies = [
  "iced_futures",
  "iced_graphics",
@@ -1717,58 +1709,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3262e75e648fce39813cb56ac41f3c3e3f65217ebf3844d818d1f9398cfb0dc"
 
 [[package]]
-name = "lyon"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e7f9cda98b5430809e63ca5197b06c7d191bf7e26dfc467d5a3f0290e2a74f"
-dependencies = [
- "lyon_algorithms",
- "lyon_tessellation",
-]
-
-[[package]]
-name = "lyon_algorithms"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3bca95f9a4955b3e4a821fbbcd5edfbd9be2a9a50bb5758173e5358bfb4c623"
-dependencies = [
- "lyon_path",
- "num-traits",
-]
-
-[[package]]
-name = "lyon_geom"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edecfb8d234a2b0be031ab02ebcdd9f3b9ee418fb35e265f7a540a48d197bff9"
-dependencies = [
- "arrayvec",
- "euclid",
- "num-traits",
-]
-
-[[package]]
-name = "lyon_path"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca507745ba7ccbc76e5c44e7b63b1a29d2b0d6126f375806a5bbaf657c7d6c45"
-dependencies = [
- "lyon_geom",
- "num-traits",
-]
-
-[[package]]
-name = "lyon_tessellation"
-version = "1.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4470bd0b1f29eda66068ab1fd47719facda0a136b829bcca69287ed0ac40a134"
-dependencies = [
- "float_next_after",
- "lyon_path",
- "num-traits",
-]
-
-[[package]]
 name = "malloc_buf"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1925,7 +1865,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
- "libm",
 ]
 
 [[package]]
