@@ -1,0 +1,8 @@
+[package]
+name = "harbor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { git = "https://github.com/iced-rs/iced", commit = "718fe5b", features = ["canvas", "debug", "tokio"] }
+tokio = { version = "1", features = ["full"] }
