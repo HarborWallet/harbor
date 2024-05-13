@@ -5,14 +5,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bridge::CoreUIMsg;
-use components::{h_button, lighten, sidebar_button, SvgIcon};
 use iced::subscription::Subscription;
-use iced::widget::container::Style;
-use iced::widget::{
-    center, column, container, row, scrollable, text, text_input, vertical_space, Svg,
-};
-use iced::{program, Border, Color, Shadow};
-use iced::{Alignment, Element, Length};
+use iced::widget::row;
+use iced::{program, Color};
+use iced::{Alignment, Element};
 use iced::{Command, Font};
 
 pub mod bridge;
@@ -20,6 +16,7 @@ pub mod components;
 pub mod conf;
 pub mod core;
 mod fedimint_client;
+pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
@@ -42,7 +39,7 @@ pub fn main() -> iced::Result {
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
 // More complicated state should be in Core, and bridged to the UI in a UI-friendly format.
-struct HarborWallet {
+pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
     balance: Amount,
     active_route: Route,
@@ -87,55 +84,6 @@ pub enum Message {
     Receive(u64),
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
-}
-
-fn home(harbor: &HarborWallet) -> Element<Message> {
-    let balance = text(format!("{} sats", harbor.balance.sats_round_down())).size(64);
-    let send_button = h_button("Send", SvgIcon::UpRight).on_press(Message::Send(100));
-    let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Receive(100));
-    let buttons = row![send_button, receive_button].spacing(32);
-
-    let failure_message = harbor
-        .send_failure_reason
-        .as_ref()
-        .map(|r| text(r).size(50).color(Color::from_rgb(255., 0., 0.)));
-
-    let column = if let Some(failure_message) = failure_message {
-        column![balance, failure_message, buttons]
-    } else {
-        column![balance, buttons]
-    };
-    container(center(column.spacing(32).align_items(Alignment::Center))).into()
-}
-
-fn mints(_harbor: &HarborWallet) -> Element<Message> {
-    container(
-        scrollable(
-            column!["These are the mints!",]
-                .spacing(32)
-                .align_items(Alignment::Center)
-                .width(Length::Fill),
-        )
-        .height(Length::Fill),
-    )
-    .into()
-}
-
-fn transfer(harbor: &HarborWallet) -> Element<Message> {
-    container(
-        scrollable(
-            column![
-                "Let's transfer some ecash!",
-                text_input("how much?", &harbor.transfer_amount_str)
-                    .on_input(Message::TransferAmountChanged,)
-            ]
-            .spacing(32)
-            .align_items(Alignment::Center)
-            .width(Length::Fill),
-        )
-        .height(Length::Fill),
-    )
-    .into()
 }
 
 impl HarborWallet {
@@ -252,52 +200,11 @@ impl HarborWallet {
     }
 
     fn view(&self) -> Element<Message> {
-        let sidebar = container(
-            column![
-                Svg::from_path("assets/harbor_logo.svg").width(167),
-                sidebar_button("Home", SvgIcon::Home, Route::Home, self.active_route)
-                    .on_press(Message::Navigate(Route::Home)),
-                sidebar_button("Mints", SvgIcon::People, Route::Mints, self.active_route)
-                    .on_press(Message::Navigate(Route::Mints)),
-                sidebar_button(
-                    "Transfer",
-                    SvgIcon::LeftRight,
-                    Route::Transfer,
-                    self.active_route
-                )
-                .on_press(Message::Navigate(Route::Transfer)),
-                sidebar_button(
-                    "History",
-                    SvgIcon::Squirrel,
-                    Route::History,
-                    self.active_route
-                )
-                .on_press(Message::Navigate(Route::History)),
-                vertical_space(),
-                sidebar_button(
-                    "Settings",
-                    SvgIcon::Settings,
-                    Route::Settings,
-                    self.active_route
-                )
-                .on_press(Message::Navigate(Route::Settings)),
-            ]
-            .spacing(8)
-            .align_items(Alignment::Start),
-        )
-        .padding(8)
-        .style(|theme| -> Style {
-            Style {
-                text_color: None,
-                background: Some(lighten(theme.palette().background, 0.05).into()),
-                border: Border::default(),
-                shadow: Shadow::default(),
-            }
-        });
+        let sidebar = crate::components::sidebar(self);
 
-        let home_content = home(self);
-        let mints_content = mints(self);
-        let transfer_content = transfer(self);
+        let home_content = crate::routes::home(self);
+        let mints_content = crate::routes::mints(self);
+        let transfer_content = crate::routes::transfer(self);
 
         let active_route = match self.active_route {
             Route::Home => home_content,
