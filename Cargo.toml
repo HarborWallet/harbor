@@ -13,6 +13,9 @@ palette = "0.7"
 config = "0.14.0"
 serde = { version = "1.0", features = ["derive"] }
 home = "0.5.9"
+rusqlite = { version = "0.31.0", features = ["sqlcipher"] }
+diesel = { version = "2.1.6", features = ["sqlite", "chrono", "r2d2"] }
+diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
 
 bitcoin = { version = "0.29.2", features = ["base64"] }
 bip39 = "2.0.0"
