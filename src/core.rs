@@ -1,4 +1,10 @@
+use bip39::Mnemonic;
+use bitcoin::Network;
+use fedimint_client::module::IClientModule;
+use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
+use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, time::Duration};
 
 use iced::{
@@ -7,6 +13,7 @@ use iced::{
 };
 use tokio::time::sleep;
 
+use crate::fedimint_client::FedimintClient;
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
     Message,
@@ -15,7 +22,7 @@ use crate::{
 struct HarborCore {
     balance: Amount,
     tx: Sender<Message>,
-    // db: TODO!! RwLock<Connection>,
+    client: FedimintClient, // todo multiple clients
 }
 
 impl HarborCore {
@@ -40,7 +47,7 @@ impl HarborCore {
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
     }
 
-    async fn send(&mut self, amount: u64) {
+    async fn fake_send(&mut self, amount: u64) {
         self.msg(CoreUIMsg::Sending).await;
         sleep(Duration::from_secs(1)).await;
         println!("Sending {amount}");
@@ -77,10 +84,25 @@ pub fn run_core() -> Subscription<Message> {
             let (ui_handle, mut core_handle) = handles;
             let arc_ui_handle = Arc::new(ui_handle);
 
+            // fixme, properly initialize this
+            let mnemonic = Mnemonic::from_str("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about").unwrap();
+            let client = FedimintClient::new(
+                "test".to_string(),
+                InviteCode::from_str("fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er").unwrap(),
+                &mnemonic,
+                Network::Signet,
+                Arc::new(AtomicBool::new(false)),
+            )
+            .await
+            .expect("Could not create fedimint client");
+
+            let balance = client.fedimint_client.get_balance().await;
+
             let mut core = HarborCore {
-                balance: Amount::from_sats(200),
+                balance,
                 tx,
                 // TODO: add a database handle that works across async stuff
+                client,
             };
 
             loop {
@@ -103,7 +125,7 @@ pub fn run_core() -> Subscription<Message> {
                                     println!("{counter}");
                                 }
                                 UICoreMsg::Send(amount) => {
-                                    core.send(amount).await;
+                                    core.fake_send(amount).await;
                                 }
                             }
                         }

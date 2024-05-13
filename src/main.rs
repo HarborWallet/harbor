@@ -17,10 +17,12 @@ pub mod bridge;
 pub mod components;
 pub mod core;
 pub mod conf;
+mod fedimint_client;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
+    pretty_env_logger::init();
     program("Harbor", HarborWallet::update, HarborWallet::view)
         // .load(HarborWallet::load)
         .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
