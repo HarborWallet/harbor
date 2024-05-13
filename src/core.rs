@@ -229,3 +229,11 @@ pub fn run_core() -> Subscription<Message> {
         },
     )
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn example_test() {
+        assert_eq!(true, true);
+    }
+}
