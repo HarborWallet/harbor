@@ -1,16 +1,21 @@
+use crate::bridge::CoreUIMsg;
+use crate::Message;
 use bip39::Mnemonic;
 use bitcoin::Network;
 use fedimint_bip39::Bip39RootSecretStrategy;
+use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{get_default_client_secret, RootSecretStrategy};
 use fedimint_client::ClientHandleArc;
 use fedimint_core::api::InviteCode;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::IRawDatabaseExt;
-use fedimint_ln_client::{LightningClientInit, LightningClientModule};
+use fedimint_ln_client::{LightningClientInit, LightningClientModule, LnReceiveState};
 use fedimint_ln_common::LightningGateway;
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
+use iced::futures::channel::mpsc::Sender;
+use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -163,4 +168,43 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
     }
 
     selected_gateway
+}
+
+pub(crate) async fn spawn_invoice_receive_subscription(
+    mut sender: Sender<Message>,
+    client: ClientHandleArc,
+    subscription: UpdateStreamOrOutcome<LnReceiveState>,
+) {
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                LnReceiveState::Canceled { reason } => {
+                    error!("Payment canceled, reason: {:?}", reason);
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
+                            reason.to_string(),
+                        )))
+                        .await
+                        .unwrap();
+                }
+                LnReceiveState::Claimed => {
+                    info!("Payment claimed");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess))
+                        .await
+                        .unwrap();
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .await
+                        .unwrap();
+
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
 }

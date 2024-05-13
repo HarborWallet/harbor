@@ -1,8 +1,11 @@
+use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::Network;
 use fedimint_client::module::IClientModule;
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
+use fedimint_ln_client::LightningClientModule;
+use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, time::Duration};
@@ -11,9 +14,10 @@ use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
     subscription::{self, Subscription},
 };
+use log::error;
 use tokio::time::sleep;
 
-use crate::fedimint_client::FedimintClient;
+use crate::fedimint_client::{select_gateway, spawn_invoice_subscription, FedimintClient};
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
     Message,
@@ -65,6 +69,44 @@ impl HarborCore {
         self.msg(CoreUIMsg::SendSuccess).await;
         // Tell the UI the new balance
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
+    }
+
+    async fn receive(&self, amount: u64) -> anyhow::Result<Bolt11Invoice> {
+        let lightning_module = self
+            .client
+            .fedimint_client
+            .get_first_module::<LightningClientModule>();
+
+        let gateway = select_gateway(&self.client.fedimint_client)
+            .await
+            .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
+
+        let desc = Description::new(String::new()).expect("empty string is valid");
+        let (op_id, invoice, _) = lightning_module
+            .create_bolt11_invoice(
+                Amount::from_sats(amount),
+                Bolt11InvoiceDescription::Direct(&desc),
+                None,
+                (),
+                Some(gateway),
+            )
+            .await?;
+
+        println!("{}", invoice);
+
+        // Create subscription to operation if it exists
+        if let Ok(subscription) = lightning_module.subscribe_ln_receive(op_id).await {
+            spawn_invoice_receive_subscription(
+                self.tx.clone(),
+                self.client.fedimint_client.clone(),
+                subscription,
+            )
+            .await;
+        } else {
+            error!("Could not create subscription to lightning receive");
+        }
+
+        Ok(invoice)
     }
 }
 
@@ -126,6 +168,11 @@ pub fn run_core() -> Subscription<Message> {
                                 }
                                 UICoreMsg::Send(amount) => {
                                     core.fake_send(amount).await;
+                                }
+                                UICoreMsg::Receive(amount) => {
+                                    if let Err(e) = core.receive(amount).await {
+                                        error!("Error receiving: {}", e);
+                                    }
                                 }
                             }
                         }

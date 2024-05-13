@@ -5,6 +5,7 @@ use tokio::sync::mpsc;
 pub enum UICoreMsg {
     Test(u64),
     Send(u64),
+    Receive(u64),
 }
 
 #[derive(Debug, Clone)]
@@ -13,6 +14,7 @@ pub enum CoreUIMsg {
     SendSuccess,
     SendFailure(String),
     ReceiveSuccess,
+    ReceiveFailed(String),
     BalanceUpdated(Amount),
 }
 
@@ -34,6 +36,10 @@ impl UIHandle {
 
     pub async fn send(&self, amount: u64) {
         self.msg_send(UICoreMsg::Send(amount)).await;
+    }
+
+    pub async fn receive(&self, amount: u64) {
+        self.msg_send(UICoreMsg::Receive(amount)).await;
     }
 }
 

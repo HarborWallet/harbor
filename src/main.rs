@@ -82,12 +82,13 @@ pub enum Message {
     // Async commands we fire from the UI to core
     Noop,
     Send(u64),
+    Receive(u64),
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
 }
 
 fn home(harbor: &HarborWallet) -> Element<Message> {
-    let balance = text(format!("{} sats", harbor.balance)).size(64);
+    let balance = text(format!("{} sats", harbor.balance.sats_round_down())).size(64);
     let send_button = h_button("Send", SvgIcon::UpRight).on_press(Message::Send(100));
     let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Noop);
     let buttons = row![send_button, receive_button].spacing(32);
@@ -160,6 +161,14 @@ impl HarborWallet {
         }
     }
 
+    async fn async_receive(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().receive(amount).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
@@ -189,6 +198,16 @@ impl HarborWallet {
                     })
                 }
             },
+            Message::Receive(amount) => match self.send_status {
+                SendStatus::Sending => Command::none(),
+                _ => {
+                    self.send_failure_reason = None;
+                    Command::perform(Self::async_receive(self.ui_handle.clone(), amount), |_| {
+                        // I don't know if this is the best way to do this but we don't really know anyting after we've fired the message
+                        Message::Noop
+                    })
+                }
+            },
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg {
                 CoreUIMsg::Sending => {
@@ -205,6 +224,12 @@ impl HarborWallet {
                     Command::none()
                 }
                 CoreUIMsg::ReceiveSuccess => Command::none(),
+                CoreUIMsg::ReceiveFailed(reason) => {
+                    // todo use receive failure reason
+                    self.send_status = SendStatus::Idle;
+                    self.send_failure_reason = Some(reason);
+                    Command::none()
+                }
                 CoreUIMsg::BalanceUpdated(balance) => {
                     self.balance = balance;
                     Command::none()
