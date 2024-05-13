@@ -155,6 +155,7 @@ impl HarborWallet {
     }
 
     // We can't use self in these async functions because lifetimes are hard
+    #[allow(dead_code)] // TODO: remove
     async fn async_fake_send(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.clone().fake_send(amount).await;

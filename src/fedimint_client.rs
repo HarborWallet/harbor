@@ -25,6 +25,7 @@ use std::time::Instant;
 use tokio::spawn;
 
 #[derive(Debug, Clone)]
+#[allow(unused)] // TODO: remove
 pub(crate) struct FedimintClient {
     pub(crate) uuid: String,
     pub(crate) fedimint_client: ClientHandleArc,
