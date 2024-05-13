@@ -2,13 +2,18 @@ use core::run_core;
 use std::sync::Arc;
 
 use bridge::CoreUIMsg;
+use components::{h_button, lighten, sidebar_button, SvgIcon};
 use iced::subscription::Subscription;
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
-use iced::Command;
-use iced::{program, Color};
+use iced::widget::container::Style;
+use iced::widget::{
+    center, column, container, row, scrollable, text, text_input, vertical_space, Svg,
+};
+use iced::{program, Border, Color, Shadow};
 use iced::{Alignment, Element, Length};
+use iced::{Command, Font};
 
 pub mod bridge;
+pub mod components;
 pub mod core;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
@@ -16,6 +21,15 @@ pub mod core;
 pub fn main() -> iced::Result {
     program("Harbor", HarborWallet::update, HarborWallet::view)
         // .load(HarborWallet::load)
+        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
+        .theme(HarborWallet::theme)
+        .default_font(Font {
+            family: iced::font::Family::Name("Inter-Regular.ttf"),
+            weight: iced::font::Weight::Normal,
+            stretch: iced::font::Stretch::Normal,
+            style: iced::font::Style::Normal,
+        })
         .subscription(HarborWallet::subscription)
         .run()
 }
@@ -37,7 +51,7 @@ impl Default for HarborWallet {
     }
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
     Home,
@@ -69,32 +83,22 @@ pub enum Message {
 }
 
 fn home(harbor: &HarborWallet) -> Element<Message> {
-    // TODO: figure out a way to only optionally show this
-    let failure_message = if let Some(r) = &harbor.send_failure_reason {
-        text(r).size(50).color(Color::from_rgb(255., 0., 0.))
+    let balance = text(format!("{} sats", harbor.balance)).size(64);
+    let send_button = h_button("Send", SvgIcon::UpRight).on_press(Message::Send(100));
+    let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Noop);
+    let buttons = row![send_button, receive_button].spacing(32);
+
+    let failure_message = harbor
+        .send_failure_reason
+        .as_ref()
+        .map(|r| text(r).size(50).color(Color::from_rgb(255., 0., 0.)));
+
+    let column = if let Some(failure_message) = failure_message {
+        column![balance, failure_message, buttons]
     } else {
-        text("")
+        column![balance, buttons]
     };
-    container(
-        scrollable(
-            column![
-                "Home",
-                text(harbor.balance).size(50),
-                text(format!("{:?}", harbor.send_status)).size(50),
-                failure_message,
-                row![
-                    button("Send").on_press(Message::Send(100)),
-                    button("Receive").on_press(Message::Noop)
-                ]
-                .spacing(16)
-            ]
-            .spacing(32)
-            .align_items(Alignment::Center)
-            .width(Length::Fill),
-        )
-        .height(Length::Fill),
-    )
-    .into()
+    container(center(column.spacing(32).align_items(Alignment::Center))).into()
 }
 
 fn mints(_harbor: &HarborWallet) -> Element<Message> {
@@ -208,14 +212,46 @@ impl HarborWallet {
     fn view(&self) -> Element<Message> {
         let sidebar = container(
             column![
-                button("Home").on_press(Message::Navigate(Route::Home)),
-                button("Mints").on_press(Message::Navigate(Route::Mints)),
-                button("Transfer").on_press(Message::Navigate(Route::Transfer)),
-                button("History").on_press(Message::Navigate(Route::History)),
-                button("Settings").on_press(Message::Navigate(Route::Settings)),
+                Svg::from_path("assets/harbor_logo.svg").width(167),
+                sidebar_button("Home", SvgIcon::Home, Route::Home, self.active_route)
+                    .on_press(Message::Navigate(Route::Home)),
+                sidebar_button("Mints", SvgIcon::People, Route::Mints, self.active_route)
+                    .on_press(Message::Navigate(Route::Mints)),
+                sidebar_button(
+                    "Transfer",
+                    SvgIcon::LeftRight,
+                    Route::Transfer,
+                    self.active_route
+                )
+                .on_press(Message::Navigate(Route::Transfer)),
+                sidebar_button(
+                    "History",
+                    SvgIcon::Squirrel,
+                    Route::History,
+                    self.active_route
+                )
+                .on_press(Message::Navigate(Route::History)),
+                vertical_space(),
+                sidebar_button(
+                    "Settings",
+                    SvgIcon::Settings,
+                    Route::Settings,
+                    self.active_route
+                )
+                .on_press(Message::Navigate(Route::Settings)),
             ]
-            .spacing(16),
-        );
+            .spacing(8)
+            .align_items(Alignment::Start),
+        )
+        .padding(8)
+        .style(|theme| -> Style {
+            Style {
+                text_color: None,
+                background: Some(lighten(theme.palette().background, 0.05).into()),
+                border: Border::default(),
+                shadow: Shadow::default(),
+            }
+        });
 
         let home_content = home(self);
         let mints_content = mints(self);
@@ -231,5 +267,19 @@ impl HarborWallet {
         row![sidebar, active_route]
             .align_items(Alignment::Center)
             .into()
+    }
+
+    fn theme(&self) -> iced::Theme {
+        let mutiny_red = Color::from_rgb8(250, 0, 80);
+        iced::Theme::custom(
+            String::from("Custom"),
+            iced::theme::Palette {
+                background: Color::from_rgb8(23, 23, 25),
+                primary: mutiny_red,
+                text: Color::WHITE,
+                success: Color::WHITE,
+                danger: mutiny_red,
+            },
+        )
     }
 }

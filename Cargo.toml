@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { git = "https://github.com/iced-rs/iced", rev= "b30d34f", features = ["debug", "tokio"] }
+iced = { git = "https://github.com/iced-rs/iced", rev= "b30d34f", features = ["debug", "tokio", "svg"]}
 tokio = { version = "1", features = ["full"] }
+palette = "0.7"
