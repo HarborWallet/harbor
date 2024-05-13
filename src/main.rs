@@ -1,5 +1,6 @@
 use core::run_core;
 use std::sync::Arc;
+use fedimint_core::Amount;
 
 use bridge::CoreUIMsg;
 use components::{h_button, lighten, sidebar_button, SvgIcon};
@@ -15,6 +16,7 @@ use iced::{Command, Font};
 pub mod bridge;
 pub mod components;
 pub mod core;
+pub mod conf;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
@@ -38,7 +40,7 @@ pub fn main() -> iced::Result {
 // More complicated state should be in Core, and bridged to the UI in a UI-friendly format.
 struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
-    balance: u64,
+    balance: Amount,
     active_route: Route,
     transfer_amount_str: String,
     send_status: SendStatus,
@@ -135,7 +137,7 @@ impl HarborWallet {
     fn new() -> Self {
         Self {
             ui_handle: None,
-            balance: 0,
+            balance: Amount::ZERO,
             active_route: Route::Home,
             transfer_amount_str: String::new(),
             send_status: SendStatus::Idle,

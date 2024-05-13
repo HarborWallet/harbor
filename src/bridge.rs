@@ -1,3 +1,4 @@
+use fedimint_core::Amount;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -12,7 +13,7 @@ pub enum CoreUIMsg {
     SendSuccess,
     SendFailure(String),
     ReceiveSuccess,
-    BalanceUpdated(u64),
+    BalanceUpdated(Amount),
 }
 
 #[derive(Debug)]

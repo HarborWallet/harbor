@@ -1,3 +1,4 @@
+use fedimint_core::Amount;
 use std::{sync::Arc, time::Duration};
 
 use iced::{
@@ -12,7 +13,7 @@ use crate::{
 };
 
 struct HarborCore {
-    balance: u64,
+    balance: Amount,
     tx: Sender<Message>,
     // db: TODO!! RwLock<Connection>,
 }
@@ -43,17 +44,20 @@ impl HarborCore {
         self.msg(CoreUIMsg::Sending).await;
         sleep(Duration::from_secs(1)).await;
         println!("Sending {amount}");
-        if let Some(b) = self.balance.checked_sub(amount) {
-            // Save it in our struct
-            self.balance = b;
-            // Tell the UI we did a good job
-            self.msg(CoreUIMsg::SendSuccess).await;
-            // Tell the UI the new balance
-            self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
-        } else {
+
+        let amount = Amount::from_sats(amount);
+        if amount > self.balance {
             self.msg(CoreUIMsg::SendFailure("Insufficient funds".to_string()))
                 .await;
+            return;
         }
+
+        // Save it in our struct
+        self.balance = self.balance.saturating_sub(amount);
+        // Tell the UI we did a good job
+        self.msg(CoreUIMsg::SendSuccess).await;
+        // Tell the UI the new balance
+        self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
     }
 }
 
@@ -74,7 +78,7 @@ pub fn run_core() -> Subscription<Message> {
             let arc_ui_handle = Arc::new(ui_handle);
 
             let mut core = HarborCore {
-                balance: 200,
+                balance: Amount::from_sats(200),
                 tx,
                 // TODO: add a database handle that works across async stuff
             };
