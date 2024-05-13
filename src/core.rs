@@ -74,6 +74,7 @@ impl HarborCore {
     }
 
     async fn send(&mut self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+        log::info!("Sending invoice: {invoice}");
         let lightning_module = self
             .client
             .fedimint_client
@@ -82,8 +83,6 @@ impl HarborCore {
         let gateway = select_gateway(&self.client.fedimint_client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
-
-        self.msg(CoreUIMsg::Sending).await;
 
         let outgoing = lightning_module
             .pay_bolt11_invoice(Some(gateway), invoice, ())
@@ -109,6 +108,8 @@ impl HarborCore {
                 .await;
             }
         }
+
+        log::info!("Invoice sent");
 
         Ok(())
     }
@@ -219,9 +220,13 @@ pub fn run_core() -> Subscription<Message> {
                                     core.fake_send(amount).await;
                                 }
                                 UICoreMsg::Send(invoice) => {
+                                    log::info!("Got UICoreMsg::Send");
+                                    core.msg(CoreUIMsg::Sending).await;
                                     if let Err(e) = core.send(invoice).await {
                                         error!("Error sending: {e}");
+                                        core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
                                     }
+                                    core.msg(CoreUIMsg::SendSuccess).await;
                                 }
                                 UICoreMsg::Receive(amount) => {
                                     core.msg(CoreUIMsg::ReceiveInvoiceGenerating).await;
