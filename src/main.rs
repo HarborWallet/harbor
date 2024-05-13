@@ -92,7 +92,7 @@ pub enum Message {
 fn home(harbor: &HarborWallet) -> Element<Message> {
     let balance = text(format!("{} sats", harbor.balance.sats_round_down())).size(64);
     let send_button = h_button("Send", SvgIcon::UpRight).on_press(Message::Send(100));
-    let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Noop);
+    let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Receive(100));
     let buttons = row![send_button, receive_button].spacing(32);
 
     let failure_message = harbor
