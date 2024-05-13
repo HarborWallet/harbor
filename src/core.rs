@@ -1,10 +1,10 @@
 use anyhow::anyhow;
-use bip39::Mnemonic;
 use bitcoin::Network;
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::{sync::Arc, time::Duration};
@@ -22,7 +22,7 @@ use crate::fedimint_client::{
 };
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
-    Message,
+    conf, Message,
 };
 
 struct HarborCore {
@@ -168,13 +168,20 @@ pub fn run_core() -> Subscription<Message> {
             let (ui_handle, mut core_handle) = handles;
             let arc_ui_handle = Arc::new(ui_handle);
 
+            let network = Network::Signet;
+
+            // Create the datadir if it doesn't exist
+            let path = PathBuf::from(&conf::data_dir(network));
+            std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
+
+            let mnemonic = conf::get_mnemonic(network).expect("Could not get mnemonic");
+
             // fixme, properly initialize this
-            let mnemonic = Mnemonic::from_str("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about").unwrap();
             let client = FedimintClient::new(
                 "test".to_string(),
                 InviteCode::from_str("fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er").unwrap(),
                 &mnemonic,
-                Network::Signet,
+                network,
                 Arc::new(AtomicBool::new(false)),
             )
             .await
