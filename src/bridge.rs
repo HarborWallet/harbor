@@ -15,6 +15,8 @@ pub enum CoreUIMsg {
     Sending,
     SendSuccess,
     SendFailure(String),
+    ReceiveInvoiceGenerating,
+    ReceiveInvoiceGenerated(Bolt11Invoice),
     ReceiveSuccess,
     ReceiveFailed(String),
     BalanceUpdated(Amount),

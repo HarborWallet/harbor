@@ -224,8 +224,17 @@ pub fn run_core() -> Subscription<Message> {
                                     }
                                 }
                                 UICoreMsg::Receive(amount) => {
-                                    if let Err(e) = core.receive(amount).await {
-                                        error!("Error receiving: {e}");
+                                    core.msg(CoreUIMsg::ReceiveInvoiceGenerating).await;
+                                    match core.receive(amount).await {
+                                        Err(e) => {
+                                            core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                        }
+                                        Ok(invoice) => {
+                                            core.msg(CoreUIMsg::ReceiveInvoiceGenerated(
+                                                invoice.clone(),
+                                            ))
+                                            .await;
+                                        }
                                     }
                                 }
                             }

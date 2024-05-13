@@ -20,6 +20,7 @@ pub enum SvgIcon {
     Settings,
     Squirrel,
     UpRight,
+    Copy,
 }
 
 fn map_icon(icon: SvgIcon) -> Svg<'static, Theme> {
@@ -33,6 +34,7 @@ fn map_icon(icon: SvgIcon) -> Svg<'static, Theme> {
         SvgIcon::Settings => Svg::from_path("assets/icons/settings.svg"),
         SvgIcon::Squirrel => Svg::from_path("assets/icons/squirrel.svg"),
         SvgIcon::UpRight => Svg::from_path("assets/icons/up_right.svg"),
+        SvgIcon::Copy => Svg::from_path("assets/icons/copy.svg"),
     }
 }
 
