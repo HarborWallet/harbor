@@ -1,13 +1,14 @@
 use core::run_core;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use routes::Route;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use bridge::CoreUIMsg;
 use iced::subscription::Subscription;
 use iced::widget::row;
-use iced::{program, Color};
+use iced::{clipboard, program, Color};
 use iced::{Alignment, Element};
 use iced::{Command, Font};
 
@@ -46,22 +47,16 @@ pub struct HarborWallet {
     transfer_amount_str: String,
     send_status: SendStatus,
     send_failure_reason: Option<String>,
+    receive_failure_reason: Option<String>,
+    receive_status: ReceiveStatus,
+    receive_amount_str: String,
+    receive_invoice: Option<Bolt11Invoice>,
 }
 
 impl Default for HarborWallet {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[derive(Default, PartialEq, Debug, Clone, Copy)]
-pub enum Route {
-    #[default]
-    Home,
-    Mints,
-    Transfer,
-    History,
-    Settings,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -71,6 +66,14 @@ enum SendStatus {
     Sending,
 }
 
+#[derive(Default, Debug, Clone)]
+enum ReceiveStatus {
+    #[default]
+    Idle,
+    Generating,
+    WaitingToReceive,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Setup
@@ -78,10 +81,13 @@ pub enum Message {
     // Local state changes
     Navigate(Route),
     TransferAmountChanged(String),
+    ReceiveAmountChanged(String),
+    CopyToClipboard(String),
     // Async commands we fire from the UI to core
     Noop,
     Send(u64),
     Receive(u64),
+    GenerateInvoice,
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
 }
@@ -93,8 +99,12 @@ impl HarborWallet {
             balance: Amount::ZERO,
             active_route: Route::Home,
             transfer_amount_str: String::new(),
+            receive_amount_str: String::new(),
             send_status: SendStatus::Idle,
             send_failure_reason: None,
+            receive_failure_reason: None,
+            receive_status: ReceiveStatus::Idle,
+            receive_invoice: None,
         }
     }
 
@@ -145,6 +155,10 @@ impl HarborWallet {
                 self.transfer_amount_str = amount;
                 Command::none()
             }
+            Message::ReceiveAmountChanged(amount) => {
+                self.receive_amount_str = amount;
+                Command::none()
+            }
             // Async commands we fire from the UI to core
             Message::Noop => Command::none(),
             Message::Send(_amount) => match self.send_status {
@@ -169,6 +183,27 @@ impl HarborWallet {
                     })
                 }
             },
+            Message::GenerateInvoice => match self.receive_status {
+                ReceiveStatus::Generating => Command::none(),
+                _ => {
+                    self.receive_failure_reason = None;
+                    match self.receive_amount_str.parse::<u64>() {
+                        Ok(amount) => Command::perform(
+                            Self::async_receive(self.ui_handle.clone(), amount),
+                            |_| Message::Noop,
+                        ),
+                        Err(e) => {
+                            self.receive_amount_str = String::new();
+                            eprintln!("Error parsing amount: {e}");
+                            Command::none()
+                        }
+                    }
+                }
+            },
+            Message::CopyToClipboard(s) => {
+                println!("Copying to clipboard: {s}");
+                clipboard::write(s)
+            }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg {
                 CoreUIMsg::Sending => {
@@ -195,6 +230,16 @@ impl HarborWallet {
                     self.balance = balance;
                     Command::none()
                 }
+                CoreUIMsg::ReceiveInvoiceGenerating => {
+                    self.receive_status = ReceiveStatus::Generating;
+                    Command::none()
+                }
+                CoreUIMsg::ReceiveInvoiceGenerated(invoice) => {
+                    self.receive_status = ReceiveStatus::WaitingToReceive;
+                    println!("Received invoice: {invoice}");
+                    self.receive_invoice = Some(invoice);
+                    Command::none()
+                }
             },
         }
     }
@@ -202,15 +247,12 @@ impl HarborWallet {
     fn view(&self) -> Element<Message> {
         let sidebar = crate::components::sidebar(self);
 
-        let home_content = crate::routes::home(self);
-        let mints_content = crate::routes::mints(self);
-        let transfer_content = crate::routes::transfer(self);
-
         let active_route = match self.active_route {
-            Route::Home => home_content,
-            Route::Mints => mints_content,
-            Route::Transfer => transfer_content,
-            _ => home_content,
+            Route::Home => crate::routes::home(self),
+            Route::Mints => crate::routes::mints(self),
+            Route::Transfer => crate::routes::transfer(self),
+            Route::Receive => crate::routes::receive(self),
+            _ => crate::routes::home(self),
         };
 
         row![sidebar, active_route]
