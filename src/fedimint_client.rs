@@ -10,7 +10,9 @@ use fedimint_core::api::InviteCode;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::IRawDatabaseExt;
-use fedimint_ln_client::{LightningClientInit, LightningClientModule, LnReceiveState};
+use fedimint_ln_client::{
+    InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
+};
 use fedimint_ln_common::LightningGateway;
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
@@ -192,6 +194,98 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     info!("Payment claimed");
                     sender
                         .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess))
+                        .await
+                        .unwrap();
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .await
+                        .unwrap();
+
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_invoice_payment_subscription(
+    mut sender: Sender<Message>,
+    client: ClientHandleArc,
+    subscription: UpdateStreamOrOutcome<LnPayState>,
+) {
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                LnPayState::Canceled => {
+                    error!("Payment canceled");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(
+                            "Canceled".to_string(),
+                        )))
+                        .await
+                        .unwrap();
+                }
+                LnPayState::UnexpectedError { error_message } => {
+                    error!("Unexpected payment error: {:?}", error_message);
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(error_message)))
+                        .await
+                        .unwrap();
+                }
+                LnPayState::Success { preimage: _ } => {
+                    info!("Payment success");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess))
+                        .await
+                        .unwrap();
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .await
+                        .unwrap();
+
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_internal_payment_subscription(
+    mut sender: Sender<Message>,
+    client: ClientHandleArc,
+    subscription: UpdateStreamOrOutcome<InternalPayState>,
+) {
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                InternalPayState::FundingFailed { error } => {
+                    error!("Funding failed: {error:?}");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
+                            error.to_string(),
+                        )))
+                        .await
+                        .unwrap();
+                }
+                InternalPayState::UnexpectedError(error_message) => {
+                    error!("Unexpected payment error: {error_message:?}");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(error_message)))
+                        .await
+                        .unwrap();
+                }
+                InternalPayState::Preimage(_preimage) => {
+                    info!("Payment success");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess))
                         .await
                         .unwrap();
 

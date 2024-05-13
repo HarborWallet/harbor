@@ -1,10 +1,12 @@
 use fedimint_core::Amount;
+use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub enum UICoreMsg {
     Test(u64),
-    Send(u64),
+    FakeSend(u64),
+    Send(Bolt11Invoice),
     Receive(u64),
 }
 
@@ -34,8 +36,12 @@ impl UIHandle {
         self.ui_to_core_tx.send(msg).await.unwrap();
     }
 
-    pub async fn send(&self, amount: u64) {
-        self.msg_send(UICoreMsg::Send(amount)).await;
+    pub async fn fake_send(&self, amount: u64) {
+        self.msg_send(UICoreMsg::FakeSend(amount)).await;
+    }
+
+    pub async fn send(&self, invoice: Bolt11Invoice) {
+        self.msg_send(UICoreMsg::Send(invoice)).await;
     }
 
     pub async fn receive(&self, amount: u64) {

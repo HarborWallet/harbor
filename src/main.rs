@@ -1,6 +1,8 @@
 use core::run_core;
-use std::sync::Arc;
 use fedimint_core::Amount;
+use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use std::str::FromStr;
+use std::sync::Arc;
 
 use bridge::CoreUIMsg;
 use components::{h_button, lighten, sidebar_button, SvgIcon};
@@ -15,8 +17,8 @@ use iced::{Command, Font};
 
 pub mod bridge;
 pub mod components;
-pub mod core;
 pub mod conf;
+pub mod core;
 mod fedimint_client;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
@@ -153,9 +155,17 @@ impl HarborWallet {
     }
 
     // We can't use self in these async functions because lifetimes are hard
-    async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
+    async fn async_fake_send(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().send(amount).await;
+            ui_handle.clone().fake_send(amount).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, invoice: Bolt11Invoice) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().send(invoice).await;
         } else {
             panic!("UI handle is None");
         }
@@ -188,11 +198,13 @@ impl HarborWallet {
             }
             // Async commands we fire from the UI to core
             Message::Noop => Command::none(),
-            Message::Send(amount) => match self.send_status {
+            Message::Send(_amount) => match self.send_status {
                 SendStatus::Sending => Command::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    Command::perform(Self::async_send(self.ui_handle.clone(), amount), |_| {
+                    // todo get invoice from user
+                    let invoice = Bolt11Invoice::from_str("lntbs900n1pnyylm5pp57p3w5ll63xpc5zw4sff87vcgr46xnxnftkyye44q4e3px6uf97vshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5npd8xwtuwz80ppvrpfps0eyzw3y80h5vymf86mxkyw8psaaxkcnq9qyyssqs6ylfjhcpyx5epj80ynzw56c6wcrckl57jtt6uzf83wjd8uw7mypyl9qf7h6gfehkh08vy0kq7ktzfjds859jfh0eafpflz9j8vgnusp0fj0np").unwrap();
+                    Command::perform(Self::async_send(self.ui_handle.clone(), invoice), |_| {
                         // I don't know if this is the best way to do this but we don't really know anyting after we've fired the message
                         Message::Noop
                     })

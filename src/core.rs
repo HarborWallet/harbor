@@ -1,10 +1,9 @@
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::Network;
-use fedimint_client::module::IClientModule;
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
-use fedimint_ln_client::LightningClientModule;
+use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -17,7 +16,10 @@ use iced::{
 use log::error;
 use tokio::time::sleep;
 
-use crate::fedimint_client::{select_gateway, spawn_invoice_subscription, FedimintClient};
+use crate::fedimint_client::{
+    select_gateway, spawn_internal_payment_subscription, spawn_invoice_payment_subscription,
+    spawn_invoice_receive_subscription, FedimintClient,
+};
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
     Message,
@@ -69,6 +71,46 @@ impl HarborCore {
         self.msg(CoreUIMsg::SendSuccess).await;
         // Tell the UI the new balance
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
+    }
+
+    async fn send(&mut self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+        let lightning_module = self
+            .client
+            .fedimint_client
+            .get_first_module::<LightningClientModule>();
+
+        let gateway = select_gateway(&self.client.fedimint_client)
+            .await
+            .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
+
+        self.msg(CoreUIMsg::Sending).await;
+
+        let outgoing = lightning_module
+            .pay_bolt11_invoice(Some(gateway), invoice, ())
+            .await?;
+
+        match outgoing.payment_type {
+            PayType::Internal(op_id) => {
+                let sub = lightning_module.subscribe_internal_pay(op_id).await?;
+                spawn_internal_payment_subscription(
+                    self.tx.clone(),
+                    self.client.fedimint_client.clone(),
+                    sub,
+                )
+                .await;
+            }
+            PayType::Lightning(op_id) => {
+                let sub = lightning_module.subscribe_ln_pay(op_id).await?;
+                spawn_invoice_payment_subscription(
+                    self.tx.clone(),
+                    self.client.fedimint_client.clone(),
+                    sub,
+                )
+                .await;
+            }
+        }
+
+        Ok(())
     }
 
     async fn receive(&self, amount: u64) -> anyhow::Result<Bolt11Invoice> {
@@ -166,12 +208,17 @@ pub fn run_core() -> Subscription<Message> {
                                 UICoreMsg::Test(counter) => {
                                     println!("{counter}");
                                 }
-                                UICoreMsg::Send(amount) => {
+                                UICoreMsg::FakeSend(amount) => {
                                     core.fake_send(amount).await;
+                                }
+                                UICoreMsg::Send(invoice) => {
+                                    if let Err(e) = core.send(invoice).await {
+                                        error!("Error sending: {e}");
+                                    }
                                 }
                                 UICoreMsg::Receive(amount) => {
                                     if let Err(e) = core.receive(amount).await {
-                                        error!("Error receiving: {}", e);
+                                        error!("Error receiving: {e}");
                                     }
                                 }
                             }
