@@ -253,6 +253,10 @@ impl HarborWallet {
                     self.receive_invoice = Some(invoice);
                     Command::none()
                 }
+                CoreUIMsg::AddFederationFailed(_) => {
+                    // todo show error
+                    Command::none()
+                }
             },
         }
     }

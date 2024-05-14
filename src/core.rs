@@ -1,9 +1,12 @@
 use anyhow::anyhow;
+use bip39::Mnemonic;
 use bitcoin::Network;
 use fedimint_core::api::InviteCode;
+use fedimint_core::config::FederationId;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -14,6 +17,7 @@ use iced::{
     subscription::{self, Subscription},
 };
 use log::error;
+use tokio::sync::RwLock;
 use tokio::time::sleep;
 
 use crate::{
@@ -31,8 +35,11 @@ use crate::{
 
 struct HarborCore {
     balance: Amount,
+    network: Network,
+    mnemonic: Mnemonic,
     tx: Sender<Message>,
-    client: FedimintClient, // todo multiple clients
+    clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+    stop: Arc<AtomicBool>,
 }
 
 impl HarborCore {
@@ -77,14 +84,17 @@ impl HarborCore {
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
     }
 
-    async fn send(&mut self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
-        log::info!("Sending invoice: {invoice}");
-        let lightning_module = self
-            .client
-            .fedimint_client
-            .get_first_module::<LightningClientModule>();
+    // todo for now just use the first client, but eventually we'll want to have a way to select a client
+    async fn get_client(&self) -> FedimintClient {
+        self.clients.read().await.values().next().unwrap().clone()
+    }
 
-        let gateway = select_gateway(&self.client.fedimint_client)
+    async fn send(&self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+        // todo go through all clients and select the first one that has enough balance
+        let client = self.get_client().await.fedimint_client;
+        let lightning_module = client.get_first_module::<LightningClientModule>();
+
+        let gateway = select_gateway(&client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
 
@@ -95,21 +105,11 @@ impl HarborCore {
         match outgoing.payment_type {
             PayType::Internal(op_id) => {
                 let sub = lightning_module.subscribe_internal_pay(op_id).await?;
-                spawn_internal_payment_subscription(
-                    self.tx.clone(),
-                    self.client.fedimint_client.clone(),
-                    sub,
-                )
-                .await;
+                spawn_internal_payment_subscription(self.tx.clone(), client.clone(), sub).await;
             }
             PayType::Lightning(op_id) => {
                 let sub = lightning_module.subscribe_ln_pay(op_id).await?;
-                spawn_invoice_payment_subscription(
-                    self.tx.clone(),
-                    self.client.fedimint_client.clone(),
-                    sub,
-                )
-                .await;
+                spawn_invoice_payment_subscription(self.tx.clone(), client.clone(), sub).await;
             }
         }
 
@@ -119,12 +119,10 @@ impl HarborCore {
     }
 
     async fn receive(&self, amount: u64) -> anyhow::Result<Bolt11Invoice> {
-        let lightning_module = self
-            .client
-            .fedimint_client
-            .get_first_module::<LightningClientModule>();
+        let client = self.get_client().await.fedimint_client;
+        let lightning_module = client.get_first_module::<LightningClientModule>();
 
-        let gateway = select_gateway(&self.client.fedimint_client)
+        let gateway = select_gateway(&client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
 
@@ -143,17 +141,31 @@ impl HarborCore {
 
         // Create subscription to operation if it exists
         if let Ok(subscription) = lightning_module.subscribe_ln_receive(op_id).await {
-            spawn_invoice_receive_subscription(
-                self.tx.clone(),
-                self.client.fedimint_client.clone(),
-                subscription,
-            )
-            .await;
+            spawn_invoice_receive_subscription(self.tx.clone(), client.clone(), subscription).await;
         } else {
             error!("Could not create subscription to lightning receive");
         }
 
         Ok(invoice)
+    }
+
+    async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
+        let id = invite_code.federation_id();
+
+        let mut clients = self.clients.write().await;
+        if clients.get(&id).is_some() {
+            return Err(anyhow!("Federation already added"));
+        }
+
+        let client =
+            FedimintClient::new(invite_code, &self.mnemonic, self.network, self.stop.clone())
+                .await?;
+
+        clients.insert(client.fedimint_client.federation_id(), client);
+
+        // todo add to database
+
+        Ok(())
     }
 }
 
@@ -169,8 +181,7 @@ pub fn run_core() -> Subscription<Message> {
             }
             let mut state = State::NeedsInit;
 
-            let handles = bridge::create_handles();
-            let (ui_handle, mut core_handle) = handles;
+            let (ui_handle, mut core_handle) = bridge::create_handles();
             let arc_ui_handle = Arc::new(ui_handle);
 
             let network = Network::Signet;
@@ -190,24 +201,33 @@ pub fn run_core() -> Subscription<Message> {
 
             let mnemonic = get_mnemonic(db).expect("should get seed");
 
+            let stop = Arc::new(AtomicBool::new(false));
+
             // fixme, properly initialize this
             let client = FedimintClient::new(
-                "test".to_string(),
                 InviteCode::from_str("fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er").unwrap(),
                 &mnemonic,
                 network,
-                Arc::new(AtomicBool::new(false)),
+                stop.clone(),
             )
             .await
             .expect("Could not create fedimint client");
 
-            let balance = client.fedimint_client.get_balance().await;
+            let mut clients = HashMap::new();
+            clients.insert(client.fedimint_client.federation_id(), client);
+
+            let mut balance = Amount::ZERO;
+            for client in clients.values() {
+                balance += client.fedimint_client.get_balance().await;
+            }
 
             let mut core = HarborCore {
                 balance,
                 tx,
-                // TODO: add a database handle that works across async stuff
-                client,
+                mnemonic,
+                network,
+                clients: Arc::new(RwLock::new(clients)),
+                stop,
             };
 
             loop {
@@ -253,6 +273,13 @@ pub fn run_core() -> Subscription<Message> {
                                             ))
                                             .await;
                                         }
+                                    }
+                                }
+                                UICoreMsg::AddFederation(invite_code) => {
+                                    if let Err(e) = core.add_federation(invite_code).await {
+                                        error!("Error adding federation: {e}");
+                                        core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
+                                            .await;
                                     }
                                 }
                             }

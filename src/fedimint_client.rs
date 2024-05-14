@@ -19,7 +19,7 @@ use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::spawn;
@@ -27,24 +27,20 @@ use tokio::spawn;
 #[derive(Debug, Clone)]
 #[allow(unused)] // TODO: remove
 pub(crate) struct FedimintClient {
-    pub(crate) uuid: String,
     pub(crate) fedimint_client: ClientHandleArc,
     invite_code: InviteCode,
     stop: Arc<AtomicBool>,
 }
 
 impl FedimintClient {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
-        uuid: String,
-        federation_code: InviteCode,
+        invite_code: InviteCode,
         mnemonic: &Mnemonic,
         network: Network,
         stop: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
-        info!("initializing a new federation client: {uuid}");
-
-        let federation_id = federation_code.federation_id();
+        let federation_id = invite_code.federation_id();
+        info!("initializing a new federation client: {federation_id}");
 
         trace!("Building fedimint client db");
         // todo use a real db
@@ -72,7 +68,7 @@ impl FedimintClient {
                 })?
         } else {
             let download = Instant::now();
-            let config = ClientConfig::download_from_invite_code(&federation_code)
+            let config = ClientConfig::download_from_invite_code(&invite_code)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");
@@ -109,6 +105,7 @@ impl FedimintClient {
 
         // Update gateway cache in background
         let client_clone = fedimint_client.clone();
+        let stop_clone = stop.clone();
         spawn(async move {
             let start = Instant::now();
             let lightning_module = client_clone.get_first_module::<LightningClientModule>();
@@ -123,17 +120,26 @@ impl FedimintClient {
             }
 
             trace!(
-                "Setting active gateway took: {}ms",
+                "Updating gateway cache took: {}ms",
                 start.elapsed().as_millis()
             );
+
+            // continually update gateway cache
+            loop {
+                lightning_module
+                    .update_gateway_cache_continuously(|g| async { g })
+                    .await;
+                if stop_clone.load(Ordering::Relaxed) {
+                    break;
+                }
+            }
         });
 
         debug!("Built fedimint client");
 
         Ok(FedimintClient {
-            uuid,
             fedimint_client,
-            invite_code: federation_code,
+            invite_code,
             stop,
         })
     }
@@ -141,8 +147,9 @@ impl FedimintClient {
 
 pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<LightningGateway> {
     let ln = client.get_first_module::<LightningClientModule>();
-    let mut selected_gateway = None;
-    for gateway in ln.list_gateways().await {
+    let gateways = ln.list_gateways().await;
+    let mut selected_gateway: Option<LightningGateway> = None;
+    for gateway in gateways.iter() {
         // first try to find a vetted gateway
         if gateway.vetted {
             // if we can select the gateway, return it
@@ -155,14 +162,17 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
         let fees = gateway.info.fees;
         if fees.base_msat >= 1_000 && fees.proportional_millionths >= 100 {
             if let Some(g) = ln.select_gateway(&gateway.info.gateway_id).await {
-                selected_gateway = Some(g);
+                // only select gateways that support private payments, unless we don't have a gateway
+                if g.supports_private_payments || selected_gateway.is_none() {
+                    selected_gateway = Some(g);
+                }
             }
         }
     }
 
     // if no gateway found, just select the first one we can find
     if selected_gateway.is_none() {
-        for gateway in ln.list_gateways().await {
+        for gateway in gateways {
             if let Some(g) = ln.select_gateway(&gateway.info.gateway_id).await {
                 selected_gateway = Some(g);
                 break;

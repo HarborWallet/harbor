@@ -1,4 +1,5 @@
 use fedimint_core::Amount;
+use fedimint_core::api::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;
 
@@ -8,6 +9,7 @@ pub enum UICoreMsg {
     FakeSend(u64),
     Send(Bolt11Invoice),
     Receive(u64),
+    AddFederation(InviteCode),
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +22,7 @@ pub enum CoreUIMsg {
     ReceiveSuccess,
     ReceiveFailed(String),
     BalanceUpdated(Amount),
+    AddFederationFailed(String),
 }
 
 #[derive(Debug)]
