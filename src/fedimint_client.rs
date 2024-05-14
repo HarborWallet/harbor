@@ -141,8 +141,9 @@ impl FedimintClient {
 
 pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<LightningGateway> {
     let ln = client.get_first_module::<LightningClientModule>();
-    let mut selected_gateway = None;
-    for gateway in ln.list_gateways().await {
+    let gateways = ln.list_gateways().await;
+    let mut selected_gateway: Option<LightningGateway> = None;
+    for gateway in gateways.iter() {
         // first try to find a vetted gateway
         if gateway.vetted {
             // if we can select the gateway, return it
@@ -155,14 +156,17 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
         let fees = gateway.info.fees;
         if fees.base_msat >= 1_000 && fees.proportional_millionths >= 100 {
             if let Some(g) = ln.select_gateway(&gateway.info.gateway_id).await {
-                selected_gateway = Some(g);
+                // only select gateways that support private payments, unless we don't have a gateway
+                if g.supports_private_payments || selected_gateway.is_none() {
+                    selected_gateway = Some(g);
+                }
             }
         }
     }
 
     // if no gateway found, just select the first one we can find
     if selected_gateway.is_none() {
-        for gateway in ln.list_gateways().await {
+        for gateway in gateways {
             if let Some(g) = ln.select_gateway(&gateway.info.gateway_id).await {
                 selected_gateway = Some(g);
                 break;
