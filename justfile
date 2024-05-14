@@ -5,7 +5,7 @@ set dotenv-load := true
 FEATURE_FLAG := if env('USE_VENDOR_FEATURE', '0') == "1" { "--features vendored" } else { "" }
 
 run:
-    RUST_LOG=harbor=debug,info,iced_wgpu=error,wgpu_core=error cargo run {{FEATURE_FLAG}}
+    RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo run {{FEATURE_FLAG}}
 
 test:
     cargo test {{FEATURE_FLAG}}
