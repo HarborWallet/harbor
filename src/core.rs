@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use bip39::Mnemonic;
 use bitcoin::Network;
 use fedimint_core::api::InviteCode;
 use fedimint_core::config::FederationId;
@@ -34,8 +35,11 @@ use crate::{
 
 struct HarborCore {
     balance: Amount,
+    network: Network,
+    mnemonic: Mnemonic,
     tx: Sender<Message>,
     clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+    stop: Arc<AtomicBool>,
 }
 
 impl HarborCore {
@@ -144,6 +148,25 @@ impl HarborCore {
 
         Ok(invoice)
     }
+
+    async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
+        let id = invite_code.federation_id();
+
+        let mut clients = self.clients.write().await;
+        if clients.get(&id).is_some() {
+            return Err(anyhow!("Federation already added"));
+        }
+
+        let client =
+            FedimintClient::new(invite_code, &self.mnemonic, self.network, self.stop.clone())
+                .await?;
+
+        clients.insert(client.fedimint_client.federation_id(), client);
+
+        // todo add to database
+
+        Ok(())
+    }
 }
 
 pub fn run_core() -> Subscription<Message> {
@@ -178,12 +201,14 @@ pub fn run_core() -> Subscription<Message> {
 
             let mnemonic = get_mnemonic(db).expect("should get seed");
 
+            let stop = Arc::new(AtomicBool::new(false));
+
             // fixme, properly initialize this
             let client = FedimintClient::new(
                 InviteCode::from_str("fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er").unwrap(),
                 &mnemonic,
                 network,
-                Arc::new(AtomicBool::new(false)),
+                stop.clone(),
             )
             .await
             .expect("Could not create fedimint client");
@@ -199,7 +224,10 @@ pub fn run_core() -> Subscription<Message> {
             let mut core = HarborCore {
                 balance,
                 tx,
+                mnemonic,
+                network,
                 clients: Arc::new(RwLock::new(clients)),
+                stop,
             };
 
             loop {
@@ -245,6 +273,13 @@ pub fn run_core() -> Subscription<Message> {
                                             ))
                                             .await;
                                         }
+                                    }
+                                }
+                                UICoreMsg::AddFederation(invite_code) => {
+                                    if let Err(e) = core.add_federation(invite_code).await {
+                                        error!("Error adding federation: {e}");
+                                        core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
+                                            .await;
                                     }
                                 }
                             }
