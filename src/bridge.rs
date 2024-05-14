@@ -1,4 +1,4 @@
-use bitcoin::Txid;
+use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -8,6 +8,8 @@ use tokio::sync::mpsc;
 pub enum UICoreMsg {
     SendLightning(Bolt11Invoice),
     ReceiveLightning(Amount),
+    SendOnChain { address: Address, amount_sats: u64 },
+    ReceiveOnChain,
     AddFederation(InviteCode),
     Unlock(String),
 }
@@ -29,8 +31,9 @@ pub enum CoreUIMsg {
     Sending,
     SendSuccess(SendSuccessMsg),
     SendFailure(String),
-    ReceiveInvoiceGenerating,
+    ReceiveGenerating,
     ReceiveInvoiceGenerated(Bolt11Invoice),
+    ReceiveAddressGenerated(Address),
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
     BalanceUpdated(Amount),
@@ -61,9 +64,21 @@ impl UIHandle {
         self.msg_send(UICoreMsg::SendLightning(invoice)).await;
     }
 
+    pub async fn send_onchain(&self, address: Address, amount_sats: u64) {
+        self.msg_send(UICoreMsg::SendOnChain {
+            address,
+            amount_sats,
+        })
+        .await;
+    }
+
     pub async fn receive(&self, amount: u64) {
         self.msg_send(UICoreMsg::ReceiveLightning(Amount::from_sats(amount)))
             .await;
+    }
+
+    pub async fn receive_onchain(&self) {
+        self.msg_send(UICoreMsg::ReceiveOnChain).await;
     }
 
     pub async fn unlock(&self, password: String) {

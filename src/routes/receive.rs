@@ -7,7 +7,13 @@ use crate::components::{h_button, h_header, h_input, SvgIcon};
 use crate::{HarborWallet, Message};
 
 pub fn receive(harbor: &HarborWallet) -> Element<Message> {
-    let column = if let Some(invoice) = harbor.receive_invoice.as_ref() {
+    let receive_string = harbor
+        .receive_invoice
+        .as_ref()
+        .map(|i| i.to_string())
+        .or_else(|| harbor.receive_address.as_ref().map(|a| a.to_string()));
+
+    let column = if let Some(string) = receive_string {
         let header = h_header("Receive", "Scan this QR or copy the string.");
 
         let data = harbor.receive_qr_data.as_ref().unwrap();
@@ -24,14 +30,14 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             ..Style::default()
         });
 
-        let first_ten_chars = invoice.to_string().chars().take(10).collect::<String>();
+        let first_ten_chars = string.chars().take(10).collect::<String>();
 
         column![
             header,
             qr_container,
             text(format!("{first_ten_chars}...")).size(16),
             h_button("Copy to clipboard", SvgIcon::Copy)
-                .on_press(Message::CopyToClipboard(invoice.to_string())),
+                .on_press(Message::CopyToClipboard(string)),
         ]
     } else {
         let header = h_header("Receive", "Receive on-chain or via lightning.");
@@ -50,7 +56,10 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
         let generate_button =
             h_button("Generate Invoice", SvgIcon::DownLeft).on_press(Message::GenerateInvoice);
 
-        column![header, amount_input, generate_button]
+        let generate_address_button =
+            h_button("Generate Address", SvgIcon::Squirrel).on_press(Message::GenerateAddress);
+
+        column![header, amount_input, generate_button, generate_address_button]
     };
 
     container(scrollable(

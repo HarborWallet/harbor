@@ -22,7 +22,7 @@ use fedimint_ln_client::{
 };
 use fedimint_ln_common::LightningGateway;
 use fedimint_mint_client::MintClientInit;
-use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
+use fedimint_wallet_client::{DepositState, WalletClientInit, WalletClientModule, WithdrawState};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
@@ -329,6 +329,95 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     break;
                 }
                 _ => {}
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_onchain_payment_subscription(
+    mut sender: Sender<Message>,
+    client: ClientHandleArc,
+    subscription: UpdateStreamOrOutcome<WithdrawState>,
+) {
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                WithdrawState::Created => {}
+                WithdrawState::Failed(error) => {
+                    error!("Onchain payment failed: {error:?}");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(
+                            error.to_string(),
+                        )))
+                        .await
+                        .unwrap();
+                    break;
+                }
+                WithdrawState::Succeeded(txid) => {
+                    info!("Onchain payment success: {txid}");
+                    let params = SendSuccessMsg::Onchain { txid };
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
+                        .await
+                        .unwrap();
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .await
+                        .unwrap();
+
+                    break;
+                }
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_onchain_receive_subscription(
+    mut sender: Sender<Message>,
+    client: ClientHandleArc,
+    subscription: UpdateStreamOrOutcome<DepositState>,
+) {
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                DepositState::WaitingForTransaction => {}
+                DepositState::Failed(error) => {
+                    error!("Onchain receive failed: {error:?}");
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
+                            error.to_string(),
+                        )))
+                        .await
+                        .unwrap();
+                    break;
+                }
+                DepositState::WaitingForConfirmation(data) => {
+                    info!("Onchain receive waiting for confirmation: {data:?}");
+                    let params = ReceiveSuccessMsg::Onchain {
+                        txid: data.btc_transaction.txid(),
+                    };
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess(params)))
+                        .await
+                        .unwrap();
+                }
+                DepositState::Confirmed(data) => {
+                    info!("Onchain receive confirmed: {data:?}");
+                }
+                DepositState::Claimed(data) => {
+                    info!("Onchain receive claimed: {data:?}");
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .await
+                        .unwrap();
+
+                    break;
+                }
             }
         }
     });
