@@ -11,6 +11,7 @@ use iced::widget::row;
 use iced::Element;
 use iced::{clipboard, program, Color};
 use iced::{Command, Font};
+use log::info;
 
 pub mod bridge;
 pub mod components;
@@ -133,16 +134,6 @@ impl HarborWallet {
         run_core()
     }
 
-    // We can't use self in these async functions because lifetimes are hard
-    #[allow(dead_code)] // TODO: remove
-    async fn async_fake_send(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
-        if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().fake_send(amount).await;
-        } else {
-            panic!("UI handle is None");
-        }
-    }
-
     async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, invoice: Bolt11Invoice) {
         println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
@@ -260,7 +251,8 @@ impl HarborWallet {
                     self.send_status = SendStatus::Sending;
                     Command::none()
                 }
-                CoreUIMsg::SendSuccess => {
+                CoreUIMsg::SendSuccess(params) => {
+                    info!("Send success: {params:?}");
                     self.send_status = SendStatus::Idle;
                     Command::none()
                 }
@@ -269,11 +261,14 @@ impl HarborWallet {
                     self.send_failure_reason = Some(reason);
                     Command::none()
                 }
-                CoreUIMsg::ReceiveSuccess => Command::none(),
+                CoreUIMsg::ReceiveSuccess(params) => {
+                    info!("Receive success: {params:?}");
+                    self.receive_status = ReceiveStatus::Idle;
+                    Command::none()
+                },
                 CoreUIMsg::ReceiveFailed(reason) => {
-                    // todo use receive failure reason
-                    self.send_status = SendStatus::Idle;
-                    self.send_failure_reason = Some(reason);
+                    self.receive_status = ReceiveStatus::Idle;
+                    self.receive_failure_reason = Some(reason);
                     Command::none()
                 }
                 CoreUIMsg::BalanceUpdated(balance) => {

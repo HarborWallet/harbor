@@ -1,3 +1,4 @@
+use bitcoin::Txid;
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -5,22 +6,32 @@ use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub enum UICoreMsg {
-    Test(u64),
-    FakeSend(u64),
-    Send(Bolt11Invoice),
-    Receive(u64),
+    SendLightning(Bolt11Invoice),
+    ReceiveLightning(Amount),
     AddFederation(InviteCode),
     Unlock(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SendSuccessMsg {
+    Lightning { preimage: [u8; 32] },
+    Onchain { txid: Txid },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReceiveSuccessMsg {
+    Lightning,
+    Onchain { txid: Txid },
 }
 
 #[derive(Debug, Clone)]
 pub enum CoreUIMsg {
     Sending,
-    SendSuccess,
+    SendSuccess(SendSuccessMsg),
     SendFailure(String),
     ReceiveInvoiceGenerating,
     ReceiveInvoiceGenerated(Bolt11Invoice),
-    ReceiveSuccess,
+    ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
     BalanceUpdated(Amount),
     AddFederationFailed(String),
@@ -45,16 +56,12 @@ impl UIHandle {
         self.ui_to_core_tx.send(msg).await.unwrap();
     }
 
-    pub async fn fake_send(&self, amount: u64) {
-        self.msg_send(UICoreMsg::FakeSend(amount)).await;
-    }
-
     pub async fn send(&self, invoice: Bolt11Invoice) {
-        self.msg_send(UICoreMsg::Send(invoice)).await;
+        self.msg_send(UICoreMsg::SendLightning(invoice)).await;
     }
 
     pub async fn receive(&self, amount: u64) {
-        self.msg_send(UICoreMsg::Receive(amount)).await;
+        self.msg_send(UICoreMsg::ReceiveLightning(Amount::from_sats(amount))).await;
     }
 
     pub async fn unlock(&self, password: String) {

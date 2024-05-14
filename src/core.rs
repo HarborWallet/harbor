@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -18,7 +18,6 @@ use iced::{
 };
 use log::error;
 use tokio::sync::RwLock;
-use tokio::time::sleep;
 
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
@@ -64,32 +63,12 @@ impl HarborCore {
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
     }
 
-    async fn fake_send(&mut self, amount: u64) {
-        self.msg(CoreUIMsg::Sending).await;
-        sleep(Duration::from_secs(1)).await;
-        println!("Sending {amount}");
-
-        let amount = Amount::from_sats(amount);
-        if amount > self.balance {
-            self.msg(CoreUIMsg::SendFailure("Insufficient funds".to_string()))
-                .await;
-            return;
-        }
-
-        // Save it in our struct
-        self.balance = self.balance.saturating_sub(amount);
-        // Tell the UI we did a good job
-        self.msg(CoreUIMsg::SendSuccess).await;
-        // Tell the UI the new balance
-        self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
-    }
-
     // todo for now just use the first client, but eventually we'll want to have a way to select a client
     async fn get_client(&self) -> FedimintClient {
         self.clients.read().await.values().next().unwrap().clone()
     }
 
-    async fn send(&self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+    async fn send_lightning(&self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client().await.fedimint_client;
         let lightning_module = client.get_first_module::<LightningClientModule>();
@@ -118,7 +97,7 @@ impl HarborCore {
         Ok(())
     }
 
-    async fn receive(&self, amount: u64) -> anyhow::Result<Bolt11Invoice> {
+    async fn receive_lightning(&self, amount: Amount) -> anyhow::Result<Bolt11Invoice> {
         let client = self.get_client().await.fedimint_client;
         let lightning_module = client.get_first_module::<LightningClientModule>();
 
@@ -129,7 +108,7 @@ impl HarborCore {
         let desc = Description::new(String::new()).expect("empty string is valid");
         let (op_id, invoice, _) = lightning_module
             .create_bolt11_invoice(
-                Amount::from_sats(amount),
+                amount,
                 Bolt11InvoiceDescription::Direct(&desc),
                 None,
                 (),
@@ -221,7 +200,7 @@ pub fn run_core() -> Subscription<Message> {
                 balance += client.fedimint_client.get_balance().await;
             }
 
-            let mut core = HarborCore {
+            let core = HarborCore {
                 balance,
                 tx,
                 mnemonic,
@@ -246,24 +225,17 @@ pub fn run_core() -> Subscription<Message> {
 
                         if let Some(msg) = msg {
                             match msg {
-                                UICoreMsg::Test(counter) => {
-                                    println!("{counter}");
-                                }
-                                UICoreMsg::FakeSend(amount) => {
-                                    core.fake_send(amount).await;
-                                }
-                                UICoreMsg::Send(invoice) => {
+                                UICoreMsg::SendLightning(invoice) => {
                                     log::info!("Got UICoreMsg::Send");
                                     core.msg(CoreUIMsg::Sending).await;
-                                    if let Err(e) = core.send(invoice).await {
+                                    if let Err(e) = core.send_lightning(invoice).await {
                                         error!("Error sending: {e}");
                                         core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
                                     }
-                                    core.msg(CoreUIMsg::SendSuccess).await;
                                 }
-                                UICoreMsg::Receive(amount) => {
+                                UICoreMsg::ReceiveLightning(amount) => {
                                     core.msg(CoreUIMsg::ReceiveInvoiceGenerating).await;
-                                    match core.receive(amount).await {
+                                    match core.receive_lightning(amount).await {
                                         Err(e) => {
                                             core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
                                         }
