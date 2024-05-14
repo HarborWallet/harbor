@@ -12,6 +12,8 @@ use iced::Element;
 use iced::{clipboard, program, Color};
 use iced::{Command, Font};
 
+use crate::components::focus_input_id;
+
 pub mod bridge;
 pub mod components;
 pub mod conf;
@@ -49,7 +51,8 @@ pub struct HarborWallet {
     transfer_amount_str: String,
     send_status: SendStatus,
     send_failure_reason: Option<String>,
-    send_input_str: String,
+    send_dest_input_str: String,
+    send_amount_input_str: String,
     password_input_str: String,
     unlock_status: UnlockStatus,
     unlock_failure_reason: Option<String>,
@@ -96,7 +99,8 @@ pub enum Message {
     Navigate(Route),
     TransferAmountChanged(String),
     ReceiveAmountChanged(String),
-    SendInputChanged(String),
+    SendDestInputChanged(String),
+    SendAmountInputChanged(String),
     PasswordInputChanged(String),
     CopyToClipboard(String),
     // Async commands we fire from the UI to core
@@ -117,7 +121,8 @@ impl HarborWallet {
             active_route: Route::Unlock,
             transfer_amount_str: String::new(),
             receive_amount_str: String::new(),
-            send_input_str: String::new(),
+            send_dest_input_str: String::new(),
+            send_amount_input_str: String::new(),
             send_status: SendStatus::Idle,
             send_failure_reason: None,
             unlock_status: UnlockStatus::Locked,
@@ -175,7 +180,11 @@ impl HarborWallet {
             Message::CoreLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
-                Command::none()
+
+                focus_input_id("password_unlock_input")
+
+                // Command::none()
+                // Mess
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
@@ -190,8 +199,12 @@ impl HarborWallet {
                 self.receive_amount_str = amount;
                 Command::none()
             }
-            Message::SendInputChanged(input) => {
-                self.send_input_str = input;
+            Message::SendDestInputChanged(input) => {
+                self.send_dest_input_str = input;
+                Command::none()
+            }
+            Message::SendAmountInputChanged(input) => {
+                self.send_amount_input_str = input;
                 Command::none()
             }
             Message::PasswordInputChanged(input) => {
@@ -320,7 +333,7 @@ impl HarborWallet {
             Route::Home => row![sidebar, crate::routes::home(self)].into(),
             Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
-            _ => row![crate::routes::home(self)].into(),
+            _ => row![sidebar, crate::routes::home(self)].into(),
         };
 
         active_route

@@ -1,5 +1,5 @@
-use crate::components::{h_button, SvgIcon};
-use iced::widget::{center, column, container, text_input, Svg};
+use crate::components::{h_button, h_input, SvgIcon};
+use iced::widget::{center, column, container, Svg};
 use iced::{Alignment, Element, Length};
 
 use crate::{HarborWallet, Message};
@@ -10,8 +10,16 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
         .on_press(Message::Unlock(harbor.password_input_str.clone()))
         .width(Length::Fill);
 
-    let password_input =
-        text_input("password", &harbor.password_input_str).on_input(Message::PasswordInputChanged);
+    let password_input = h_input(
+        "Password",
+        "",
+        &harbor.password_input_str,
+        Message::PasswordInputChanged,
+        Message::Unlock(harbor.password_input_str.clone()),
+        true,
+        Some("password_unlock_input"),
+        None,
+    );
 
     let harbor_logo = Svg::from_path("assets/harbor_logo.svg")
         .width(167)

@@ -9,3 +9,6 @@ pub use sidebar::*;
 
 mod icon;
 pub use icon::*;
+
+mod input;
+pub use input::*;
