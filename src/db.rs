@@ -9,10 +9,14 @@ use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub(crate) fn setup_db(url: &str, password: String) -> Arc<dyn DBConnection + Send + Sync> {
+pub(crate) fn setup_db(
+    url: &str,
+    password: String,
+) -> anyhow::Result<Arc<dyn DBConnection + Send + Sync>> {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
     let pool = Pool::builder()
         .max_size(50)
+        .connection_timeout(Duration::from_secs(5))
         .connection_customizer(Box::new(ConnectionOptions {
             key: password,
             enable_wal: true,
@@ -20,9 +24,8 @@ pub(crate) fn setup_db(url: &str, password: String) -> Arc<dyn DBConnection + Se
             busy_timeout: Some(Duration::from_secs(15)),
         }))
         .test_on_check_out(true)
-        .build(manager)
-        .expect("Unable to build DB connection pool");
-    Arc::new(SQLConnection { db: pool })
+        .build(manager)?;
+    Ok(Arc::new(SQLConnection { db: pool }))
 }
 
 pub trait DBConnection {

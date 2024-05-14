@@ -102,7 +102,7 @@ enum UnlockStatus {
 #[derive(Debug, Clone)]
 pub enum Message {
     // Setup
-    CoreLoaded(Arc<bridge::UIHandle>),
+    UIHandlerLoaded(Arc<bridge::UIHandle>),
     // Local state changes
     Navigate(Route),
     TransferAmountChanged(String),
@@ -210,7 +210,7 @@ impl HarborWallet {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
-            Message::CoreLoaded(ui_handle) => {
+            Message::UIHandlerLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
 
