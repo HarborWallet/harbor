@@ -37,14 +37,14 @@ impl FedimintClient {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         uuid: String,
-        federation_code: InviteCode,
+        invite_code: InviteCode,
         mnemonic: &Mnemonic,
         network: Network,
         stop: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
         info!("initializing a new federation client: {uuid}");
 
-        let federation_id = federation_code.federation_id();
+        let federation_id = invite_code.federation_id();
 
         trace!("Building fedimint client db");
         // todo use a real db
@@ -72,7 +72,7 @@ impl FedimintClient {
                 })?
         } else {
             let download = Instant::now();
-            let config = ClientConfig::download_from_invite_code(&federation_code)
+            let config = ClientConfig::download_from_invite_code(&invite_code)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");
@@ -144,7 +144,7 @@ impl FedimintClient {
         Ok(FedimintClient {
             uuid,
             fedimint_client,
-            invite_code: federation_code,
+            invite_code,
             stop,
         })
     }
