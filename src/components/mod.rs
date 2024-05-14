@@ -6,3 +6,6 @@ pub use util::*;
 
 mod sidebar;
 pub use sidebar::*;
+
+mod icon;
+pub use icon::*;
