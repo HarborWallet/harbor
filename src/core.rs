@@ -1,16 +1,18 @@
 use anyhow::anyhow;
 use bip39::Mnemonic;
-use bitcoin::Network;
+use bitcoin::{Address, Network};
 use fedimint_core::api::InviteCode;
 use fedimint_core::config::FederationId;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
+use fedimint_wallet_client::WalletClientModule;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -19,6 +21,9 @@ use iced::{
 use log::error;
 use tokio::sync::RwLock;
 
+use crate::fedimint_client::{
+    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription,
+};
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
     conf::{self, get_mnemonic},
@@ -32,6 +37,8 @@ use crate::{
         spawn_invoice_receive_subscription, FedimintClient,
     },
 };
+
+const PEG_IN_TIMEOUT_YEAR: Duration = Duration::from_secs(86400 * 365);
 
 struct HarborCore {
     balance: Amount,
@@ -128,6 +135,44 @@ impl HarborCore {
         }
 
         Ok(invoice)
+    }
+
+    async fn send_onchain(&self, address: Address, sats: u64) -> anyhow::Result<()> {
+        // todo go through all clients and select the first one that has enough balance
+        let client = self.get_client().await.fedimint_client;
+        let onchain = client.get_first_module::<WalletClientModule>();
+
+        let amount = bitcoin::Amount::from_sat(sats);
+
+        // todo add manual fee selection
+        let fees = onchain.get_withdraw_fees(address.clone(), amount).await?;
+
+        let op_id = onchain
+            .withdraw(address, bitcoin::Amount::from_sat(sats), fees, ())
+            .await?;
+
+        let sub = onchain.subscribe_withdraw_updates(op_id).await?;
+
+        spawn_onchain_payment_subscription(self.tx.clone(), client.clone(), sub).await;
+
+        Ok(())
+    }
+
+    async fn receive_onchain(&self) -> anyhow::Result<Address> {
+        // todo add federation id selection
+        let client = self.get_client().await.fedimint_client;
+        let onchain = client.get_first_module::<WalletClientModule>();
+
+        // expire the address in 1 year
+        let valid_until = SystemTime::now() + PEG_IN_TIMEOUT_YEAR;
+
+        let (op_id, address) = onchain.get_deposit_address(valid_until, ()).await?;
+
+        let sub = onchain.subscribe_deposit_updates(op_id).await?;
+
+        spawn_onchain_receive_subscription(self.tx.clone(), client.clone(), sub).await;
+
+        Ok(address)
     }
 
     async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
@@ -245,16 +290,37 @@ pub fn run_core() -> Subscription<Message> {
                                     }
                                 }
                                 UICoreMsg::ReceiveLightning(amount) => {
-                                    core.msg(CoreUIMsg::ReceiveInvoiceGenerating).await;
+                                    core.msg(CoreUIMsg::ReceiveGenerating).await;
                                     match core.receive_lightning(amount).await {
                                         Err(e) => {
                                             core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
                                         }
                                         Ok(invoice) => {
-                                            core.msg(CoreUIMsg::ReceiveInvoiceGenerated(
-                                                invoice.clone(),
-                                            ))
-                                            .await;
+                                            core.msg(CoreUIMsg::ReceiveInvoiceGenerated(invoice))
+                                                .await;
+                                        }
+                                    }
+                                }
+                                UICoreMsg::SendOnChain {
+                                    address,
+                                    amount_sats,
+                                } => {
+                                    log::info!("Got UICoreMsg::SendOnChain");
+                                    core.msg(CoreUIMsg::Sending).await;
+                                    if let Err(e) = core.send_onchain(address, amount_sats).await {
+                                        error!("Error sending: {e}");
+                                        core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
+                                    }
+                                }
+                                UICoreMsg::ReceiveOnChain => {
+                                    core.msg(CoreUIMsg::ReceiveGenerating).await;
+                                    match core.receive_onchain().await {
+                                        Err(e) => {
+                                            core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                        }
+                                        Ok(address) => {
+                                            core.msg(CoreUIMsg::ReceiveAddressGenerated(address))
+                                                .await;
                                         }
                                     }
                                 }

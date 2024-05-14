@@ -1,3 +1,4 @@
+use bitcoin::Address;
 use core::run_core;
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
@@ -13,7 +14,7 @@ use iced::widget::row;
 use iced::Element;
 use iced::{clipboard, program, Color};
 use iced::{Command, Font};
-use log::info;
+use log::{error, info};
 
 use crate::components::focus_input_id;
 
@@ -63,6 +64,7 @@ pub struct HarborWallet {
     receive_status: ReceiveStatus,
     receive_amount_str: String,
     receive_invoice: Option<Bolt11Invoice>,
+    receive_address: Option<Address>,
     receive_qr_data: Option<Data>,
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
@@ -115,6 +117,7 @@ pub enum Message {
     Send(String),
     Receive(u64),
     GenerateInvoice,
+    GenerateAddress,
     Unlock(String),
     AddFederation(String),
     // Core messages we get from core
@@ -139,6 +142,7 @@ impl HarborWallet {
             receive_failure_reason: None,
             receive_status: ReceiveStatus::Idle,
             receive_invoice: None,
+            receive_address: None,
             receive_qr_data: None,
             mint_invite_code_str: String::new(),
             add_federation_failure_reason: None,
@@ -157,9 +161,31 @@ impl HarborWallet {
         }
     }
 
+    async fn async_send_onchain(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        address: Address,
+        amount_sats: u64,
+    ) {
+        println!("Got to async_send");
+        if let Some(ui_handle) = ui_handle {
+            println!("Have a ui_handle, sending the invoice over");
+            ui_handle.clone().send_onchain(address, amount_sats).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
     async fn async_receive(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.clone().receive(amount).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_receive_onchain(ui_handle: Option<Arc<bridge::UIHandle>>) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().receive_onchain().await;
         } else {
             panic!("UI handle is None");
         }
@@ -228,14 +254,20 @@ impl HarborWallet {
                 SendStatus::Sending => Command::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    // todo get invoice from user
-                    let invoice = Bolt11Invoice::from_str(&invoice_str).unwrap();
-                    println!("Sending to invoice: {invoice}");
-                    // let invoice = Bolt11Invoice::from_str(&invoice_str).unwrap();
-                    Command::perform(Self::async_send(self.ui_handle.clone(), invoice), |_| {
-                        // I don't know if this is the best way to do this but we don't really know anyting after we've fired the message
-                        Message::Noop
-                    })
+                    if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
+                        Command::perform(Self::async_send(self.ui_handle.clone(), invoice), |_| {
+                            Message::Noop
+                        })
+                    } else if let Ok(address) = Address::from_str(&invoice_str) {
+                        let amount = self.send_amount_input_str.parse::<u64>().unwrap(); // TODO: error handling
+                        Command::perform(
+                            Self::async_send_onchain(self.ui_handle.clone(), address, amount),
+                            |_| Message::Noop,
+                        )
+                    } else {
+                        error!("Invalid invoice or address");
+                        Command::none()
+                    }
                 }
             },
             Message::Receive(amount) => match self.send_status {
@@ -263,6 +295,15 @@ impl HarborWallet {
                             Command::none()
                         }
                     }
+                }
+            },
+            Message::GenerateAddress => match self.receive_status {
+                ReceiveStatus::Generating => Command::none(),
+                _ => {
+                    self.receive_failure_reason = None;
+                    Command::perform(Self::async_receive_onchain(self.ui_handle.clone()), |_| {
+                        Message::Noop
+                    })
                 }
             },
             Message::Unlock(password) => match self.unlock_status {
@@ -320,7 +361,7 @@ impl HarborWallet {
                     self.balance = balance;
                     Command::none()
                 }
-                CoreUIMsg::ReceiveInvoiceGenerating => {
+                CoreUIMsg::ReceiveGenerating => {
                     self.receive_status = ReceiveStatus::Generating;
                     Command::none()
                 }
@@ -343,6 +384,19 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
+                    Command::none()
+                }
+                CoreUIMsg::ReceiveAddressGenerated(address) => {
+                    self.receive_status = ReceiveStatus::WaitingToReceive;
+                    println!("Received address: {address}");
+                    self.receive_qr_data = Some(
+                        Data::with_error_correction(
+                            format!("bitcoin:{address}"),
+                            iced::widget::qr_code::ErrorCorrection::Low,
+                        )
+                        .unwrap(),
+                    );
+                    self.receive_address = Some(address);
                     Command::none()
                 }
                 CoreUIMsg::Unlocking => {
