@@ -3,6 +3,10 @@ name = "harbor"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+vendored = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+
 [dependencies]
 anyhow = "1"
 log = "0.4"

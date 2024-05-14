@@ -1,11 +1,17 @@
-test:
-    cargo test
+# Load environment variables from .env file
+set dotenv-load := true
+
+# Define a variable that holds the feature flag if USE_VENDOR_FEATURE is set
+FEATURE_FLAG := if env('USE_VENDOR_FEATURE', '0') == "1" { "--features vendored" } else { "" }
 
 run:
-    RUST_LOG=harbor=debug,info cargo run
+    RUST_LOG=harbor=debug,info cargo run {{FEATURE_FLAG}}
+
+test:
+    cargo test {{FEATURE_FLAG}}
 
 release:
-    cargo run --release
+    cargo run --release {{FEATURE_FLAG}}
 
 clippy:
     cargo clippy --all-features --tests -- -D warnings
