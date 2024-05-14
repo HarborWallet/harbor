@@ -12,6 +12,8 @@ use iced::Element;
 use iced::{clipboard, program, Color};
 use iced::{Command, Font};
 
+use crate::components::focus_input_id;
+
 pub mod bridge;
 pub mod components;
 pub mod conf;
@@ -175,7 +177,11 @@ impl HarborWallet {
             Message::CoreLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
-                Command::none()
+
+                focus_input_id("password_unlock_input")
+
+                // Command::none()
+                // Mess
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
