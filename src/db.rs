@@ -1,4 +1,4 @@
-use crate::db_models::{NewProfile, Profile};
+use crate::db_models::{Fedimint, NewFedimint, NewProfile, Profile};
 use diesel::{
     connection::SimpleConnection,
     r2d2::{ConnectionManager, Pool},
@@ -31,6 +31,15 @@ pub trait DBConnection {
 
     // Inserts a new profile into the DB
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile>;
+
+    // Inserts a new federation into the DB
+    fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint>;
+
+    // gets the federation data for a specific federation
+    fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>>;
+
+    // updates the federation data
+    fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()>;
 }
 
 pub(crate) struct SQLConnection {
@@ -49,6 +58,22 @@ impl DBConnection for SQLConnection {
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile> {
         let conn = &mut self.db.get()?;
         new_profile.insert(conn)
+    }
+
+    fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>> {
+        let conn = &mut self.db.get()?;
+        Fedimint::get_value(conn, id)
+    }
+
+    fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint> {
+        let conn = &mut self.db.get()?;
+        f.insert(conn)
+    }
+
+    fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        let f = Fedimint { id, value };
+        f.update(conn)
     }
 }
 
