@@ -1,6 +1,7 @@
-use crate::bridge::CoreUIMsg;
+use crate::bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
 use crate::Message;
 use bip39::Mnemonic;
+use bitcoin::hashes::hex::FromHex;
 use bitcoin::Network;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::oplog::UpdateStreamOrOutcome;
@@ -204,7 +205,9 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 LnReceiveState::Claimed => {
                     info!("Payment claimed");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess))
+                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess(
+                            ReceiveSuccessMsg::Lightning,
+                        )))
                         .await
                         .unwrap();
 
@@ -247,10 +250,13 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         .await
                         .unwrap();
                 }
-                LnPayState::Success { preimage: _ } => {
+                LnPayState::Success { preimage } => {
                     info!("Payment success");
+                    let preimage: [u8; 32] =
+                        FromHex::from_hex(&preimage).expect("Invalid preimage");
+                    let params = SendSuccessMsg::Lightning { preimage };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess))
+                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
                         .await
                         .unwrap();
 
@@ -293,10 +299,13 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         .await
                         .unwrap();
                 }
-                InternalPayState::Preimage(_preimage) => {
+                InternalPayState::Preimage(preimage) => {
                     info!("Payment success");
+                    let params = SendSuccessMsg::Lightning {
+                        preimage: preimage.0,
+                    };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess))
+                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
                         .await
                         .unwrap();
 
