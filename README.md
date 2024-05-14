@@ -28,3 +28,9 @@ just run
 ```
 just release
 ```
+
+4. Reset local DB (for init, schema generation, etc.)
+
+```
+just reset-db
+```

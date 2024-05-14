@@ -16,6 +16,8 @@ pub mod bridge;
 pub mod components;
 pub mod conf;
 pub mod core;
+pub mod db;
+pub mod db_models;
 mod fedimint_client;
 pub mod routes;
 

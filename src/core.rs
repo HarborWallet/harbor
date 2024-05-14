@@ -16,13 +16,17 @@ use iced::{
 use log::error;
 use tokio::time::sleep;
 
-use crate::fedimint_client::{
-    select_gateway, spawn_internal_payment_subscription, spawn_invoice_payment_subscription,
-    spawn_invoice_receive_subscription, FedimintClient,
-};
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
-    conf, Message,
+    conf::{self, get_mnemonic},
+    Message,
+};
+use crate::{
+    db::setup_db,
+    fedimint_client::{
+        select_gateway, spawn_internal_payment_subscription, spawn_invoice_payment_subscription,
+        spawn_invoice_receive_subscription, FedimintClient,
+    },
 };
 
 struct HarborCore {
@@ -175,7 +179,16 @@ pub fn run_core() -> Subscription<Message> {
             let path = PathBuf::from(&conf::data_dir(network));
             std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
 
-            let mnemonic = conf::get_mnemonic(network).expect("Could not get mnemonic");
+            // Create or get the database
+            // FIXME: pass in password
+            let db = setup_db(
+                path.join("harbor.sqlite")
+                    .to_str()
+                    .expect("path must be correct"),
+                "password123".to_string(),
+            );
+
+            let mnemonic = get_mnemonic(db).expect("should get seed");
 
             // fixme, properly initialize this
             let client = FedimintClient::new(

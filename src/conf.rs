@@ -1,6 +1,11 @@
 use bip39::{Language, Mnemonic};
 use bitcoin::Network;
+use log::info;
 use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use crate::{db::DBConnection, db_models::NewProfile};
 
 /// The directory where all application data is stored
 /// Defaults to ~/.harbor, if we're on a test network
@@ -17,8 +22,22 @@ pub fn data_dir(network: Network) -> PathBuf {
 }
 
 // todo store in encrypted database
-pub fn get_mnemonic(_network: Network) -> anyhow::Result<Mnemonic> {
-    let mnemonic = Mnemonic::generate_in(Language::English, 12)?;
+pub fn get_mnemonic(db: Arc<dyn DBConnection + Send + Sync>) -> anyhow::Result<Mnemonic> {
+    match db.get_seed()? {
+        Some(m) => {
+            info!("retrieved existing seed");
+            Ok(Mnemonic::from_str(&m)?)
+        }
+        None => {
+            let new_profile = NewProfile {
+                id: uuid::Uuid::new_v4().to_string(),
+                seed_words: Mnemonic::generate_in(Language::English, 12)?.to_string(),
+            };
 
-    Ok(mnemonic)
+            let p = db.insert_new_profile(new_profile)?;
+
+            info!("creating new seed");
+            Ok(Mnemonic::from_str(&p.seed_words)?)
+        }
+    }
 }
