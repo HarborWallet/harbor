@@ -27,24 +27,20 @@ use tokio::spawn;
 #[derive(Debug, Clone)]
 #[allow(unused)] // TODO: remove
 pub(crate) struct FedimintClient {
-    pub(crate) uuid: String,
     pub(crate) fedimint_client: ClientHandleArc,
     invite_code: InviteCode,
     stop: Arc<AtomicBool>,
 }
 
 impl FedimintClient {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
-        uuid: String,
         invite_code: InviteCode,
         mnemonic: &Mnemonic,
         network: Network,
         stop: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
-        info!("initializing a new federation client: {uuid}");
-
         let federation_id = invite_code.federation_id();
+        info!("initializing a new federation client: {federation_id}");
 
         trace!("Building fedimint client db");
         // todo use a real db
@@ -142,7 +138,6 @@ impl FedimintClient {
         debug!("Built fedimint client");
 
         Ok(FedimintClient {
-            uuid,
             fedimint_client,
             invite_code,
             stop,
