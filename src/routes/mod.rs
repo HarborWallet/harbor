@@ -10,6 +10,9 @@ pub use transfer::*;
 pub mod receive;
 pub use receive::*;
 
+pub mod send;
+pub use send::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
@@ -19,4 +22,5 @@ pub enum Route {
     History,
     Settings,
     Receive,
+    Send,
 }

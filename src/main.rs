@@ -47,6 +47,7 @@ pub struct HarborWallet {
     transfer_amount_str: String,
     send_status: SendStatus,
     send_failure_reason: Option<String>,
+    send_input_str: String,
     receive_failure_reason: Option<String>,
     receive_status: ReceiveStatus,
     receive_amount_str: String,
@@ -82,10 +83,11 @@ pub enum Message {
     Navigate(Route),
     TransferAmountChanged(String),
     ReceiveAmountChanged(String),
+    SendInputChanged(String),
     CopyToClipboard(String),
     // Async commands we fire from the UI to core
     Noop,
-    Send(u64),
+    Send(String),
     Receive(u64),
     GenerateInvoice,
     // Core messages we get from core
@@ -100,6 +102,7 @@ impl HarborWallet {
             active_route: Route::Home,
             transfer_amount_str: String::new(),
             receive_amount_str: String::new(),
+            send_input_str: String::new(),
             send_status: SendStatus::Idle,
             send_failure_reason: None,
             receive_failure_reason: None,
@@ -123,7 +126,9 @@ impl HarborWallet {
     }
 
     async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, invoice: Bolt11Invoice) {
+        println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
+            println!("Have a ui_handle, sending the invoice over");
             ui_handle.clone().send(invoice).await;
         } else {
             panic!("UI handle is None");
@@ -159,14 +164,20 @@ impl HarborWallet {
                 self.receive_amount_str = amount;
                 Command::none()
             }
+            Message::SendInputChanged(input) => {
+                self.send_input_str = input;
+                Command::none()
+            }
             // Async commands we fire from the UI to core
             Message::Noop => Command::none(),
-            Message::Send(_amount) => match self.send_status {
+            Message::Send(invoice_str) => match self.send_status {
                 SendStatus::Sending => Command::none(),
                 _ => {
                     self.send_failure_reason = None;
                     // todo get invoice from user
-                    let invoice = Bolt11Invoice::from_str("lntbs900n1pnyylm5pp57p3w5ll63xpc5zw4sff87vcgr46xnxnftkyye44q4e3px6uf97vshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5npd8xwtuwz80ppvrpfps0eyzw3y80h5vymf86mxkyw8psaaxkcnq9qyyssqs6ylfjhcpyx5epj80ynzw56c6wcrckl57jtt6uzf83wjd8uw7mypyl9qf7h6gfehkh08vy0kq7ktzfjds859jfh0eafpflz9j8vgnusp0fj0np").unwrap();
+                    let invoice = Bolt11Invoice::from_str(&invoice_str).unwrap();
+                    println!("Sending to invoice: {invoice}");
+                    // let invoice = Bolt11Invoice::from_str(&invoice_str).unwrap();
                     Command::perform(Self::async_send(self.ui_handle.clone(), invoice), |_| {
                         // I don't know if this is the best way to do this but we don't really know anyting after we've fired the message
                         Message::Noop
@@ -252,6 +263,7 @@ impl HarborWallet {
             Route::Mints => crate::routes::mints(self),
             Route::Transfer => crate::routes::transfer(self),
             Route::Receive => crate::routes::receive(self),
+            Route::Send => crate::routes::send(self),
             _ => crate::routes::home(self),
         };
 
