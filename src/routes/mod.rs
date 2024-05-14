@@ -16,6 +16,9 @@ pub use send::*;
 pub mod unlock;
 pub use unlock::*;
 
+pub mod donate;
+pub use donate::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
@@ -27,4 +30,5 @@ pub enum Route {
     Settings,
     Receive,
     Send,
+    Donate,
 }

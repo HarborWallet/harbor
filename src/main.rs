@@ -68,6 +68,7 @@ pub struct HarborWallet {
     receive_qr_data: Option<Data>,
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
+    donate_amount_str: String,
 }
 
 impl Default for HarborWallet {
@@ -111,15 +112,16 @@ pub enum Message {
     SendAmountInputChanged(String),
     PasswordInputChanged(String),
     MintInviteCodeInputChanged(String),
+    DonateAmountChanged(String),
     CopyToClipboard(String),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
-    Receive(u64),
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
     AddFederation(String),
+    Donate,
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
 }
@@ -146,6 +148,7 @@ impl HarborWallet {
             receive_qr_data: None,
             mint_invite_code_str: String::new(),
             add_federation_failure_reason: None,
+            donate_amount_str: String::new(),
         }
     }
 
@@ -153,9 +156,12 @@ impl HarborWallet {
         run_core()
     }
 
-    async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, invoice: Bolt11Invoice) {
+    async fn async_send_lightning(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        invoice: Bolt11Invoice,
+    ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().send(invoice).await;
+            ui_handle.clone().send_lightning(invoice).await;
         } else {
             panic!("UI handle is None");
         }
@@ -248,6 +254,10 @@ impl HarborWallet {
                 self.mint_invite_code_str = input;
                 Command::none()
             }
+            Message::DonateAmountChanged(input) => {
+                self.donate_amount_str = input;
+                Command::none()
+            }
             // Async commands we fire from the UI to core
             Message::Noop => Command::none(),
             Message::Send(invoice_str) => match self.send_status {
@@ -255,9 +265,10 @@ impl HarborWallet {
                 _ => {
                     self.send_failure_reason = None;
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
-                        Command::perform(Self::async_send(self.ui_handle.clone(), invoice), |_| {
-                            Message::Noop
-                        })
+                        Command::perform(
+                            Self::async_send_lightning(self.ui_handle.clone(), invoice),
+                            |_| Message::Noop,
+                        )
                     } else if let Ok(address) = Address::from_str(&invoice_str) {
                         let amount = self.send_amount_input_str.parse::<u64>().unwrap(); // TODO: error handling
                         Command::perform(
@@ -268,16 +279,6 @@ impl HarborWallet {
                         error!("Invalid invoice or address");
                         Command::none()
                     }
-                }
-            },
-            Message::Receive(amount) => match self.send_status {
-                SendStatus::Sending => Command::none(),
-                _ => {
-                    self.send_failure_reason = None;
-                    Command::perform(Self::async_receive(self.ui_handle.clone(), amount), |_| {
-                        // I don't know if this is the best way to do this but we don't really know anyting after we've fired the message
-                        Message::Noop
-                    })
                 }
             },
             Message::GenerateInvoice => match self.receive_status {
@@ -304,6 +305,23 @@ impl HarborWallet {
                     Command::perform(Self::async_receive_onchain(self.ui_handle.clone()), |_| {
                         Message::Noop
                     })
+                }
+            },
+            Message::Donate => match self.donate_amount_str.parse::<u64>() {
+                Ok(amount) => {
+                    // TODO: don't hardcode this!
+                    let hardcoded_donation_address = "tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v";
+                    let address = Address::from_str(hardcoded_donation_address).unwrap();
+
+                    Command::perform(
+                        Self::async_send_onchain(self.ui_handle.clone(), address, amount),
+                        |_| Message::Noop,
+                    )
+                }
+                Err(e) => {
+                    self.receive_amount_str = String::new();
+                    eprintln!("Error parsing amount: {e}");
+                    Command::none()
                 }
             },
             Message::Unlock(password) => match self.unlock_status {
@@ -427,6 +445,7 @@ impl HarborWallet {
             Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
             Route::Mints => row![sidebar, crate::routes::mints(self)].into(),
+            Route::Donate => row![sidebar, crate::routes::donate(self)].into(),
             _ => row![sidebar, crate::routes::home(self)].into(),
         };
 

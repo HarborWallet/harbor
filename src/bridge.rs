@@ -60,7 +60,7 @@ impl UIHandle {
         self.ui_to_core_tx.send(msg).await.unwrap();
     }
 
-    pub async fn send(&self, invoice: Bolt11Invoice) {
+    pub async fn send_lightning(&self, invoice: Bolt11Invoice) {
         self.msg_send(UICoreMsg::SendLightning(invoice)).await;
     }
 
