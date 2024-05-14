@@ -190,6 +190,8 @@ pub fn run_core() -> Subscription<Message> {
             let path = PathBuf::from(&conf::data_dir(network));
             std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
 
+            log::info!("Using datadir: {path:?}");
+
             // Create or get the database
             // FIXME: pass in password
             let db = setup_db(

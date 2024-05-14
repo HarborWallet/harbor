@@ -1,6 +1,6 @@
 use iced::{
     widget::{
-        column, text,
+        column, row, text,
         text_input::{self, focus, Id},
         TextInput,
     },
@@ -16,6 +16,8 @@ pub fn focus_input_id(id: &'static str) -> Command<Message> {
     focus(id)
 }
 
+// TODO: could maybe make a struct for the args here with some nice defaults
+#[allow(clippy::too_many_arguments)]
 pub fn h_input<'a>(
     label: &'static str,
     placeholder: &'static str,
@@ -24,6 +26,7 @@ pub fn h_input<'a>(
     on_submit: Message,
     secure: bool,
     id: Option<&'static str>,
+    suffix: Option<&'static str>,
 ) -> Element<'a, Message, Theme> {
     let input = TextInput::new(placeholder, value)
         .style(|theme: &Theme, status| {
@@ -57,11 +60,21 @@ pub fn h_input<'a>(
 
     let label = text(label).size(24);
 
-    if let Some(id) = id {
+    let input = if let Some(id) = id {
         let id = Id::new(id);
-        // input.id(id);
-        column![label, input.id(id)].spacing(8).into()
+        input.id(id)
     } else {
-        column![label, input].spacing(8).into()
-    }
+        input
+    };
+
+    let input = if let Some(suffix) = suffix {
+        let suffix_text = text(suffix).size(24);
+        row![input, suffix_text]
+            .spacing(8)
+            .align_items(iced::Alignment::Center)
+    } else {
+        row![input]
+    };
+
+    column![label, input].spacing(8).into()
 }

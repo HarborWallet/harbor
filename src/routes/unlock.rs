@@ -18,6 +18,7 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
         Message::Unlock(harbor.password_input_str.clone()),
         true,
         Some("password_unlock_input"),
+        None,
     );
 
     let harbor_logo = Svg::from_path("assets/harbor_logo.svg")
