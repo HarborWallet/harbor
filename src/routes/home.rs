@@ -1,6 +1,5 @@
 use crate::components::{h_button, SvgIcon};
 use iced::widget::{center, column, container, row, text};
-use iced::Color;
 use iced::{Alignment, Element};
 
 use crate::{HarborWallet, Message};
