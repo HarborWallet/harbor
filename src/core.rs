@@ -158,8 +158,7 @@ pub fn run_core() -> Subscription<Message> {
             }
             let mut state = State::NeedsInit;
 
-            let handles = bridge::create_handles();
-            let (ui_handle, mut core_handle) = handles;
+            let (ui_handle, mut core_handle) = bridge::create_handles();
             let arc_ui_handle = Arc::new(ui_handle);
 
             let network = Network::Signet;
