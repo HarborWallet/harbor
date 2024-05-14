@@ -1,6 +1,7 @@
 use core::run_core;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use iced::widget::qr_code::Data;
 use routes::Route;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -60,6 +61,7 @@ pub struct HarborWallet {
     receive_status: ReceiveStatus,
     receive_amount_str: String,
     receive_invoice: Option<Bolt11Invoice>,
+    receive_qr_data: Option<Data>,
 }
 
 impl Default for HarborWallet {
@@ -131,6 +133,7 @@ impl HarborWallet {
             receive_failure_reason: None,
             receive_status: ReceiveStatus::Idle,
             receive_invoice: None,
+            receive_qr_data: None,
         }
     }
 
@@ -300,6 +303,13 @@ impl HarborWallet {
                 CoreUIMsg::ReceiveInvoiceGenerated(invoice) => {
                     self.receive_status = ReceiveStatus::WaitingToReceive;
                     println!("Received invoice: {invoice}");
+                    self.receive_qr_data = Some(
+                        Data::with_error_correction(
+                            format!("lightning:{invoice}"),
+                            iced::widget::qr_code::ErrorCorrection::Low,
+                        )
+                        .unwrap(),
+                    );
                     self.receive_invoice = Some(invoice);
                     Command::none()
                 }

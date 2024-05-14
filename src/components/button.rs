@@ -44,7 +44,7 @@ pub fn h_button(text_str: &str, icon: SvgIcon) -> Button<'_, Message, Theme> {
                 shadow: Shadow::default(),
             }
         })
-        .width(Length::Fixed(192.))
+        .width(Length::Fill)
         .height(Length::Fixed(64.))
 }
 
