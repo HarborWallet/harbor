@@ -1,5 +1,7 @@
 use crate::bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
 use crate::Message;
+use crate::{db::DBConnection, db_models::NewFedimint};
+use async_trait::async_trait;
 use bip39::Mnemonic;
 use bitcoin::hashes::hex::FromHex;
 use bitcoin::Network;
@@ -7,10 +9,14 @@ use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{get_default_client_secret, RootSecretStrategy};
 use fedimint_client::ClientHandleArc;
-use fedimint_core::api::InviteCode;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::db::mem_impl::MemDatabase;
-use fedimint_core::db::IRawDatabaseExt;
+use fedimint_core::db::mem_impl::MemTransaction;
+use fedimint_core::db::IDatabaseTransactionOps;
+use fedimint_core::db::IRawDatabase;
+use fedimint_core::db::IRawDatabaseTransaction;
+use fedimint_core::db::PrefixStream;
+use fedimint_core::{api::InviteCode, db::IDatabaseTransactionOpsCore};
 use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
 };
@@ -20,21 +26,26 @@ use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+use std::{
+    fmt,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use tokio::spawn;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
-#[allow(unused)] // TODO: remove
 pub(crate) struct FedimintClient {
     pub(crate) fedimint_client: ClientHandleArc,
+    // FIXME use or remove
     invite_code: InviteCode,
     stop: Arc<AtomicBool>,
 }
 
 impl FedimintClient {
     pub(crate) async fn new(
+        storage: Arc<dyn DBConnection + Send + Sync>,
         invite_code: InviteCode,
         mnemonic: &Mnemonic,
         network: Network,
@@ -44,12 +55,12 @@ impl FedimintClient {
         info!("initializing a new federation client: {federation_id}");
 
         trace!("Building fedimint client db");
-        // todo use a real db
-        let db = MemDatabase::new().into_database();
 
-        let is_initialized = fedimint_client::Client::is_initialized(&db).await;
+        let db = FedimintStorage::new(storage, federation_id.to_string()).await?;
 
-        let mut client_builder = fedimint_client::Client::builder(db);
+        let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
+
+        let mut client_builder = fedimint_client::Client::builder(db.into());
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(MintClientInit);
         client_builder.with_module(LightningClientInit);
@@ -321,4 +332,138 @@ pub(crate) async fn spawn_internal_payment_subscription(
             }
         }
     });
+}
+
+#[derive(Clone)]
+pub struct FedimintStorage {
+    storage: Arc<dyn DBConnection + Send + Sync>,
+    fedimint_memory: Arc<MemDatabase>,
+    federation_id: String,
+}
+
+impl FedimintStorage {
+    pub async fn new(
+        storage: Arc<dyn DBConnection + Send + Sync>,
+        federation_id: String,
+    ) -> anyhow::Result<Self> {
+        let fedimint_memory = MemDatabase::new();
+
+        // get the fedimint data or create a new fedimint entry if it doesn't exist
+        let fedimint_data: Vec<(Vec<u8>, Vec<u8>)> =
+            match storage.get_federation_value(federation_id.clone())? {
+                Some(v) => bincode::deserialize(&v)?,
+                None => {
+                    storage.insert_new_federation(NewFedimint {
+                        id: federation_id.clone(),
+                        value: vec![],
+                    })?;
+                    vec![]
+                }
+            };
+
+        // get the value and load it into fedimint memory
+        if !fedimint_data.is_empty() {
+            let mut mem_db_tx = fedimint_memory.begin_transaction().await;
+            for (key, value) in fedimint_data {
+                mem_db_tx.raw_insert_bytes(&key, &value).await?;
+            }
+            mem_db_tx.commit_tx().await?;
+        }
+
+        Ok(Self {
+            storage,
+            federation_id,
+            fedimint_memory: Arc::new(fedimint_memory),
+        })
+    }
+}
+
+impl fmt::Debug for FedimintStorage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FedimintDB").finish()
+    }
+}
+
+#[async_trait]
+impl IRawDatabase for FedimintStorage {
+    type Transaction<'a> = SQLPseudoTransaction<'a>;
+
+    async fn begin_transaction<'a>(&'a self) -> SQLPseudoTransaction {
+        SQLPseudoTransaction {
+            storage: self.storage.clone(),
+            federation_id: self.federation_id.clone(),
+            mem: self.fedimint_memory.begin_transaction().await,
+        }
+    }
+}
+
+pub struct SQLPseudoTransaction<'a> {
+    pub(crate) storage: Arc<dyn DBConnection + Send + Sync>,
+    federation_id: String,
+    mem: MemTransaction<'a>,
+}
+
+#[async_trait]
+impl<'a> IRawDatabaseTransaction for SQLPseudoTransaction<'a> {
+    async fn commit_tx(mut self) -> anyhow::Result<()> {
+        let key_value_pairs = self
+            .mem
+            .raw_find_by_prefix(&[])
+            .await?
+            .collect::<Vec<(Vec<u8>, Vec<u8>)>>()
+            .await;
+        self.mem.commit_tx().await?;
+
+        let serialized_data = bincode::serialize(&key_value_pairs).map_err(anyhow::Error::new)?;
+
+        self.storage
+            .update_fedimint_data(self.federation_id, serialized_data)
+    }
+}
+
+#[async_trait]
+impl<'a> IDatabaseTransactionOpsCore for SQLPseudoTransaction<'a> {
+    async fn raw_insert_bytes(
+        &mut self,
+        key: &[u8],
+        value: &[u8],
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        self.mem.raw_insert_bytes(key, value).await
+    }
+
+    async fn raw_get_bytes(&mut self, key: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
+        self.mem.raw_get_bytes(key).await
+    }
+
+    async fn raw_remove_entry(&mut self, key: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
+        self.mem.raw_remove_entry(key).await
+    }
+
+    async fn raw_find_by_prefix(&mut self, key_prefix: &[u8]) -> anyhow::Result<PrefixStream<'_>> {
+        self.mem.raw_find_by_prefix(key_prefix).await
+    }
+
+    async fn raw_remove_by_prefix(&mut self, key_prefix: &[u8]) -> anyhow::Result<()> {
+        self.mem.raw_remove_by_prefix(key_prefix).await
+    }
+
+    async fn raw_find_by_prefix_sorted_descending(
+        &mut self,
+        key_prefix: &[u8],
+    ) -> anyhow::Result<PrefixStream<'_>> {
+        self.mem
+            .raw_find_by_prefix_sorted_descending(key_prefix)
+            .await
+    }
+}
+
+#[async_trait]
+impl<'a> IDatabaseTransactionOps for SQLPseudoTransaction<'a> {
+    async fn rollback_tx_to_savepoint(&mut self) -> anyhow::Result<()> {
+        self.mem.rollback_tx_to_savepoint().await
+    }
+
+    async fn set_tx_savepoint(&mut self) -> anyhow::Result<()> {
+        self.mem.set_tx_savepoint().await
+    }
 }

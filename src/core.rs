@@ -22,6 +22,7 @@ use tokio::sync::RwLock;
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
     conf::{self, get_mnemonic},
+    db::DBConnection,
     Message,
 };
 use crate::{
@@ -38,6 +39,7 @@ struct HarborCore {
     mnemonic: Mnemonic,
     tx: Sender<Message>,
     clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+    storage: Arc<dyn DBConnection + Send + Sync>,
     stop: Arc<AtomicBool>,
 }
 
@@ -136,9 +138,14 @@ impl HarborCore {
             return Err(anyhow!("Federation already added"));
         }
 
-        let client =
-            FedimintClient::new(invite_code, &self.mnemonic, self.network, self.stop.clone())
-                .await?;
+        let client = FedimintClient::new(
+            self.storage.clone(),
+            invite_code,
+            &self.mnemonic,
+            self.network,
+            self.stop.clone(),
+        )
+        .await?;
 
         clients.insert(client.fedimint_client.federation_id(), client);
 
@@ -180,12 +187,13 @@ pub fn run_core() -> Subscription<Message> {
                 "password123".to_string(),
             );
 
-            let mnemonic = get_mnemonic(db).expect("should get seed");
+            let mnemonic = get_mnemonic(db.clone()).expect("should get seed");
 
             let stop = Arc::new(AtomicBool::new(false));
 
             // fixme, properly initialize this
             let client = FedimintClient::new(
+                db.clone(),
                 InviteCode::from_str("fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er").unwrap(),
                 &mnemonic,
                 network,
@@ -203,6 +211,7 @@ pub fn run_core() -> Subscription<Message> {
             }
 
             let core = HarborCore {
+                storage: db,
                 balance,
                 tx,
                 mnemonic,

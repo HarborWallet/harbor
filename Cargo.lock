@@ -2443,6 +2443,8 @@ name = "harbor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "bincode",
  "bip39",
  "bitcoin 0.29.2",
  "config",
