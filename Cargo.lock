@@ -458,8 +458,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f2635620bf0b9d4576eb7bb9a38a55df78bd1205d26fa994b25911a69f212f"
 dependencies = [
  "bitcoin_hashes 0.11.0",
- "rand",
- "rand_core",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -656,7 +656,7 @@ dependencies = [
  "ff",
  "group",
  "pairing",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
  "zeroize",
 ]
@@ -780,7 +780,9 @@ checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-targets 0.52.5",
 ]
 
@@ -1549,7 +1551,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "hex",
- "rand",
+ "rand 0.8.5",
  "ring 0.17.8",
 ]
 
@@ -1562,7 +1564,7 @@ dependencies = [
  "bip39",
  "fedimint-client",
  "fedimint-core",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -1580,7 +1582,7 @@ dependencies = [
  "fedimint-core",
  "fedimint-logging",
  "lazy_static",
- "rand",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tracing",
@@ -1615,7 +1617,7 @@ dependencies = [
  "fedimint-logging",
  "futures",
  "itertools 0.12.1",
- "rand",
+ "rand 0.8.5",
  "reqwest 0.12.4",
  "ring 0.17.8",
  "secp256k1-zkp",
@@ -1670,7 +1672,7 @@ dependencies = [
  "macro_rules_attribute",
  "miniscript 10.0.0",
  "parity-scale-codec",
- "rand",
+ "rand 0.8.5",
  "secp256k1-zkp",
  "serde",
  "serde_json",
@@ -1741,7 +1743,7 @@ dependencies = [
  "futures",
  "itertools 0.12.1",
  "lightning-invoice",
- "rand",
+ "rand 0.8.5",
  "reqwest 0.11.27",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
@@ -1774,7 +1776,7 @@ dependencies = [
  "itertools 0.12.1",
  "lightning",
  "lightning-invoice",
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "serde",
  "serde-big-array",
@@ -1819,7 +1821,7 @@ dependencies = [
  "fedimint-threshold-crypto",
  "futures",
  "itertools 0.12.1",
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
  "serde",
@@ -1847,7 +1849,7 @@ dependencies = [
  "fedimint-threshold-crypto",
  "futures",
  "itertools 0.12.1",
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "secp256k1-zkp",
  "serde",
@@ -1867,7 +1869,7 @@ dependencies = [
  "bls12_381",
  "ff",
  "group",
- "rand",
+ "rand 0.8.5",
  "rand_chacha",
  "serde",
  "sha3",
@@ -1886,7 +1888,7 @@ dependencies = [
  "hex_fmt",
  "log",
  "pairing",
- "rand",
+ "rand 0.8.5",
  "rand_chacha",
  "serde",
  "subtle",
@@ -1914,7 +1916,7 @@ dependencies = [
  "futures",
  "impl-tools",
  "miniscript 10.0.0",
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "serde",
  "serde_json",
@@ -1942,7 +1944,7 @@ dependencies = [
  "impl-tools",
  "miniscript 10.0.0",
  "miniscript 9.0.2",
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "serde",
  "strum",
@@ -1960,7 +1962,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
 dependencies = [
  "bitvec",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2059,6 +2061,12 @@ checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
 ]
+
+[[package]]
+name = "fuchsia-cprng"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 
 [[package]]
 name = "funty"
@@ -2395,7 +2403,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dfbfb3a6cfbd390d5c9564ab283a0349b9b9fcd46a706c1eb10e0db70bfbac7"
 dependencies = [
  "ff",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2447,6 +2455,7 @@ dependencies = [
  "bincode",
  "bip39",
  "bitcoin 0.29.2",
+ "chrono",
  "config",
  "diesel",
  "diesel_migrations",
@@ -2464,6 +2473,7 @@ dependencies = [
  "pretty_env_logger",
  "rusqlite",
  "serde",
+ "tempdir",
  "tokio",
  "uuid",
 ]
@@ -2957,7 +2967,7 @@ checksum = "978d142c8028edf52095703af2fad11d6f611af1246685725d6b850634647085"
 dependencies = [
  "bitmaps",
  "imbl-sized-chunks",
- "rand_core",
+ "rand_core 0.6.4",
  "rand_xoshiro",
  "version_check",
 ]
@@ -4081,7 +4091,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
 dependencies = [
  "base64ct",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -4165,7 +4175,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48e4cc64c2ad9ebe670cb8fd69dd50ae301650392e81c05f9bfcb2d5bdbc24b0"
 dependencies = [
  "phf_shared",
- "rand",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4392,13 +4402,26 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rand"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
+dependencies = [
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "rdrand",
+ "winapi",
+]
+
+[[package]]
+name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -4408,8 +4431,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "rand_core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
+dependencies = [
+ "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -4426,7 +4464,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
 dependencies = [
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -4452,6 +4490,15 @@ name = "rctree"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b42e27ef78c35d3998403c1d26f3efd9e135d3e5121b0a4845cc5cc27547f4f"
+
+[[package]]
+name = "rdrand"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
+dependencies = [
+ "rand_core 0.3.1",
+]
 
 [[package]]
 name = "read-fonts"
@@ -4544,6 +4591,15 @@ name = "regex-syntax"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
+
+[[package]]
+name = "remove_dir_all"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "renderdoc-sys"
@@ -4965,7 +5021,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b1629c9c557ef9b293568b338dddfc8208c98a18c59d722a9d53f859d9c9b62"
 dependencies = [
  "bitcoin_hashes 0.11.0",
- "rand",
+ "rand 0.8.5",
  "secp256k1-sys 0.6.1",
  "serde",
 ]
@@ -5005,7 +5061,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd403e9f0569b4131ab3fc9fa24a17775331b39382efd2cde851fdca655e3520"
 dependencies = [
- "rand",
+ "rand 0.8.5",
  "secp256k1 0.24.3",
  "secp256k1-zkp-sys",
  "serde",
@@ -5310,7 +5366,7 @@ dependencies = [
  "futures",
  "httparse",
  "log",
- "rand",
+ "rand 0.8.5",
  "sha-1",
 ]
 
@@ -5471,6 +5527,16 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "tempdir"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
+dependencies = [
+ "rand 0.4.6",
+ "remove_dir_all",
+]
 
 [[package]]
 name = "tempfile"
@@ -7012,7 +7078,7 @@ dependencies = [
  "hex",
  "nix",
  "ordered-stream",
- "rand",
+ "rand 0.8.5",
  "serde",
  "serde_repr",
  "sha1",

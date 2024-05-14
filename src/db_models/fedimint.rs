@@ -30,7 +30,7 @@ impl Fedimint {
     }
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone)]
 #[diesel(table_name = fedimint)]
 pub struct NewFedimint {
     pub id: String,

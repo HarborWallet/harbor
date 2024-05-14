@@ -9,10 +9,7 @@ use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub(crate) fn setup_db(
-    url: &str,
-    password: String,
-) -> anyhow::Result<Arc<dyn DBConnection + Send + Sync>> {
+pub(crate) fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection>> {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
     let pool = Pool::builder()
         .max_size(50)
@@ -111,5 +108,319 @@ impl diesel::r2d2::CustomizeConnection<SqliteConnection, diesel::r2d2::Error>
             Ok(())
         })()
         .map_err(diesel::r2d2::Error::QueryError)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db_models::{
+        LightningPayment, LightningReceive, OnChainPayment, OnChainReceive, PaymentStatus,
+    };
+    use bip39::{Language, Mnemonic};
+    use bitcoin::hashes::Hash;
+    use bitcoin::secp256k1::ThirtyTwoByteHash;
+    use bitcoin::{Address, Txid};
+    use fedimint_core::config::FederationId;
+    use fedimint_core::core::OperationId;
+    use fedimint_core::Amount;
+    use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+    use std::str::FromStr;
+    use tempdir::TempDir;
+
+    const DEFAULT_PASSWORD: &str = "test";
+    const FEDERATION_ID: &str = "c8d423964c7ad944d30f57359b6e5b260e211dcfdb945140e28d4df51fd572d2";
+
+    fn setup_test_db() -> Arc<SQLConnection> {
+        let tmp_dir = TempDir::new("harbor").expect("Could not create temp dir");
+        let url = format!("sqlite://{}/harbor.sqlite", tmp_dir.path().display());
+
+        setup_db(&url, DEFAULT_PASSWORD.to_string()).expect("Could not setup db")
+    }
+
+    fn setup_test_db_with_data() -> Arc<SQLConnection> {
+        let db = setup_test_db();
+
+        let seed_words = Mnemonic::generate_in(Language::English, 12)
+            .unwrap()
+            .to_string();
+
+        let new_profile = NewProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            seed_words,
+        };
+        db.insert_new_profile(new_profile).unwrap();
+
+        let new_fedimint = NewFedimint {
+            id: FEDERATION_ID.to_string(),
+            value: vec![],
+        };
+        db.insert_new_federation(new_fedimint).unwrap();
+
+        db
+    }
+
+    #[test]
+    fn test_seed() {
+        let db = setup_test_db();
+
+        let seed = db.get_seed().unwrap();
+        assert!(seed.is_none());
+
+        let new_profile = NewProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            seed_words: Mnemonic::generate_in(Language::English, 12)
+                .unwrap()
+                .to_string(),
+        };
+        let p = db.insert_new_profile(new_profile).unwrap();
+
+        let seed = db.get_seed().unwrap();
+        assert_eq!(seed.unwrap(), p.seed_words);
+    }
+
+    #[test]
+    fn test_insert_new_federation() {
+        let db = setup_test_db();
+
+        let seed_words = Mnemonic::generate_in(Language::English, 12)
+            .unwrap()
+            .to_string();
+
+        let new_profile = NewProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            seed_words,
+        };
+        db.insert_new_profile(new_profile).unwrap();
+
+        let new_fedimint = NewFedimint {
+            id: FEDERATION_ID.to_string(),
+            value: vec![],
+        };
+        db.insert_new_federation(new_fedimint.clone()).unwrap();
+
+        let federation = db.get_federation_value(FEDERATION_ID.to_string()).unwrap();
+        assert!(federation.is_some());
+        assert_eq!(federation.unwrap(), new_fedimint.value);
+    }
+
+    #[test]
+    fn test_lightning_payment_db() {
+        let db = setup_test_db_with_data();
+        let pool = db.db.clone();
+        let mut conn = pool.get().unwrap();
+
+        let operation_id = OperationId::new_random();
+        let invoice = Bolt11Invoice::from_str("lntbs10u1pny86cupp52lkv666juacc9evu0fpfmduac6l6qp0qypxr0yk9wfpze2u5sngshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5nnhtrhvyfh077g6rdfrs7ml9hqks4mj6f0e50nyeejc73ee7gl3q9qyyssq3urmp6hy3c95rtddevae0djrfn8au0rumgd05zvddzshg8krwupzc4htl38kqufp27el5ev5l8ea4736y3a3rpq5cewxwftsdk2v52cp9w25a0").unwrap();
+
+        LightningPayment::create(
+            &mut conn,
+            operation_id,
+            FederationId::from_str(FEDERATION_ID).unwrap(),
+            invoice.clone(),
+            Amount::from_sats(1_000),
+            Amount::from_sats(1),
+        )
+        .unwrap();
+
+        let payment = LightningPayment::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(payment.operation_id(), operation_id);
+        assert_eq!(
+            payment.fedimint_id(),
+            FederationId::from_str(FEDERATION_ID).unwrap()
+        );
+        assert_eq!(payment.payment_hash(), invoice.payment_hash().into_32());
+        assert_eq!(payment.bolt11(), invoice);
+        assert_eq!(payment.amount(), Amount::from_sats(1_000));
+        assert_eq!(payment.fee(), Amount::from_sats(1));
+        assert_eq!(payment.preimage(), None);
+        assert_eq!(payment.status(), PaymentStatus::Pending);
+
+        // sleep for a second to make sure the timestamps are different
+        std::thread::sleep(Duration::from_secs(1));
+
+        LightningPayment::mark_as_failed(&mut conn, operation_id).unwrap();
+
+        let failed = LightningPayment::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(failed.status(), PaymentStatus::Failed);
+        assert_eq!(failed.preimage(), None);
+        assert_ne!(failed.updated_at, failed.created_at);
+        assert_ne!(failed.updated_at, payment.updated_at);
+    }
+
+    #[test]
+    fn test_lightning_receive_db() {
+        let db = setup_test_db_with_data();
+        let pool = db.db.clone();
+        let mut conn = pool.get().unwrap();
+
+        let operation_id = OperationId::new_random();
+        let invoice = Bolt11Invoice::from_str("lntbs10u1pny86cupp52lkv666juacc9evu0fpfmduac6l6qp0qypxr0yk9wfpze2u5sngshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5nnhtrhvyfh077g6rdfrs7ml9hqks4mj6f0e50nyeejc73ee7gl3q9qyyssq3urmp6hy3c95rtddevae0djrfn8au0rumgd05zvddzshg8krwupzc4htl38kqufp27el5ev5l8ea4736y3a3rpq5cewxwftsdk2v52cp9w25a0").unwrap();
+        let preimage: [u8; 32] = [0; 32];
+
+        LightningReceive::create(
+            &mut conn,
+            operation_id,
+            FederationId::from_str(FEDERATION_ID).unwrap(),
+            invoice.clone(),
+            Amount::from_sats(1_000),
+            Amount::from_sats(1),
+            preimage,
+        )
+        .unwrap();
+
+        let receive = LightningReceive::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(receive.operation_id(), operation_id);
+        assert_eq!(
+            receive.fedimint_id(),
+            FederationId::from_str(FEDERATION_ID).unwrap()
+        );
+        assert_eq!(receive.payment_hash(), invoice.payment_hash().into_32());
+        assert_eq!(receive.bolt11(), invoice);
+        assert_eq!(receive.amount(), Amount::from_sats(1_000));
+        assert_eq!(receive.fee(), Amount::from_sats(1));
+        assert_eq!(receive.preimage(), preimage);
+        assert_eq!(receive.status(), PaymentStatus::Pending);
+
+        // sleep for a second to make sure the timestamps are different
+        std::thread::sleep(Duration::from_secs(1));
+
+        LightningReceive::mark_as_failed(&mut conn, operation_id).unwrap();
+
+        let failed = LightningReceive::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(failed.status(), PaymentStatus::Failed);
+        assert_eq!(failed.preimage(), preimage);
+        assert_ne!(failed.updated_at, failed.created_at);
+        assert_ne!(failed.updated_at, receive.updated_at);
+    }
+
+    #[test]
+    fn test_onchain_payment_db() {
+        let db = setup_test_db_with_data();
+        let pool = db.db.clone();
+        let mut conn = pool.get().unwrap();
+
+        let operation_id = OperationId::new_random();
+        let address = Address::from_str("tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v").unwrap();
+
+        let amount: u64 = 10_000;
+        let fee: u64 = 200;
+
+        OnChainPayment::create(
+            &mut conn,
+            operation_id,
+            FederationId::from_str(FEDERATION_ID).unwrap(),
+            address.clone(),
+            amount,
+            fee,
+        )
+        .unwrap();
+
+        let payment = OnChainPayment::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(payment.operation_id(), operation_id);
+        assert_eq!(
+            payment.fedimint_id(),
+            FederationId::from_str(FEDERATION_ID).unwrap()
+        );
+        assert_eq!(payment.address(), address);
+        assert_eq!(payment.amount_sats as u64, amount);
+        assert_eq!(payment.fee_sats as u64, fee);
+        assert_eq!(payment.txid(), None);
+        assert_eq!(payment.status(), PaymentStatus::Pending);
+
+        // sleep for a second to make sure the timestamps are different
+        std::thread::sleep(Duration::from_secs(1));
+
+        OnChainPayment::set_txid(&mut conn, operation_id, Txid::all_zeros()).unwrap();
+
+        let with_txid = OnChainPayment::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(with_txid.status(), PaymentStatus::Success);
+        assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
+        assert_ne!(with_txid.updated_at, with_txid.created_at);
+        assert_ne!(with_txid.updated_at, payment.updated_at);
+    }
+
+    #[test]
+    fn test_onchain_receive_db() {
+        let db = setup_test_db_with_data();
+        let pool = db.db.clone();
+        let mut conn = pool.get().unwrap();
+
+        let operation_id = OperationId::new_random();
+        let address = Address::from_str("tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v").unwrap();
+
+        let amount: u64 = 10_000;
+        let fee: u64 = 200;
+
+        OnChainReceive::create(
+            &mut conn,
+            operation_id,
+            FederationId::from_str(FEDERATION_ID).unwrap(),
+            address.clone(),
+            amount,
+            fee,
+        )
+        .unwrap();
+
+        let payment = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(payment.operation_id(), operation_id);
+        assert_eq!(
+            payment.fedimint_id(),
+            FederationId::from_str(FEDERATION_ID).unwrap()
+        );
+        assert_eq!(payment.address(), address);
+        assert_eq!(payment.amount_sats as u64, amount);
+        assert_eq!(payment.fee_sats as u64, fee);
+        assert_eq!(payment.txid(), None);
+        assert_eq!(payment.status(), PaymentStatus::Pending);
+
+        // sleep for a second to make sure the timestamps are different
+        std::thread::sleep(Duration::from_secs(1));
+
+        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros()).unwrap();
+
+        let with_txid = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(with_txid.status(), PaymentStatus::WaitingConfirmation);
+        assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
+        assert_ne!(with_txid.updated_at, with_txid.created_at);
+        assert_ne!(with_txid.updated_at, payment.updated_at);
+
+        // sleep for a second to make sure the timestamps are different
+        std::thread::sleep(Duration::from_secs(1));
+
+        OnChainReceive::mark_as_confirmed(&mut conn, operation_id).unwrap();
+
+        let confirmed = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(confirmed.status(), PaymentStatus::Success);
+        assert_eq!(confirmed.txid(), Some(Txid::all_zeros()));
+        assert_ne!(confirmed.updated_at, confirmed.created_at);
+        assert_ne!(confirmed.updated_at, with_txid.updated_at);
     }
 }
