@@ -263,6 +263,8 @@ pub fn run_core() -> Subscription<Message> {
                                         error!("Error adding federation: {e}");
                                         core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
                                             .await;
+                                    } else {
+                                        core.msg(CoreUIMsg::AddFederationSuccess).await;
                                     }
                                 }
                                 // TODO: actually use this to unlock

@@ -35,6 +35,7 @@ pub enum CoreUIMsg {
     ReceiveFailed(String),
     BalanceUpdated(Amount),
     AddFederationFailed(String),
+    AddFederationSuccess,
     Unlocking,
     UnlockSuccess,
     UnlockFailed(String),
@@ -61,11 +62,16 @@ impl UIHandle {
     }
 
     pub async fn receive(&self, amount: u64) {
-        self.msg_send(UICoreMsg::ReceiveLightning(Amount::from_sats(amount))).await;
+        self.msg_send(UICoreMsg::ReceiveLightning(Amount::from_sats(amount)))
+            .await;
     }
 
     pub async fn unlock(&self, password: String) {
         self.msg_send(UICoreMsg::Unlock(password)).await;
+    }
+
+    pub async fn add_federation(&self, invite: InviteCode) {
+        self.msg_send(UICoreMsg::AddFederation(invite)).await;
     }
 }
 

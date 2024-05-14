@@ -1,4 +1,5 @@
 use core::run_core;
+use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
@@ -63,6 +64,8 @@ pub struct HarborWallet {
     receive_amount_str: String,
     receive_invoice: Option<Bolt11Invoice>,
     receive_qr_data: Option<Data>,
+    mint_invite_code_str: String,
+    add_federation_failure_reason: Option<String>,
 }
 
 impl Default for HarborWallet {
@@ -105,6 +108,7 @@ pub enum Message {
     SendDestInputChanged(String),
     SendAmountInputChanged(String),
     PasswordInputChanged(String),
+    MintInviteCodeInputChanged(String),
     CopyToClipboard(String),
     // Async commands we fire from the UI to core
     Noop,
@@ -112,6 +116,7 @@ pub enum Message {
     Receive(u64),
     GenerateInvoice,
     Unlock(String),
+    AddFederation(String),
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
 }
@@ -135,6 +140,8 @@ impl HarborWallet {
             receive_status: ReceiveStatus::Idle,
             receive_invoice: None,
             receive_qr_data: None,
+            mint_invite_code_str: String::new(),
+            add_federation_failure_reason: None,
         }
     }
 
@@ -143,9 +150,7 @@ impl HarborWallet {
     }
 
     async fn async_send(ui_handle: Option<Arc<bridge::UIHandle>>, invoice: Bolt11Invoice) {
-        println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
-            println!("Have a ui_handle, sending the invoice over");
             ui_handle.clone().send(invoice).await;
         } else {
             panic!("UI handle is None");
@@ -163,6 +168,14 @@ impl HarborWallet {
     async fn async_unlock(ui_handle: Option<Arc<bridge::UIHandle>>, password: String) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.clone().unlock(password).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_add_federation(ui_handle: Option<Arc<bridge::UIHandle>>, invite: InviteCode) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().add_federation(invite).await;
         } else {
             panic!("UI handle is None");
         }
@@ -203,6 +216,10 @@ impl HarborWallet {
             }
             Message::PasswordInputChanged(input) => {
                 self.password_input_str = input;
+                Command::none()
+            }
+            Message::MintInviteCodeInputChanged(input) => {
+                self.mint_invite_code_str = input;
                 Command::none()
             }
             // Async commands we fire from the UI to core
@@ -257,6 +274,18 @@ impl HarborWallet {
                     })
                 }
             },
+            Message::AddFederation(invite_code) => {
+                let invite = InviteCode::from_str(&invite_code);
+                if let Ok(invite) = invite {
+                    Command::perform(
+                        Self::async_add_federation(self.ui_handle.clone(), invite),
+                        |_| Message::Noop,
+                    )
+                } else {
+                    self.add_federation_failure_reason = Some("Invalid invite code".to_string());
+                    Command::none()
+                }
+            }
             Message::CopyToClipboard(s) => {
                 println!("Copying to clipboard: {s}");
                 clipboard::write(s)
@@ -281,7 +310,7 @@ impl HarborWallet {
                     info!("Receive success: {params:?}");
                     self.receive_status = ReceiveStatus::Idle;
                     Command::none()
-                },
+                }
                 CoreUIMsg::ReceiveFailed(reason) => {
                     self.receive_status = ReceiveStatus::Idle;
                     self.receive_failure_reason = Some(reason);
@@ -308,8 +337,12 @@ impl HarborWallet {
                     self.receive_invoice = Some(invoice);
                     Command::none()
                 }
-                CoreUIMsg::AddFederationFailed(_) => {
-                    // todo show error
+                CoreUIMsg::AddFederationFailed(reason) => {
+                    self.add_federation_failure_reason = Some(reason);
+                    Command::none()
+                }
+                CoreUIMsg::AddFederationSuccess => {
+                    self.mint_invite_code_str = String::new();
                     Command::none()
                 }
                 CoreUIMsg::Unlocking => {
@@ -338,6 +371,7 @@ impl HarborWallet {
             Route::Home => row![sidebar, crate::routes::home(self)].into(),
             Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
+            Route::Mints => row![sidebar, crate::routes::mints(self)].into(),
             _ => row![sidebar, crate::routes::home(self)].into(),
         };
 
