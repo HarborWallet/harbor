@@ -21,6 +21,7 @@
           pkgs.rust-analyzer
           pkgs.openssl
           pkgs.zlib
+          pkgs.sqlcipher
           pkgs.gcc
           pkgs.pkg-config
           pkgs.just
