@@ -19,7 +19,7 @@ use fedimint_wallet_client::{WalletClientInit, WalletClientModule};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::spawn;
@@ -109,6 +109,7 @@ impl FedimintClient {
 
         // Update gateway cache in background
         let client_clone = fedimint_client.clone();
+        let stop_clone = stop.clone();
         spawn(async move {
             let start = Instant::now();
             let lightning_module = client_clone.get_first_module::<LightningClientModule>();
@@ -123,9 +124,19 @@ impl FedimintClient {
             }
 
             trace!(
-                "Setting active gateway took: {}ms",
+                "Updating gateway cache took: {}ms",
                 start.elapsed().as_millis()
             );
+
+            // continually update gateway cache
+            loop {
+                lightning_module
+                    .update_gateway_cache_continuously(|g| async { g })
+                    .await;
+                if stop_clone.load(Ordering::Relaxed) {
+                    break;
+                }
+            }
         });
 
         debug!("Built fedimint client");
