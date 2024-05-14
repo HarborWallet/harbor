@@ -8,8 +8,8 @@ use std::sync::Arc;
 use bridge::CoreUIMsg;
 use iced::subscription::Subscription;
 use iced::widget::row;
+use iced::Element;
 use iced::{clipboard, program, Color};
-use iced::{Alignment, Element};
 use iced::{Command, Font};
 
 pub mod bridge;
@@ -50,6 +50,9 @@ pub struct HarborWallet {
     send_status: SendStatus,
     send_failure_reason: Option<String>,
     send_input_str: String,
+    password_input_str: String,
+    unlock_status: UnlockStatus,
+    unlock_failure_reason: Option<String>,
     receive_failure_reason: Option<String>,
     receive_status: ReceiveStatus,
     receive_amount_str: String,
@@ -77,6 +80,14 @@ enum ReceiveStatus {
     WaitingToReceive,
 }
 
+#[derive(Default, Debug, Clone)]
+enum UnlockStatus {
+    #[default]
+    Locked,
+    Unlocked,
+    Unlocking,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Setup
@@ -86,12 +97,14 @@ pub enum Message {
     TransferAmountChanged(String),
     ReceiveAmountChanged(String),
     SendInputChanged(String),
+    PasswordInputChanged(String),
     CopyToClipboard(String),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
     Receive(u64),
     GenerateInvoice,
+    Unlock(String),
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
 }
@@ -101,12 +114,15 @@ impl HarborWallet {
         Self {
             ui_handle: None,
             balance: Amount::ZERO,
-            active_route: Route::Home,
+            active_route: Route::Unlock,
             transfer_amount_str: String::new(),
             receive_amount_str: String::new(),
             send_input_str: String::new(),
             send_status: SendStatus::Idle,
             send_failure_reason: None,
+            unlock_status: UnlockStatus::Locked,
+            unlock_failure_reason: None,
+            password_input_str: String::new(),
             receive_failure_reason: None,
             receive_status: ReceiveStatus::Idle,
             receive_invoice: None,
@@ -145,6 +161,14 @@ impl HarborWallet {
         }
     }
 
+    async fn async_unlock(ui_handle: Option<Arc<bridge::UIHandle>>, password: String) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().unlock(password).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
@@ -168,6 +192,10 @@ impl HarborWallet {
             }
             Message::SendInputChanged(input) => {
                 self.send_input_str = input;
+                Command::none()
+            }
+            Message::PasswordInputChanged(input) => {
+                self.password_input_str = input;
                 Command::none()
             }
             // Async commands we fire from the UI to core
@@ -211,6 +239,15 @@ impl HarborWallet {
                             Command::none()
                         }
                     }
+                }
+            },
+            Message::Unlock(password) => match self.unlock_status {
+                UnlockStatus::Unlocking => Command::none(),
+                _ => {
+                    self.unlock_failure_reason = None;
+                    Command::perform(Self::async_unlock(self.ui_handle.clone(), password), |_| {
+                        Message::Noop
+                    })
                 }
             },
             Message::CopyToClipboard(s) => {
@@ -257,6 +294,20 @@ impl HarborWallet {
                     // todo show error
                     Command::none()
                 }
+                CoreUIMsg::Unlocking => {
+                    self.unlock_status = UnlockStatus::Unlocking;
+                    Command::none()
+                }
+                CoreUIMsg::UnlockSuccess => {
+                    self.unlock_status = UnlockStatus::Unlocked;
+                    self.active_route = Route::Home;
+                    Command::none()
+                }
+                CoreUIMsg::UnlockFailed(reason) => {
+                    self.unlock_status = UnlockStatus::Locked;
+                    self.unlock_failure_reason = Some(reason);
+                    Command::none()
+                }
             },
         }
     }
@@ -265,17 +316,14 @@ impl HarborWallet {
         let sidebar = crate::components::sidebar(self);
 
         let active_route = match self.active_route {
-            Route::Home => crate::routes::home(self),
-            Route::Mints => crate::routes::mints(self),
-            Route::Transfer => crate::routes::transfer(self),
-            Route::Receive => crate::routes::receive(self),
-            Route::Send => crate::routes::send(self),
-            _ => crate::routes::home(self),
+            Route::Unlock => crate::routes::unlock(self),
+            Route::Home => row![sidebar, crate::routes::home(self)].into(),
+            Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
+            Route::Send => row![sidebar, crate::routes::send(self)].into(),
+            _ => row![crate::routes::home(self)].into(),
         };
 
-        row![sidebar, active_route]
-            .align_items(Alignment::Center)
-            .into()
+        active_route
     }
 
     fn theme(&self) -> iced::Theme {

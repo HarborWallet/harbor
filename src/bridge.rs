@@ -1,5 +1,5 @@
-use fedimint_core::Amount;
 use fedimint_core::api::InviteCode;
+use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;
 
@@ -10,6 +10,7 @@ pub enum UICoreMsg {
     Send(Bolt11Invoice),
     Receive(u64),
     AddFederation(InviteCode),
+    Unlock(String),
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +24,9 @@ pub enum CoreUIMsg {
     ReceiveFailed(String),
     BalanceUpdated(Amount),
     AddFederationFailed(String),
+    Unlocking,
+    UnlockSuccess,
+    UnlockFailed(String),
 }
 
 #[derive(Debug)]
@@ -51,6 +55,10 @@ impl UIHandle {
 
     pub async fn receive(&self, amount: u64) {
         self.msg_send(UICoreMsg::Receive(amount)).await;
+    }
+
+    pub async fn unlock(&self, password: String) {
+        self.msg_send(UICoreMsg::Unlock(password)).await;
     }
 }
 

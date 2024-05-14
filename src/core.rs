@@ -282,6 +282,15 @@ pub fn run_core() -> Subscription<Message> {
                                             .await;
                                     }
                                 }
+                                // TODO: actually use this to unlock
+                                UICoreMsg::Unlock(_password) => {
+                                    core.msg(CoreUIMsg::Unlocking).await;
+                                    // if let Err(e) = core.unlock(password).await {
+                                    //     error!("Error unlocking: {e}");
+                                    //     core.msg(CoreUIMsg::UnlockFailed(e.to_string())).await;
+                                    // }
+                                    core.msg(CoreUIMsg::UnlockSuccess).await;
+                                }
                             }
                         }
                     }

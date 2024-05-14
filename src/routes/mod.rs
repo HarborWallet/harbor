@@ -13,9 +13,13 @@ pub use receive::*;
 pub mod send;
 pub use send::*;
 
+pub mod unlock;
+pub use unlock::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
+    Unlock,
     Home,
     Mints,
     Transfer,
