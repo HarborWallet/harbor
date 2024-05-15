@@ -94,8 +94,6 @@ pub enum Message {
     Donate,
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
-    // Fake stuff for testing
-    FakeAddTransaction,
 }
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
@@ -337,15 +335,6 @@ impl HarborWallet {
             Message::CopyToClipboard(s) => {
                 println!("Copying to clipboard: {s}");
                 clipboard::write(s)
-            }
-            Message::FakeAddTransaction => {
-                if self.transaction_history.len() % 2 == 0 {
-                    self.transaction_history
-                        .push(TransactionItem::make_dummy_onchain());
-                } else {
-                    self.transaction_history.push(TransactionItem::make_dummy());
-                }
-                Command::none()
             }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg {
