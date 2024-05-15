@@ -61,8 +61,8 @@ impl HarborCore {
             .unwrap();
     }
 
-    // TODO: probably just do this in core_loaded?
-    async fn set_balance(&self) {
+    // Sends updates to the UI to refelect the initial state
+    async fn init_ui_state(&self) {
         self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
     }
 
@@ -294,7 +294,7 @@ pub fn run_core() -> Subscription<Message> {
 
 async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
     // Initialize the ui's state
-    core.set_balance().await;
+    core.init_ui_state().await;
 
     loop {
         let msg = core_handle.recv().await;
