@@ -23,7 +23,7 @@ use log::{error, warn};
 use tokio::sync::RwLock;
 
 use crate::fedimint_client::{
-    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription,
+    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription, FederationInviteOrId,
 };
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
@@ -180,7 +180,7 @@ impl HarborCore {
 
         let client = FedimintClient::new(
             self.storage.clone(),
-            invite_code,
+            FederationInviteOrId::Invite(invite_code),
             &self.mnemonic,
             self.network,
             self.stop.clone(),
@@ -256,7 +256,7 @@ pub fn run_core() -> Subscription<Message> {
                         // fixme, properly initialize this
                         let client = FedimintClient::new(
                             db.clone(),
-                            InviteCode::from_str(INVITE).unwrap(),
+                            FederationInviteOrId::Invite(InviteCode::from_str(INVITE).unwrap()),
                             &mnemonic,
                             network,
                             stop.clone(),
