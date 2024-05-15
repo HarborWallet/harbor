@@ -40,7 +40,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         None,
     );
 
-    let send_button = h_button("Send", SvgIcon::UpRight)
+    let send_button = h_button("Send", SvgIcon::UpRight, false)
         .on_press(Message::Send(harbor.send_dest_input_str.clone()));
 
     let body = column![header, amount_input, dest_input, send_button].spacing(48);

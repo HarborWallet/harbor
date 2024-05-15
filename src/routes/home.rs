@@ -8,10 +8,10 @@ use super::Route;
 
 pub fn home(harbor: &HarborWallet) -> Element<Message> {
     let balance = text(format!("{} sats", harbor.balance.sats_round_down())).size(64);
-    let send_button = h_button("Send", SvgIcon::UpRight).on_press(Message::Navigate(Route::Send));
-    // let receive_button = h_button("Receive", SvgIcon::DownLeft).on_press(Message::Receive(100));
+    let send_button =
+        h_button("Send", SvgIcon::UpRight, false).on_press(Message::Navigate(Route::Send));
     let receive_button =
-        h_button("Receive", SvgIcon::DownLeft).on_press(Message::Navigate(Route::Receive));
+        h_button("Receive", SvgIcon::DownLeft, false).on_press(Message::Navigate(Route::Receive));
     let buttons = row![send_button, receive_button].spacing(32);
 
     container(center(

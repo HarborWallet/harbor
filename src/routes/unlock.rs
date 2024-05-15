@@ -1,14 +1,14 @@
 use crate::components::{h_button, h_input, SvgIcon};
 use iced::{
     widget::{center, column, container, text, Svg},
-    Color,
+    Color, Theme,
 };
 use iced::{Alignment, Element, Length};
 
 use crate::{HarborWallet, Message};
 
-pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
-    let unlock_button = h_button("Unlock", SvgIcon::DownLeft)
+pub fn unlock(harbor: &HarborWallet) -> Element<Message, Theme> {
+    let unlock_button = h_button("Unlock", SvgIcon::DownLeft, false)
         .on_press(Message::Unlock(harbor.password_input_str.clone()))
         .width(Length::Fill);
 

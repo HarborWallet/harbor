@@ -2469,6 +2469,8 @@ dependencies = [
  "home",
  "iced",
  "log",
+ "lyon_algorithms",
+ "once_cell",
  "palette",
  "pretty_env_logger",
  "rusqlite",

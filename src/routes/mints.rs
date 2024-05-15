@@ -19,7 +19,7 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
         None,
     );
 
-    let add_mint_button = h_button("Add Mint", SvgIcon::Plus)
+    let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
         .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
 
     let column = column![header, mint_input, add_mint_button].spacing(48);

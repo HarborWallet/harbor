@@ -3,26 +3,26 @@ use iced::{
         button::{self, Status},
         center, horizontal_space, row, text, Button, Svg,
     },
-    Border, Color, Length, Shadow, Theme,
+    Border, Color, Element, Length, Shadow, Theme,
 };
 
 use crate::{Message, Route};
 
-use super::{darken, lighten, map_icon, SvgIcon};
+use super::{darken, lighten, map_icon, the_spinner, SvgIcon};
 
-pub fn h_button(text_str: &str, icon: SvgIcon) -> Button<'_, Message, Theme> {
+pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Message, Theme> {
+    let spinner: Element<'static, Message, Theme> = the_spinner();
     let svg: Svg<'_, Theme> = map_icon(icon);
-    let content = row!(
-        svg.width(Length::Fixed(24.)).height(Length::Fixed(24.)),
-        text(text_str).size(24.) // .font(Font {
-                                 //     family: iced::font::Family::default(),
-                                 //     weight: iced::font::Weight::Bold,
-                                 //     stretch: iced::font::Stretch::Normal,
-                                 //     style: iced::font::Style::Normal,
-                                 // })
-    )
-    .align_items(iced::Alignment::Center)
-    .spacing(16);
+    let content = if loading {
+        row![spinner].align_items(iced::Alignment::Center)
+    } else {
+        row![
+            svg.width(Length::Fixed(24.)).height(Length::Fixed(24.)),
+            text(text_str).size(24.)
+        ]
+        .align_items(iced::Alignment::Center)
+        .spacing(16)
+    };
 
     Button::new(center(content))
         .style(|theme, status| {
