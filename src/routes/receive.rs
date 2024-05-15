@@ -47,7 +47,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             "420",
             &harbor.receive_amount_str,
             Message::ReceiveAmountChanged,
-            Message::Noop,
+            None,
             false,
             None,
             Some("sats"),

@@ -13,7 +13,7 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
         "",
         &harbor.mint_invite_code_str,
         Message::MintInviteCodeInputChanged,
-        Message::Noop,
+        None,
         false,
         None,
         None,

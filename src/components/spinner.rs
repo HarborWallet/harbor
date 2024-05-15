@@ -1,3 +1,5 @@
+// Stolen from https://github.com/iced-rs/iced/tree/master/examples/loading_spinners
+
 //! Show a circular progress indicator.
 use iced::advanced::layout;
 use iced::advanced::renderer;
@@ -26,9 +28,9 @@ const BASE_ROTATION_SPEED: u32 = u32::MAX / 80;
 pub fn the_spinner() -> Element<'static, Message, Theme> {
     let easing = &STANDARD;
     let spinner = Circular::<Theme>::new()
-        .easing(&easing)
+        .easing(easing)
         .cycle_duration(Duration::from_secs_f32(2.));
-    return spinner.into();
+    spinner.into()
 }
 
 #[allow(missing_debug_implementations)]

@@ -1,3 +1,5 @@
+// Stolen from https://github.com/iced-rs/iced/tree/master/examples/loading_spinners
+
 use iced::Point;
 
 use lyon_algorithms::measure::PathMeasurements;
@@ -111,6 +113,7 @@ impl Builder {
 
     fn point(p: impl Into<Point>) -> lyon_algorithms::geom::Point<f32> {
         let p: Point = p.into();
+        #[allow(clippy::manual_clamp)]
         lyon_algorithms::geom::point(p.x.min(1.0).max(0.0), p.y.min(1.0).max(0.0))
     }
 }

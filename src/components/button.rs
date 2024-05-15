@@ -26,8 +26,15 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
 
     Button::new(center(content))
         .style(|theme, status| {
+            let gray = lighten(theme.palette().background, 0.5);
+
+            let border_color = match status {
+                Status::Disabled => gray,
+                _ => Color::WHITE,
+            };
+
             let border = Border {
-                color: Color::WHITE,
+                color: border_color,
                 width: 2.,
                 radius: (8.).into(),
             };
