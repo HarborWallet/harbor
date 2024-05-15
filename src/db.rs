@@ -111,14 +111,17 @@ pub trait DBConnection {
         operation_id: OperationId,
         fedimint_id: FederationId,
         address: Address,
-        amount_sats: u64,
-        fee_sats: u64,
     ) -> anyhow::Result<()>;
 
     fn mark_onchain_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
 
-    fn set_onchain_receive_txid(&self, operation_id: OperationId, txid: Txid)
-        -> anyhow::Result<()>;
+    fn set_onchain_receive_txid(
+        &self,
+        operation_id: OperationId,
+        txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
+    ) -> anyhow::Result<()>;
 
     fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()>;
 
@@ -244,19 +247,10 @@ impl DBConnection for SQLConnection {
         operation_id: OperationId,
         fedimint_id: FederationId,
         address: Address,
-        amount_sats: u64,
-        fee_sats: u64,
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        OnChainReceive::create(
-            conn,
-            operation_id,
-            fedimint_id,
-            address,
-            amount_sats,
-            fee_sats,
-        )?;
+        OnChainReceive::create(conn, operation_id, fedimint_id, address)?;
 
         Ok(())
     }
@@ -315,10 +309,12 @@ impl DBConnection for SQLConnection {
         &self,
         operation_id: OperationId,
         txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        OnChainReceive::set_txid(conn, operation_id, txid)?;
+        OnChainReceive::set_txid(conn, operation_id, txid, amount_sats, fee_sats)?;
 
         Ok(())
     }
@@ -667,8 +663,6 @@ mod tests {
             operation_id,
             FederationId::from_str(FEDERATION_ID).unwrap(),
             address.clone(),
-            amount,
-            fee,
         )
         .unwrap();
 
@@ -682,15 +676,15 @@ mod tests {
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
         assert_eq!(payment.address(), address);
-        assert_eq!(payment.amount_sats as u64, amount);
-        assert_eq!(payment.fee_sats as u64, fee);
+        assert!(payment.amount_sats.is_none());
+        assert!(payment.fee_sats.is_none());
         assert_eq!(payment.txid(), None);
         assert_eq!(payment.status(), PaymentStatus::Pending);
 
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros()).unwrap();
+        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros(), amount, fee).unwrap();
 
         let with_txid = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
             .unwrap()
@@ -698,6 +692,8 @@ mod tests {
 
         assert_eq!(with_txid.status(), PaymentStatus::WaitingConfirmation);
         assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
+        assert_eq!(with_txid.amount_sats, Some(amount as i64));
+        assert_eq!(with_txid.fee_sats, Some(fee as i64));
         assert_ne!(with_txid.updated_at, with_txid.created_at);
         assert_ne!(with_txid.updated_at, payment.updated_at);
 
@@ -712,6 +708,8 @@ mod tests {
 
         assert_eq!(confirmed.status(), PaymentStatus::Success);
         assert_eq!(confirmed.txid(), Some(Txid::all_zeros()));
+        assert_eq!(with_txid.amount_sats, Some(amount as i64));
+        assert_eq!(with_txid.fee_sats, Some(fee as i64));
         assert_ne!(confirmed.updated_at, confirmed.created_at);
         assert_ne!(confirmed.updated_at, with_txid.updated_at);
     }

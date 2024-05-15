@@ -14,8 +14,8 @@ pub struct OnChainReceive {
     operation_id: String,
     fedimint_id: String,
     address: String,
-    pub amount_sats: i64,
-    pub fee_sats: i64,
+    pub amount_sats: Option<i64>,
+    pub fee_sats: Option<i64>,
     txid: Option<String>,
     status: i32,
     pub created_at: chrono::NaiveDateTime,
@@ -28,8 +28,6 @@ struct NewOnChainReceive {
     operation_id: String,
     fedimint_id: String,
     address: String,
-    amount_sats: i64,
-    fee_sats: i64,
     status: i32,
 }
 
@@ -61,15 +59,11 @@ impl OnChainReceive {
         operation_id: OperationId,
         fedimint_id: FederationId,
         address: Address,
-        amount_sats: u64,
-        fee_sats: u64,
     ) -> anyhow::Result<()> {
         let new = NewOnChainReceive {
             operation_id: operation_id.to_string(),
             fedimint_id: fedimint_id.to_string(),
             address: address.to_string(),
-            amount_sats: amount_sats as i64,
-            fee_sats: fee_sats as i64,
             status: PaymentStatus::Pending as i32,
         };
 
@@ -94,6 +88,8 @@ impl OnChainReceive {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
         txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
     ) -> anyhow::Result<()> {
         diesel::update(
             on_chain_receives::table
@@ -101,6 +97,8 @@ impl OnChainReceive {
         )
         .set((
             on_chain_receives::txid.eq(Some(txid.to_hex())),
+            on_chain_receives::amount_sats.eq(Some(amount_sats as i64)),
+            on_chain_receives::fee_sats.eq(Some(fee_sats as i64)),
             on_chain_receives::status.eq(PaymentStatus::WaitingConfirmation as i32),
         ))
         .execute(conn)?;
@@ -152,7 +150,7 @@ impl From<OnChainReceive> for TransactionItem {
     fn from(payment: OnChainReceive) -> Self {
         Self {
             kind: TransactionItemKind::Onchain,
-            amount: payment.amount_sats as u64,
+            amount: payment.amount_sats.unwrap_or(0) as u64, // todo handle this better
             direction: TransactionDirection::Incoming,
             timestamp: payment.created_at.and_utc().timestamp() as u64,
         }

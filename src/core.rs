@@ -232,13 +232,8 @@ impl HarborCore {
 
         let (op_id, address) = onchain.get_deposit_address(valid_until, ()).await?;
 
-        self.storage.create_onchain_receive(
-            op_id,
-            client.federation_id(),
-            address.clone(),
-            0, // fixme this should be nullable
-            0, // fixme this should be nullable
-        )?;
+        self.storage
+            .create_onchain_receive(op_id, client.federation_id(), address.clone())?;
 
         let sub = onchain.subscribe_deposit_updates(op_id).await?;
 

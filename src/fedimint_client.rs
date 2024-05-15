@@ -508,13 +508,18 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                 DepositState::WaitingForConfirmation(data) => {
                     info!("Onchain receive waiting for confirmation: {data:?}");
                     let txid = data.btc_transaction.txid();
+                    let index = data.out_idx as usize;
+                    let amount = data.btc_transaction.output[index].value;
                     let params = ReceiveSuccessMsg::Onchain { txid };
                     sender
                         .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess(params)))
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.set_onchain_receive_txid(operation_id, txid) {
+                    let fee_sats = 0; // fees for receives may exist one day
+                    if let Err(e) =
+                        storage.set_onchain_receive_txid(operation_id, txid, amount, fee_sats)
+                    {
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
