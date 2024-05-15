@@ -91,7 +91,7 @@ enum ReceiveStatus {
     WaitingToReceive,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 enum UnlockStatus {
     #[default]
     Locked,
@@ -400,6 +400,7 @@ impl HarborWallet {
                     Command::none()
                 }
                 CoreUIMsg::Unlocking => {
+                    info!("Got unlocking message");
                     self.unlock_status = UnlockStatus::Unlocking;
                     Command::none()
                 }

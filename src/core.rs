@@ -13,6 +13,7 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+use tokio::time::sleep;
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -219,9 +220,13 @@ pub fn run_core() -> Subscription<Message> {
 
                 match msg {
                     Some(UICoreMsg::Unlock(password)) => {
+                        log::info!("Sending unlock message");
                         tx.send(Message::CoreMessage(CoreUIMsg::Unlocking))
                             .await
                             .expect("should send");
+
+                        // TODO: for some reason the unlocking message gets delivered at the end if I don't sleep here
+                        sleep(Duration::from_secs(1)).await;
 
                         // attempting to unlock
                         let db = setup_db(

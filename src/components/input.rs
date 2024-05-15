@@ -23,11 +23,13 @@ pub fn h_input<'a>(
     placeholder: &'static str,
     value: &'a str,
     on_input: impl Fn(String) -> Message + 'a,
-    on_submit: Message,
+    on_submit: Option<Message>,
     secure: bool,
     id: Option<&'static str>,
     suffix: Option<&'static str>,
 ) -> Element<'a, Message, Theme> {
+    let on_submit = on_submit.unwrap_or(Message::Noop);
+
     let input = TextInput::new(placeholder, value)
         .style(|theme: &Theme, status| {
             let gray = lighten(theme.palette().background, 0.5);

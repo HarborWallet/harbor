@@ -36,7 +36,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             header,
             qr_container,
             text(format!("{first_ten_chars}...")).size(16),
-            h_button("Copy to clipboard", SvgIcon::Copy)
+            h_button("Copy to clipboard", SvgIcon::Copy, false)
                 .on_press(Message::CopyToClipboard(string)),
         ]
     } else {
@@ -47,19 +47,24 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             "420",
             &harbor.receive_amount_str,
             Message::ReceiveAmountChanged,
-            Message::Noop,
+            None,
             false,
             None,
             Some("sats"),
         );
 
-        let generate_button =
-            h_button("Generate Invoice", SvgIcon::DownLeft).on_press(Message::GenerateInvoice);
+        let generate_button = h_button("Generate Invoice", SvgIcon::DownLeft, false)
+            .on_press(Message::GenerateInvoice);
 
-        let generate_address_button =
-            h_button("Generate Address", SvgIcon::Squirrel).on_press(Message::GenerateAddress);
+        let generate_address_button = h_button("Generate Address", SvgIcon::Squirrel, false)
+            .on_press(Message::GenerateAddress);
 
-        column![header, amount_input, generate_button, generate_address_button]
+        column![
+            header,
+            amount_input,
+            generate_button,
+            generate_address_button
+        ]
     };
 
     container(scrollable(

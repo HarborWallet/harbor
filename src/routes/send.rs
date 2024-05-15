@@ -23,7 +23,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         "420",
         &harbor.send_amount_input_str,
         Message::SendAmountInputChanged,
-        Message::Noop,
+        None,
         false,
         None,
         Some("sats"),
@@ -34,13 +34,13 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         "abc123...",
         &harbor.send_dest_input_str,
         Message::SendDestInputChanged,
-        Message::Noop,
+        None,
         false,
         None,
         None,
     );
 
-    let send_button = h_button("Send", SvgIcon::UpRight)
+    let send_button = h_button("Send", SvgIcon::UpRight, false)
         .on_press(Message::Send(harbor.send_dest_input_str.clone()));
 
     let body = column![header, amount_input, dest_input, send_button].spacing(48);
