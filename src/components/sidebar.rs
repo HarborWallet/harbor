@@ -40,6 +40,8 @@ pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
                 harbor.active_route
             )
             .on_press(Message::Navigate(Route::Settings)),
+            sidebar_button("Donate", SvgIcon::Heart, Route::Donate, harbor.active_route)
+                .on_press(Message::Navigate(Route::Donate)),
         ]
         .spacing(8)
         .align_items(Alignment::Start),
