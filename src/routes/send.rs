@@ -1,22 +1,12 @@
-use iced::widget::text::Style;
 use iced::widget::{column, container, scrollable, text};
 use iced::{Color, Length};
-use iced::{Element, Padding, Theme};
+use iced::{Element, Padding};
 
-use crate::components::{h_button, h_input, lighten, SvgIcon};
-use crate::{HarborWallet, Message};
+use crate::components::{h_button, h_header, h_input, SvgIcon};
+use crate::{HarborWallet, Message, SendStatus};
 
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
-    let header = column![
-        text("Send").size(32),
-        text("Send to an on-chain address or lighting invoice.")
-            .size(18)
-            .style(|theme: &Theme| {
-                let gray = lighten(theme.palette().background, 0.5);
-                Style { color: Some(gray) }
-            })
-    ]
-    .spacing(8);
+    let header = h_header("Send", "Send to an on-chain address or lightning invoice.");
 
     let amount_input = h_input(
         "Amount",
@@ -40,20 +30,33 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         None,
     );
 
-    let send_button = h_button("Send", SvgIcon::UpRight, false)
-        .on_press(Message::Send(harbor.send_dest_input_str.clone()));
-
-    let body = column![header, amount_input, dest_input, send_button].spacing(48);
+    let send_button = h_button(
+        "Send",
+        SvgIcon::UpRight,
+        harbor.send_status == SendStatus::Sending,
+    )
+    .on_press(Message::Send(harbor.send_dest_input_str.clone()));
 
     let failure_message = harbor
         .send_failure_reason
         .as_ref()
-        .map(|r| text(r).size(50).color(Color::from_rgb(255., 0., 0.)));
+        .map(|r| text(r).size(32).color(Color::from_rgb(255., 0., 0.)));
+
+    let success_message = harbor.send_success_msg.as_ref().map(|r| {
+        text(format!("Success: {r:?}"))
+            .size(32)
+            .color(Color::from_rgb(0., 255., 0.))
+    });
 
     let column = if let Some(failure_message) = failure_message {
-        column![body, failure_message]
+        let dangit_button =
+            h_button("Dangit", SvgIcon::Squirrel, false).on_press(Message::SendStateReset);
+        column![header, failure_message, dangit_button]
+    } else if let Some(success_message) = success_message {
+        let nice_button = h_button("Nice", SvgIcon::Heart, false).on_press(Message::SendStateReset);
+        column![header, success_message, nice_button]
     } else {
-        column![body]
+        column![header, amount_input, dest_input, send_button]
     };
 
     container(scrollable(
