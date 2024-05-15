@@ -1,14 +1,13 @@
 use bitcoin::Address;
 use core::run_core;
 use fedimint_core::api::InviteCode;
-use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
 use routes::Route;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bridge::{CoreUIMsg, SendSuccessMsg};
+use bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
 use iced::subscription::Subscription;
 use iced::widget::row;
 use iced::Element;
@@ -53,7 +52,7 @@ enum SendStatus {
     Sending,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 enum ReceiveStatus {
     #[default]
     Idle,
@@ -75,8 +74,8 @@ pub enum Message {
     UIHandlerLoaded(Arc<bridge::UIHandle>),
     // Local state changes
     Navigate(Route),
-    TransferAmountChanged(String),
     ReceiveAmountChanged(String),
+    ReceiveStateReset,
     SendDestInputChanged(String),
     SendAmountInputChanged(String),
     SendStateReset,
@@ -98,11 +97,11 @@ pub enum Message {
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
 // More complicated state should be in Core, and bridged to the UI in a UI-friendly format.
+#[derive(Default, Debug)]
 pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
-    balance: Amount,
+    balance_sats: u64,
     active_route: Route,
-    transfer_amount_str: String,
     send_status: SendStatus,
     send_failure_reason: Option<String>,
     send_success_msg: Option<SendSuccessMsg>,
@@ -112,6 +111,7 @@ pub struct HarborWallet {
     unlock_status: UnlockStatus,
     unlock_failure_reason: Option<String>,
     receive_failure_reason: Option<String>,
+    receive_success_msg: Option<ReceiveSuccessMsg>,
     receive_status: ReceiveStatus,
     receive_amount_str: String,
     receive_invoice: Option<Bolt11Invoice>,
@@ -122,39 +122,7 @@ pub struct HarborWallet {
     donate_amount_str: String,
 }
 
-impl Default for HarborWallet {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl HarborWallet {
-    fn new() -> Self {
-        Self {
-            ui_handle: None,
-            balance: Amount::ZERO,
-            active_route: Route::Unlock,
-            transfer_amount_str: String::new(),
-            receive_amount_str: String::new(),
-            send_dest_input_str: String::new(),
-            send_amount_input_str: String::new(),
-            send_status: SendStatus::Idle,
-            send_failure_reason: None,
-            send_success_msg: None,
-            unlock_status: UnlockStatus::Locked,
-            unlock_failure_reason: None,
-            password_input_str: String::new(),
-            receive_failure_reason: None,
-            receive_status: ReceiveStatus::Idle,
-            receive_invoice: None,
-            receive_address: None,
-            receive_qr_data: None,
-            mint_invite_code_str: String::new(),
-            add_federation_failure_reason: None,
-            donate_amount_str: String::new(),
-        }
-    }
-
     fn subscription(&self) -> Subscription<Message> {
         run_core()
     }
@@ -233,10 +201,6 @@ impl HarborWallet {
                 self.active_route = route;
                 Command::none()
             }
-            Message::TransferAmountChanged(amount) => {
-                self.transfer_amount_str = amount;
-                Command::none()
-            }
             Message::ReceiveAmountChanged(amount) => {
                 self.receive_amount_str = amount;
                 Command::none()
@@ -267,6 +231,16 @@ impl HarborWallet {
                 self.send_dest_input_str = String::new();
                 self.send_amount_input_str = String::new();
                 self.send_status = SendStatus::Idle;
+                Command::none()
+            }
+            Message::ReceiveStateReset => {
+                self.receive_failure_reason = None;
+                self.receive_amount_str = String::new();
+                self.receive_invoice = None;
+                self.receive_success_msg = None;
+                self.receive_address = None;
+                self.receive_qr_data = None;
+                self.receive_status = ReceiveStatus::Idle;
                 Command::none()
             }
             // Async commands we fire from the UI to core
@@ -378,7 +352,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::ReceiveSuccess(params) => {
                     info!("Receive success: {params:?}");
-                    self.receive_status = ReceiveStatus::Idle;
+                    self.receive_success_msg = Some(params);
                     Command::none()
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
@@ -387,7 +361,7 @@ impl HarborWallet {
                     Command::none()
                 }
                 CoreUIMsg::BalanceUpdated(balance) => {
-                    self.balance = balance;
+                    self.balance_sats = balance.sats_round_down();
                     Command::none()
                 }
                 CoreUIMsg::ReceiveGenerating => {
