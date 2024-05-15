@@ -13,7 +13,6 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::time::sleep;
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -21,6 +20,7 @@ use iced::{
 };
 use log::{error, warn};
 use tokio::sync::RwLock;
+use tokio::task::spawn_blocking;
 
 use crate::fedimint_client::{
     spawn_onchain_payment_subscription, spawn_onchain_receive_subscription,
@@ -225,16 +225,12 @@ pub fn run_core() -> Subscription<Message> {
                             .await
                             .expect("should send");
 
-                        // TODO: for some reason the unlocking message gets delivered at the end if I don't sleep here
-                        sleep(Duration::from_secs(1)).await;
-
                         // attempting to unlock
-                        let db = setup_db(
-                            path.join("harbor.sqlite")
-                                .to_str()
-                                .expect("path must be correct"),
-                            password,
-                        );
+                        let db_path = path.join("harbor.sqlite");
+                        let db =
+                            spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
+                                .await
+                                .expect("Could not create join handle");
 
                         if let Err(e) = db {
                             // probably invalid password
