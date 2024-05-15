@@ -17,6 +17,7 @@ palette = "0.7"
 config = "0.14.0"
 serde = { version = "1.0", features = ["derive"] }
 home = "0.5.9"
+chrono = "0.4.38"
 rusqlite = { version = "0.31.0", features = ["sqlcipher"] }
 diesel = { version = "2.1.6", features = ["sqlite", "chrono", "r2d2"] }
 diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
@@ -33,3 +34,6 @@ fedimint-mint-client = "0.3.1"
 fedimint-ln-client = "0.3.1"
 fedimint-bip39 = "0.3.1"
 fedimint-ln-common = "0.3.1"
+
+[dev-dependencies]
+tempdir = "0.3.7"

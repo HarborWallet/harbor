@@ -358,11 +358,3 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn example_test() {
-        assert_eq!(true, true);
-    }
-}
