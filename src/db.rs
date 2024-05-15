@@ -46,6 +46,9 @@ pub trait DBConnection {
     // gets the federation data for a specific federation
     fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>>;
 
+    // gets the federation data for a specific federation
+    fn list_federations(&self) -> anyhow::Result<Vec<String>>;
+
     // updates the federation data
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()>;
 }
@@ -71,6 +74,11 @@ impl DBConnection for SQLConnection {
     fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>> {
         let conn = &mut self.db.get()?;
         Fedimint::get_value(conn, id)
+    }
+
+    fn list_federations(&self) -> anyhow::Result<Vec<String>> {
+        let conn = &mut self.db.get()?;
+        Fedimint::get_ids(conn)
     }
 
     fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint> {
