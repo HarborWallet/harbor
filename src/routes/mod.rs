@@ -19,6 +19,9 @@ pub use unlock::*;
 pub mod donate;
 pub use donate::*;
 
+pub mod history;
+pub use history::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]

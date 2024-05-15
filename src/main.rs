@@ -1,4 +1,5 @@
 use bitcoin::Address;
+use components::TransactionItem;
 use core::run_core;
 use fedimint_core::api::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -93,6 +94,8 @@ pub enum Message {
     Donate,
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
+    // Fake stuff for testing
+    FakeAddTransaction,
 }
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
@@ -120,6 +123,7 @@ pub struct HarborWallet {
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
     donate_amount_str: String,
+    transaction_history: Vec<TransactionItem>,
 }
 
 impl HarborWallet {
@@ -334,6 +338,15 @@ impl HarborWallet {
                 println!("Copying to clipboard: {s}");
                 clipboard::write(s)
             }
+            Message::FakeAddTransaction => {
+                if self.transaction_history.len() % 2 == 0 {
+                    self.transaction_history
+                        .push(TransactionItem::make_dummy_onchain());
+                } else {
+                    self.transaction_history.push(TransactionItem::make_dummy());
+                }
+                Command::none()
+            }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg {
                 CoreUIMsg::Sending => {
@@ -431,6 +444,9 @@ impl HarborWallet {
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
             Route::Mints => row![sidebar, crate::routes::mints(self)].into(),
             Route::Donate => row![sidebar, crate::routes::donate(self)].into(),
+            Route::History => row![sidebar, crate::routes::history(self)].into(),
+            Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),
+            // TODO: just add settings route and we can remove this
             _ => row![sidebar, crate::routes::home(self)].into(),
         };
 
