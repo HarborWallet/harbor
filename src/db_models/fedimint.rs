@@ -20,6 +20,14 @@ impl Fedimint {
             .map(|v| v.value))
     }
 
+    pub fn get_ids(conn: &mut SqliteConnection) -> anyhow::Result<Vec<String>> {
+        Ok(fedimint::table
+            .load::<Self>(conn)?
+            .into_iter()
+            .map(|f| f.id)
+            .collect())
+    }
+
     pub fn update(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
         let _ = diesel::update(fedimint::table)
             .filter(fedimint::id.eq(self.id.clone()))

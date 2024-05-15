@@ -23,7 +23,7 @@ use log::{error, warn};
 use tokio::sync::RwLock;
 
 use crate::fedimint_client::{
-    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription,
+    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription, FederationInviteOrId,
 };
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
@@ -50,8 +50,6 @@ struct HarborCore {
     storage: Arc<dyn DBConnection + Send + Sync>,
     stop: Arc<AtomicBool>,
 }
-
-const INVITE: &str = "fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er";
 
 impl HarborCore {
     async fn msg(&self, msg: CoreUIMsg) {
@@ -180,7 +178,7 @@ impl HarborCore {
 
         let client = FedimintClient::new(
             self.storage.clone(),
-            invite_code,
+            FederationInviteOrId::Invite(invite_code),
             &self.mnemonic,
             self.network,
             self.stop.clone(),
@@ -253,19 +251,26 @@ pub fn run_core() -> Subscription<Message> {
 
                         let stop = Arc::new(AtomicBool::new(false));
 
-                        // fixme, properly initialize this
-                        let client = FedimintClient::new(
-                            db.clone(),
-                            InviteCode::from_str(INVITE).unwrap(),
-                            &mnemonic,
-                            network,
-                            stop.clone(),
-                        )
-                        .await
-                        .expect("Could not create fedimint client");
-
+                        // check db for fedimints
                         let mut clients = HashMap::new();
-                        clients.insert(client.fedimint_client.federation_id(), client);
+                        let federation_ids = db
+                            .list_federations()
+                            .expect("should load initial fedimints");
+                        for f in federation_ids {
+                            let client = FedimintClient::new(
+                                db.clone(),
+                                FederationInviteOrId::Id(
+                                    FederationId::from_str(&f).expect("should parse federation id"),
+                                ),
+                                &mnemonic,
+                                network,
+                                stop.clone(),
+                            )
+                            .await
+                            .expect("Could not create fedimint client");
+
+                            clients.insert(client.fedimint_client.federation_id(), client);
+                        }
 
                         let mut balance = Amount::ZERO;
                         for client in clients.values() {

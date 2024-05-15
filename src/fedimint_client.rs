@@ -1,6 +1,7 @@
 use crate::bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
 use crate::Message;
 use crate::{db::DBConnection, db_models::NewFedimint};
+use anyhow::anyhow;
 use async_trait::async_trait;
 use bip39::Mnemonic;
 use bitcoin::hashes::hex::FromHex;
@@ -9,7 +10,7 @@ use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{get_default_client_secret, RootSecretStrategy};
 use fedimint_client::ClientHandleArc;
-use fedimint_core::config::ClientConfig;
+use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::mem_impl::MemTransaction;
 use fedimint_core::db::IDatabaseTransactionOps;
@@ -38,20 +39,34 @@ use tokio::spawn;
 #[derive(Debug, Clone)]
 pub(crate) struct FedimintClient {
     pub(crate) fedimint_client: ClientHandleArc,
-    // FIXME use or remove
-    invite_code: InviteCode,
     stop: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone)]
+pub enum FederationInviteOrId {
+    Invite(InviteCode),
+    Id(FederationId),
+}
+
+impl FederationInviteOrId {
+    pub fn federation_id(&self) -> FederationId {
+        match self {
+            FederationInviteOrId::Invite(ref i) => i.federation_id(),
+            FederationInviteOrId::Id(i) => *i,
+        }
+    }
 }
 
 impl FedimintClient {
     pub(crate) async fn new(
         storage: Arc<dyn DBConnection + Send + Sync>,
-        invite_code: InviteCode,
+        invite_or_id: FederationInviteOrId,
         mnemonic: &Mnemonic,
         network: Network,
         stop: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
-        let federation_id = invite_code.federation_id();
+        let federation_id = invite_or_id.federation_id();
+
         info!("initializing a new federation client: {federation_id}");
 
         trace!("Building fedimint client db");
@@ -71,16 +86,18 @@ impl FedimintClient {
         let secret = Bip39RootSecretStrategy::<12>::to_root_secret(mnemonic);
 
         let fedimint_client = if is_initialized {
-            client_builder
-                .open(get_default_client_secret(&secret, &federation_id))
-                .await
-                .map_err(|e| {
-                    error!("Could not open federation client: {e}");
-                    e
-                })?
-        } else {
+            Some(
+                client_builder
+                    .open(get_default_client_secret(&secret, &federation_id))
+                    .await
+                    .map_err(|e| {
+                        error!("Could not open federation client: {e}");
+                        e
+                    })?,
+            )
+        } else if let FederationInviteOrId::Invite(i) = invite_or_id {
             let download = Instant::now();
-            let config = ClientConfig::download_from_invite_code(&invite_code)
+            let config = ClientConfig::download_from_invite_code(&i)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");
@@ -91,14 +108,27 @@ impl FedimintClient {
                 download.elapsed().as_millis()
             );
 
-            client_builder
-                .join(get_default_client_secret(&secret, &federation_id), config)
-                .await
-                .map_err(|e| {
-                    error!("Could not join federation: {e}");
-                    e
-                })?
+            Some(
+                client_builder
+                    .join(get_default_client_secret(&secret, &federation_id), config)
+                    .await
+                    .map_err(|e| {
+                        error!("Could not join federation: {e}");
+                        e
+                    })?,
+            )
+        } else {
+            None
         };
+
+        if fedimint_client.is_none() {
+            error!("did not have enough information to join federation");
+            return Err(anyhow!(
+                "did not have enough information to join federation"
+            ));
+        }
+        let fedimint_client = fedimint_client.expect("just checked");
+
         let fedimint_client = Arc::new(fedimint_client);
 
         trace!("Retrieving fedimint wallet client module");
@@ -151,7 +181,6 @@ impl FedimintClient {
 
         Ok(FedimintClient {
             fedimint_client,
-            invite_code,
             stop,
         })
     }
