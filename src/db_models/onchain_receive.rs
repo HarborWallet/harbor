@@ -1,3 +1,4 @@
+use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::on_chain_receives;
 use crate::db_models::PaymentStatus;
 use bitcoin::hashes::hex::{FromHex, ToHex};
@@ -134,5 +135,26 @@ impl OnChainReceive {
         .execute(conn)?;
 
         Ok(())
+    }
+
+    pub fn get_history(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
+        Ok(on_chain_receives::table
+            .filter(
+                on_chain_receives::status
+                    .eq(PaymentStatus::Success as i32)
+                    .or(on_chain_receives::status.eq(PaymentStatus::WaitingConfirmation as i32)),
+            )
+            .load::<Self>(conn)?)
+    }
+}
+
+impl From<OnChainReceive> for TransactionItem {
+    fn from(payment: OnChainReceive) -> Self {
+        Self {
+            kind: TransactionItemKind::Onchain,
+            amount: payment.amount_sats as u64,
+            direction: TransactionDirection::Incoming,
+            timestamp: payment.created_at.and_utc().timestamp() as u64,
+        }
     }
 }

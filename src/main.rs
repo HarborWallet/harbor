@@ -377,6 +377,10 @@ impl HarborWallet {
                     self.balance_sats = balance.sats_round_down();
                     Command::none()
                 }
+                CoreUIMsg::TransactionHistoryUpdated(history) => {
+                    self.transaction_history = history;
+                    Command::none()
+                }
                 CoreUIMsg::ReceiveGenerating => {
                     self.receive_status = ReceiveStatus::Generating;
                     Command::none()

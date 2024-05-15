@@ -1,3 +1,4 @@
+use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::lightning_receives;
 use crate::db_models::PaymentStatus;
 use bitcoin::hashes::hex::{FromHex, ToHex};
@@ -141,5 +142,22 @@ impl LightningReceive {
         .execute(conn)?;
 
         Ok(())
+    }
+
+    pub fn get_history(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
+        Ok(lightning_receives::table
+            .filter(lightning_receives::status.eq(PaymentStatus::Success as i32))
+            .load::<Self>(conn)?)
+    }
+}
+
+impl From<LightningReceive> for TransactionItem {
+    fn from(payment: LightningReceive) -> Self {
+        Self {
+            kind: TransactionItemKind::Lightning,
+            amount: payment.amount().sats_round_down(),
+            direction: TransactionDirection::Incoming,
+            timestamp: payment.created_at.and_utc().timestamp() as u64,
+        }
     }
 }

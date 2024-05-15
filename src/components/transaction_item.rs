@@ -19,10 +19,10 @@ pub enum TransactionDirection {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TransactionItem {
-    kind: TransactionItemKind,
-    amount: u64,
-    direction: TransactionDirection,
-    timestamp: u64,
+    pub kind: TransactionItemKind,
+    pub amount: u64,
+    pub direction: TransactionDirection,
+    pub timestamp: u64,
 }
 
 impl TransactionItem {
