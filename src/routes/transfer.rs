@@ -1,22 +1,17 @@
-use iced::widget::{column, container, scrollable, text_input};
-use iced::Length;
-use iced::{Alignment, Element};
+use iced::widget::{column, container, scrollable};
+use iced::Element;
+use iced::{Length, Padding};
 
+use crate::components::h_header;
 use crate::{HarborWallet, Message};
 
-pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
-    container(
-        scrollable(
-            column![
-                "Let's transfer some ecash!",
-                text_input("how much?", &harbor.transfer_amount_str)
-                    .on_input(Message::TransferAmountChanged,)
-            ]
-            .spacing(32)
-            .align_items(Alignment::Center)
-            .width(Length::Fill),
-        )
-        .height(Length::Fill),
-    )
+pub fn transfer(_harbor: &HarborWallet) -> Element<Message> {
+    container(scrollable(
+        column![h_header("Transfer", "Coming soon!")]
+            .spacing(48)
+            .width(Length::Fill)
+            .max_width(512)
+            .padding(Padding::new(48.)),
+    ))
     .into()
 }

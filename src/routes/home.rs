@@ -7,7 +7,7 @@ use crate::{HarborWallet, Message};
 use super::Route;
 
 pub fn home(harbor: &HarborWallet) -> Element<Message> {
-    let balance = text(format!("{} sats", harbor.balance.sats_round_down())).size(64);
+    let balance = text(format!("{} sats", harbor.balance_sats)).size(64);
     let send_button =
         h_button("Send", SvgIcon::UpRight, false).on_press(Message::Navigate(Route::Send));
     let receive_button =
