@@ -11,8 +11,9 @@ use std::sync::Arc;
 use bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
 use iced::subscription::Subscription;
 use iced::widget::row;
-use iced::Element;
+use iced::window::icon::from_rgba;
 use iced::{clipboard, program, Color};
+use iced::{window, Element, Settings};
 use iced::{Command, Font};
 use log::{error, info};
 
@@ -31,6 +32,12 @@ pub mod routes;
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
     pretty_env_logger::init();
+    let icon = from_rgba(
+        include_bytes!("../assets/harbor_logo.rgba").to_vec(),
+        167,
+        61,
+    )
+    .unwrap();
     program("Harbor", HarborWallet::update, HarborWallet::view)
         // .load(HarborWallet::load)
         .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
@@ -43,6 +50,13 @@ pub fn main() -> iced::Result {
             style: iced::font::Style::Normal,
         })
         .subscription(HarborWallet::subscription)
+        .settings(Settings {
+            window: window::Settings {
+                icon: Some(icon),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
         .run()
 }
 
