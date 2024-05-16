@@ -191,19 +191,37 @@ impl HarborCore {
         Ok(invoice)
     }
 
-    async fn send_onchain(&self, address: Address, sats: u64) -> anyhow::Result<()> {
+    /// Sends a given amount of sats to a given address, if the amount is None, send all funds
+    async fn send_onchain(&self, address: Address, sats: Option<u64>) -> anyhow::Result<()> {
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client().await.fedimint_client;
         let onchain = client.get_first_module::<WalletClientModule>();
 
-        let amount = bitcoin::Amount::from_sat(sats);
-
         // todo add manual fee selection
-        let fees = onchain.get_withdraw_fees(address.clone(), amount).await?;
+        let (fees, amount) = match sats {
+            Some(sats) => {
+                let amount = bitcoin::Amount::from_sat(sats);
+                let fees = onchain.get_withdraw_fees(address.clone(), amount).await?;
+                (fees, amount)
+            }
+            None => {
+                let balance = client.get_balance().await;
+                // get fees for the entire balance
+                let fees = onchain
+                    .get_withdraw_fees(
+                        address.clone(),
+                        bitcoin::Amount::from_sat(balance.sats_round_down()),
+                    )
+                    .await?;
 
-        let op_id = onchain
-            .withdraw(address.clone(), bitcoin::Amount::from_sat(sats), fees, ())
-            .await?;
+                let fees_paid = Amount::from_sats(fees.amount().to_sat());
+                let amount = balance - fees_paid;
+
+                (fees, bitcoin::Amount::from_sat(amount.sats_round_down()))
+            }
+        };
+
+        let op_id = onchain.withdraw(address.clone(), amount, fees, ()).await?;
 
         self.storage.create_onchain_payment(
             op_id,

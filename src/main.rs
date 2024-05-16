@@ -86,6 +86,7 @@ pub enum Message {
     ReceiveStateReset,
     SendDestInputChanged(String),
     SendAmountInputChanged(String),
+    SetIsMax(bool),
     SendStateReset,
     PasswordInputChanged(String),
     MintInviteCodeInputChanged(String),
@@ -117,6 +118,7 @@ pub struct HarborWallet {
     send_success_msg: Option<SendSuccessMsg>,
     send_dest_input_str: String,
     send_amount_input_str: String,
+    is_max: bool,
     password_input_str: String,
     unlock_status: UnlockStatus,
     unlock_failure_reason: Option<String>,
@@ -156,7 +158,7 @@ impl HarborWallet {
     async fn async_send_onchain(
         ui_handle: Option<Arc<bridge::UIHandle>>,
         address: Address,
-        amount_sats: u64,
+        amount_sats: Option<u64>,
     ) {
         println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
@@ -236,6 +238,10 @@ impl HarborWallet {
                 self.send_amount_input_str = input;
                 Command::none()
             }
+            Message::SetIsMax(is_max) => {
+                self.is_max = is_max;
+                Command::none()
+            }
             Message::PasswordInputChanged(input) => {
                 self.password_input_str = input;
                 Command::none()
@@ -253,6 +259,7 @@ impl HarborWallet {
                 self.send_success_msg = None;
                 self.send_dest_input_str = String::new();
                 self.send_amount_input_str = String::new();
+                self.is_max = false;
                 self.send_status = SendStatus::Idle;
                 Command::none()
             }
@@ -282,7 +289,12 @@ impl HarborWallet {
                             |_| Message::Noop,
                         )
                     } else if let Ok(address) = Address::from_str(&invoice_str) {
-                        let amount = self.send_amount_input_str.parse::<u64>().unwrap(); // TODO: error handling
+                        let amount = if self.is_max {
+                            None
+                        } else {
+                            // TODO: error handling
+                            Some(self.send_amount_input_str.parse::<u64>().unwrap())
+                        };
                         Command::perform(
                             Self::async_send_onchain(self.ui_handle.clone(), address, amount),
                             |_| Message::Noop,
@@ -326,7 +338,7 @@ impl HarborWallet {
                     let address = Address::from_str(hardcoded_donation_address).unwrap();
 
                     Command::perform(
-                        Self::async_send_onchain(self.ui_handle.clone(), address, amount),
+                        Self::async_send_onchain(self.ui_handle.clone(), address, Some(amount)),
                         |_| Message::Noop,
                     )
                 }
