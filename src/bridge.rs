@@ -10,7 +10,10 @@ use tokio::sync::mpsc;
 pub enum UICoreMsg {
     SendLightning(Bolt11Invoice),
     ReceiveLightning(Amount),
-    SendOnChain { address: Address, amount_sats: u64 },
+    SendOnChain {
+        address: Address,
+        amount_sats: Option<u64>,
+    },
     ReceiveOnChain,
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
@@ -71,7 +74,7 @@ impl UIHandle {
         self.msg_send(UICoreMsg::SendLightning(invoice)).await;
     }
 
-    pub async fn send_onchain(&self, address: Address, amount_sats: u64) {
+    pub async fn send_onchain(&self, address: Address, amount_sats: Option<u64>) {
         self.msg_send(UICoreMsg::SendOnChain {
             address,
             amount_sats,

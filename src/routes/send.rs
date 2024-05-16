@@ -1,4 +1,4 @@
-use iced::widget::{column, text};
+use iced::widget::{column, text, Checkbox};
 use iced::Color;
 use iced::Element;
 
@@ -8,6 +8,7 @@ use crate::{HarborWallet, Message, SendStatus};
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Send", "Send to an on-chain address or lightning invoice.");
 
+    // todo disable amount input if max is selected
     let amount_input = h_input(
         "Amount",
         "420",
@@ -48,6 +49,8 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
             .color(Color::from_rgb(0., 255., 0.))
     });
 
+    let checkbox = Checkbox::new("Send Max", harbor.is_max).on_toggle(Message::SetIsMax);
+
     let column = if let Some(failure_message) = failure_message {
         let dangit_button =
             h_button("Dangit", SvgIcon::Squirrel, false).on_press(Message::SendStateReset);
@@ -56,7 +59,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         let nice_button = h_button("Nice", SvgIcon::Heart, false).on_press(Message::SendStateReset);
         column![header, success_message, nice_button]
     } else {
-        column![header, amount_input, dest_input, send_button]
+        column![header, amount_input, checkbox, dest_input, send_button]
     };
 
     column![
