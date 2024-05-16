@@ -23,6 +23,7 @@ use log::{error, warn};
 use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
 
+use crate::components::FederationItem;
 use crate::fedimint_client::{
     spawn_onchain_payment_subscription, spawn_onchain_receive_subscription, FederationInviteOrId,
 };
@@ -71,6 +72,10 @@ impl HarborCore {
 
         let history = self.storage.get_transaction_history().unwrap();
         self.msg(CoreUIMsg::TransactionHistoryUpdated(history))
+            .await;
+
+        let federation_items = self.get_federation_items().await;
+        self.msg(CoreUIMsg::FederationListUpdated(federation_items))
             .await;
     }
 
@@ -270,6 +275,22 @@ impl HarborCore {
 
         Ok(())
     }
+
+    async fn get_federation_items(&self) -> Vec<FederationItem> {
+        let clients = self.clients.read().await;
+
+        // Tell the UI about any clients we have
+        clients
+            .values()
+            .map(|c| FederationItem {
+                id: c.fedimint_client.federation_id(),
+                name: c
+                    .fedimint_client
+                    .get_meta("federation_name")
+                    .unwrap_or("Unknown".to_string()),
+            })
+            .collect::<Vec<FederationItem>>()
+    }
 }
 
 pub fn run_core() -> Subscription<Message> {
@@ -428,6 +449,9 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                             .await;
                     } else {
                         core.msg(CoreUIMsg::AddFederationSuccess).await;
+                        let new_federation_list = core.get_federation_items().await;
+                        core.msg(CoreUIMsg::FederationListUpdated(new_federation_list))
+                            .await;
                     }
                 }
                 UICoreMsg::Unlock(_password) => {

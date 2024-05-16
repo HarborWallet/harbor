@@ -27,3 +27,6 @@ pub use transaction_item::*;
 
 mod caption_text;
 pub use caption_text::*;
+
+mod federation_item;
+pub use federation_item::*;

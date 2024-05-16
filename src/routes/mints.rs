@@ -2,7 +2,7 @@ use iced::widget::{column, container, scrollable, text};
 use iced::{Color, Element};
 use iced::{Length, Padding};
 
-use crate::components::{h_button, h_header, h_input, SvgIcon};
+use crate::components::{h_button, h_federation_item, h_header, h_input, SvgIcon};
 use crate::{HarborWallet, Message};
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
@@ -31,6 +31,19 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
             .as_ref()
             .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
     );
+
+    let column = if harbor.federation_list.is_empty() {
+        column.push(text("No federations added yet.").size(18))
+    } else {
+        let federation_list = harbor
+            .federation_list
+            .iter()
+            .fold(column![], |column, item| {
+                column.push(h_federation_item(item))
+            });
+
+        column.push(federation_list)
+    };
 
     container(scrollable(
         column
