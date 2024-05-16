@@ -24,3 +24,6 @@ pub use spinner::*;
 
 mod transaction_item;
 pub use transaction_item::*;
+
+mod caption_text;
+pub use caption_text::*;

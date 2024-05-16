@@ -69,6 +69,13 @@ enum UnlockStatus {
     Unlocking,
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiveMethod {
+    #[default]
+    Lightning,
+    OnChain,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Setup
@@ -84,6 +91,7 @@ pub enum Message {
     MintInviteCodeInputChanged(String),
     DonateAmountChanged(String),
     CopyToClipboard(String),
+    ReceiveMethodChanged(ReceiveMethod),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -120,6 +128,7 @@ pub struct HarborWallet {
     receive_invoice: Option<Bolt11Invoice>,
     receive_address: Option<Address>,
     receive_qr_data: Option<Data>,
+    receive_method: ReceiveMethod,
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
     donate_amount_str: String,
@@ -245,6 +254,10 @@ impl HarborWallet {
                 self.receive_address = None;
                 self.receive_qr_data = None;
                 self.receive_status = ReceiveStatus::Idle;
+                Command::none()
+            }
+            Message::ReceiveMethodChanged(method) => {
+                self.receive_method = method;
                 Command::none()
             }
             // Async commands we fire from the UI to core
