@@ -18,6 +18,7 @@ pub enum UICoreMsg {
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     Unlock(String),
+    GetSeedWords,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,6 +53,7 @@ pub enum CoreUIMsg {
     Unlocking,
     UnlockSuccess,
     UnlockFailed(String),
+    SeedWords(String),
 }
 
 #[derive(Debug)]
@@ -101,6 +103,10 @@ impl UIHandle {
 
     pub async fn peek_federation(&self, invite: InviteCode) {
         self.msg_send(UICoreMsg::GetFederationInfo(invite)).await;
+    }
+
+    pub async fn get_seed_words(&self) {
+        self.msg_send(UICoreMsg::GetSeedWords).await;
     }
 }
 

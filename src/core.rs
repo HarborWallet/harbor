@@ -334,6 +334,10 @@ impl HarborCore {
             })
             .collect::<Vec<FederationItem>>()
     }
+
+    async fn get_seed_words(&self) -> String {
+        self.mnemonic.to_string()
+    }
 }
 
 pub fn run_core() -> Subscription<Message> {
@@ -511,6 +515,10 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                 }
                 UICoreMsg::Unlock(_password) => {
                     unreachable!("should already be unlocked")
+                }
+                UICoreMsg::GetSeedWords => {
+                    let seed_words = core.get_seed_words().await;
+                    core.msg(CoreUIMsg::SeedWords(seed_words)).await;
                 }
             }
         }

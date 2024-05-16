@@ -22,6 +22,9 @@ pub use donate::*;
 pub mod history;
 pub use history::*;
 
+pub mod settings;
+pub use settings::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
