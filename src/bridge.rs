@@ -1,4 +1,4 @@
-use crate::components::TransactionItem;
+use crate::components::{FederationItem, TransactionItem};
 use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
@@ -42,6 +42,7 @@ pub enum CoreUIMsg {
     TransactionHistoryUpdated(Vec<TransactionItem>),
     AddFederationFailed(String),
     AddFederationSuccess,
+    FederationListUpdated(Vec<FederationItem>),
     Unlocking,
     UnlockSuccess,
     UnlockFailed(String),

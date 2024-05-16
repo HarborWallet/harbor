@@ -1,5 +1,5 @@
 use bitcoin::Address;
-use components::TransactionItem;
+use components::{FederationItem, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -129,6 +129,7 @@ pub struct HarborWallet {
     receive_method: ReceiveMethod,
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
+    federation_list: Vec<FederationItem>,
     donate_amount_str: String,
     transaction_history: Vec<TransactionItem>,
 }
@@ -406,6 +407,10 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
+                    Command::none()
+                }
+                CoreUIMsg::FederationListUpdated(list) => {
+                    self.federation_list = list;
                     Command::none()
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {
