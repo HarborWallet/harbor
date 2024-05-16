@@ -1,3 +1,4 @@
+use crate::components::TransactionItem;
 use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
 use fedimint_core::Amount;
@@ -37,6 +38,8 @@ pub enum CoreUIMsg {
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
     BalanceUpdated(Amount),
+    // todo probably want a way to incrementally add items to the history
+    TransactionHistoryUpdated(Vec<TransactionItem>),
     AddFederationFailed(String),
     AddFederationSuccess,
     Unlocking,

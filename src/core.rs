@@ -5,6 +5,7 @@ use fedimint_core::api::InviteCode;
 use fedimint_core::config::FederationId;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
+use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use fedimint_wallet_client::WalletClientModule;
 use std::collections::HashMap;
@@ -42,7 +43,6 @@ use crate::{
 const PEG_IN_TIMEOUT_YEAR: Duration = Duration::from_secs(86400 * 365);
 
 struct HarborCore {
-    balance: Amount,
     network: Network,
     mnemonic: Mnemonic,
     tx: Sender<Message>,
@@ -62,7 +62,16 @@ impl HarborCore {
 
     // Sends updates to the UI to refelect the initial state
     async fn init_ui_state(&self) {
-        self.msg(CoreUIMsg::BalanceUpdated(self.balance)).await;
+        let mut balance = Amount::ZERO;
+        for client in self.clients.read().await.values() {
+            balance += client.fedimint_client.get_balance().await;
+        }
+
+        self.msg(CoreUIMsg::BalanceUpdated(balance)).await;
+
+        let history = self.storage.get_transaction_history().unwrap();
+        self.msg(CoreUIMsg::TransactionHistoryUpdated(history))
+            .await;
     }
 
     // todo for now just use the first client, but eventually we'll want to have a way to select a client
@@ -71,6 +80,11 @@ impl HarborCore {
     }
 
     async fn send_lightning(&self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+        if invoice.amount_milli_satoshis().is_none() {
+            return Err(anyhow!("Invoice must have an amount"));
+        }
+        let amount = Amount::from_msats(invoice.amount_milli_satoshis().expect("must have amount"));
+
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client().await.fedimint_client;
         let lightning_module = client.get_first_module::<LightningClientModule>();
@@ -79,18 +93,44 @@ impl HarborCore {
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
 
+        let fees = gateway.fees.to_amount(&amount);
+
+        log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
+
         let outgoing = lightning_module
-            .pay_bolt11_invoice(Some(gateway), invoice, ())
+            .pay_bolt11_invoice(Some(gateway), invoice.clone(), ())
             .await?;
+
+        self.storage.create_lightning_payment(
+            outgoing.payment_type.operation_id(),
+            client.federation_id(),
+            invoice,
+            amount,
+            fees,
+        )?;
 
         match outgoing.payment_type {
             PayType::Internal(op_id) => {
                 let sub = lightning_module.subscribe_internal_pay(op_id).await?;
-                spawn_internal_payment_subscription(self.tx.clone(), client.clone(), sub).await;
+                spawn_internal_payment_subscription(
+                    self.tx.clone(),
+                    client.clone(),
+                    self.storage.clone(),
+                    op_id,
+                    sub,
+                )
+                .await;
             }
             PayType::Lightning(op_id) => {
                 let sub = lightning_module.subscribe_ln_pay(op_id).await?;
-                spawn_invoice_payment_subscription(self.tx.clone(), client.clone(), sub).await;
+                spawn_invoice_payment_subscription(
+                    self.tx.clone(),
+                    client.clone(),
+                    self.storage.clone(),
+                    op_id,
+                    sub,
+                )
+                .await;
             }
         }
 
@@ -108,7 +148,7 @@ impl HarborCore {
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
 
         let desc = Description::new(String::new()).expect("empty string is valid");
-        let (op_id, invoice, _) = lightning_module
+        let (op_id, invoice, preimage) = lightning_module
             .create_bolt11_invoice(
                 amount,
                 Bolt11InvoiceDescription::Direct(&desc),
@@ -118,11 +158,27 @@ impl HarborCore {
             )
             .await?;
 
-        println!("{}", invoice);
+        log::info!("Invoice created: {invoice}");
+
+        self.storage.create_ln_receive(
+            op_id,
+            client.federation_id(),
+            invoice.clone(),
+            amount,
+            Amount::ZERO, // todo one day there will be receive fees
+            preimage,
+        )?;
 
         // Create subscription to operation if it exists
         if let Ok(subscription) = lightning_module.subscribe_ln_receive(op_id).await {
-            spawn_invoice_receive_subscription(self.tx.clone(), client.clone(), subscription).await;
+            spawn_invoice_receive_subscription(
+                self.tx.clone(),
+                client.clone(),
+                self.storage.clone(),
+                op_id,
+                subscription,
+            )
+            .await;
         } else {
             error!("Could not create subscription to lightning receive");
         }
@@ -141,12 +197,27 @@ impl HarborCore {
         let fees = onchain.get_withdraw_fees(address.clone(), amount).await?;
 
         let op_id = onchain
-            .withdraw(address, bitcoin::Amount::from_sat(sats), fees, ())
+            .withdraw(address.clone(), bitcoin::Amount::from_sat(sats), fees, ())
             .await?;
+
+        self.storage.create_onchain_payment(
+            op_id,
+            client.federation_id(),
+            address,
+            amount.to_sat(),
+            fees.amount().to_sat(),
+        )?;
 
         let sub = onchain.subscribe_withdraw_updates(op_id).await?;
 
-        spawn_onchain_payment_subscription(self.tx.clone(), client.clone(), sub).await;
+        spawn_onchain_payment_subscription(
+            self.tx.clone(),
+            client.clone(),
+            self.storage.clone(),
+            op_id,
+            sub,
+        )
+        .await;
 
         Ok(())
     }
@@ -161,9 +232,19 @@ impl HarborCore {
 
         let (op_id, address) = onchain.get_deposit_address(valid_until, ()).await?;
 
+        self.storage
+            .create_onchain_receive(op_id, client.federation_id(), address.clone())?;
+
         let sub = onchain.subscribe_deposit_updates(op_id).await?;
 
-        spawn_onchain_receive_subscription(self.tx.clone(), client.clone(), sub).await;
+        spawn_onchain_receive_subscription(
+            self.tx.clone(),
+            client.clone(),
+            self.storage.clone(),
+            op_id,
+            sub,
+        )
+        .await;
 
         Ok(address)
     }
@@ -268,14 +349,8 @@ pub fn run_core() -> Subscription<Message> {
                             clients.insert(client.fedimint_client.federation_id(), client);
                         }
 
-                        let mut balance = Amount::ZERO;
-                        for client in clients.values() {
-                            balance += client.fedimint_client.get_balance().await;
-                        }
-
                         let core = HarborCore {
                             storage: db.clone(),
-                            balance,
                             tx: tx.clone(),
                             mnemonic,
                             network,

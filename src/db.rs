@@ -1,10 +1,19 @@
-use crate::db_models::{Fedimint, NewFedimint, NewProfile, Profile};
+use crate::components::TransactionItem;
+use crate::db_models::{
+    Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
+    OnChainReceive, Profile,
+};
+use bitcoin::{Address, Txid};
 use diesel::{
     connection::SimpleConnection,
     r2d2::{ConnectionManager, Pool},
     SqliteConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use fedimint_core::config::FederationId;
+use fedimint_core::core::OperationId;
+use fedimint_core::Amount;
+use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
@@ -51,6 +60,72 @@ pub trait DBConnection {
 
     // updates the federation data
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()>;
+
+    fn create_ln_receive(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+        preimage: [u8; 32],
+    ) -> anyhow::Result<()>;
+
+    fn mark_ln_receive_as_success(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn mark_ln_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn create_lightning_payment(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()>;
+
+    fn set_lightning_payment_preimage(
+        &self,
+        operation_id: OperationId,
+        preimage: [u8; 32],
+    ) -> anyhow::Result<()>;
+
+    fn mark_lightning_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn create_onchain_payment(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        address: Address,
+        amount_sats: u64,
+        fee_sats: u64,
+    ) -> anyhow::Result<()>;
+
+    fn set_onchain_payment_txid(&self, operation_id: OperationId, txid: Txid)
+        -> anyhow::Result<()>;
+
+    fn mark_onchain_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn create_onchain_receive(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        address: Address,
+    ) -> anyhow::Result<()>;
+
+    fn mark_onchain_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn set_onchain_receive_txid(
+        &self,
+        operation_id: OperationId,
+        txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
+    ) -> anyhow::Result<()>;
+
+    fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+
+    fn get_transaction_history(&self) -> anyhow::Result<Vec<TransactionItem>>;
 }
 
 pub(crate) struct SQLConnection {
@@ -90,6 +165,203 @@ impl DBConnection for SQLConnection {
         let conn = &mut self.db.get()?;
         let f = Fedimint { id, value };
         f.update(conn)
+    }
+
+    fn create_ln_receive(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+        preimage: [u8; 32],
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningReceive::create(
+            conn,
+            operation_id,
+            fedimint_id,
+            bolt11,
+            amount,
+            fee,
+            preimage,
+        )?;
+
+        Ok(())
+    }
+
+    fn mark_ln_receive_as_success(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningReceive::mark_as_success(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn mark_ln_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningReceive::mark_as_failed(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn create_lightning_payment(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningPayment::create(conn, operation_id, fedimint_id, bolt11, amount, fee)?;
+
+        Ok(())
+    }
+
+    fn set_lightning_payment_preimage(
+        &self,
+        operation_id: OperationId,
+        preimage: [u8; 32],
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningPayment::set_preimage(conn, operation_id, preimage)?;
+
+        Ok(())
+    }
+
+    fn mark_lightning_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        LightningPayment::mark_as_failed(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn create_onchain_receive(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        address: Address,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainReceive::create(conn, operation_id, fedimint_id, address)?;
+
+        Ok(())
+    }
+
+    fn create_onchain_payment(
+        &self,
+        operation_id: OperationId,
+        fedimint_id: FederationId,
+        address: Address,
+        amount_sats: u64,
+        fee_sats: u64,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainPayment::create(
+            conn,
+            operation_id,
+            fedimint_id,
+            address,
+            amount_sats,
+            fee_sats,
+        )?;
+
+        Ok(())
+    }
+
+    fn set_onchain_payment_txid(
+        &self,
+        operation_id: OperationId,
+        txid: Txid,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainPayment::set_txid(conn, operation_id, txid)?;
+
+        Ok(())
+    }
+
+    fn mark_onchain_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainPayment::mark_as_failed(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn mark_onchain_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainReceive::mark_as_failed(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn set_onchain_receive_txid(
+        &self,
+        operation_id: OperationId,
+        txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainReceive::set_txid(conn, operation_id, txid, amount_sats, fee_sats)?;
+
+        Ok(())
+    }
+
+    fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+
+        OnChainReceive::mark_as_confirmed(conn, operation_id)?;
+
+        Ok(())
+    }
+
+    fn get_transaction_history(&self) -> anyhow::Result<Vec<TransactionItem>> {
+        let conn = &mut self.db.get()?;
+
+        let onchain_payments = OnChainPayment::get_history(conn)?;
+        let onchain_receives = OnChainReceive::get_history(conn)?;
+        let lightning_payments = LightningPayment::get_history(conn)?;
+        let lightning_receives = LightningReceive::get_history(conn)?;
+
+        let mut items: Vec<TransactionItem> = Vec::with_capacity(
+            onchain_payments.len()
+                + onchain_receives.len()
+                + lightning_payments.len()
+                + lightning_receives.len(),
+        );
+
+        for onchain_payment in onchain_payments {
+            items.push(onchain_payment.into());
+        }
+
+        for onchain_receive in onchain_receives {
+            items.push(onchain_receive.into());
+        }
+
+        for lightning_payment in lightning_payments {
+            items.push(lightning_payment.into());
+        }
+
+        for lightning_receive in lightning_receives {
+            items.push(lightning_receive.into());
+        }
+
+        // sort by timestamp so that the most recent items are at the top
+        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        Ok(items)
     }
 }
 
@@ -391,8 +663,6 @@ mod tests {
             operation_id,
             FederationId::from_str(FEDERATION_ID).unwrap(),
             address.clone(),
-            amount,
-            fee,
         )
         .unwrap();
 
@@ -406,15 +676,15 @@ mod tests {
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
         assert_eq!(payment.address(), address);
-        assert_eq!(payment.amount_sats as u64, amount);
-        assert_eq!(payment.fee_sats as u64, fee);
+        assert!(payment.amount_sats.is_none());
+        assert!(payment.fee_sats.is_none());
         assert_eq!(payment.txid(), None);
         assert_eq!(payment.status(), PaymentStatus::Pending);
 
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros()).unwrap();
+        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros(), amount, fee).unwrap();
 
         let with_txid = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
             .unwrap()
@@ -422,6 +692,8 @@ mod tests {
 
         assert_eq!(with_txid.status(), PaymentStatus::WaitingConfirmation);
         assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
+        assert_eq!(with_txid.amount_sats, Some(amount as i64));
+        assert_eq!(with_txid.fee_sats, Some(fee as i64));
         assert_ne!(with_txid.updated_at, with_txid.created_at);
         assert_ne!(with_txid.updated_at, payment.updated_at);
 
@@ -436,6 +708,8 @@ mod tests {
 
         assert_eq!(confirmed.status(), PaymentStatus::Success);
         assert_eq!(confirmed.txid(), Some(Txid::all_zeros()));
+        assert_eq!(with_txid.amount_sats, Some(amount as i64));
+        assert_eq!(with_txid.fee_sats, Some(fee as i64));
         assert_ne!(confirmed.updated_at, confirmed.created_at);
         assert_ne!(confirmed.updated_at, with_txid.updated_at);
     }
