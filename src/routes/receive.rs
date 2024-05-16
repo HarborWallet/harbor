@@ -1,12 +1,42 @@
 use iced::widget::container::Style;
-use iced::widget::{column, container, qr_code, scrollable, text};
+use iced::widget::{column, container, qr_code, radio, scrollable, text};
 use iced::{Border, Element, Font, Padding};
 use iced::{Color, Length};
 
-use crate::components::{h_button, h_header, h_input, SvgIcon};
-use crate::{HarborWallet, Message, ReceiveStatus};
+use crate::components::{h_button, h_caption_text, h_header, h_input, SvgIcon};
+use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 
 pub fn receive(harbor: &HarborWallet) -> Element<Message> {
+    let lightning_choice = radio(
+        "Lightning",
+        ReceiveMethod::Lightning,
+        Some(harbor.receive_method),
+        Message::ReceiveMethodChanged,
+    )
+    .text_size(18);
+
+    let lightning_caption = h_caption_text("Good for small amounts. Instant settlement, low fees.");
+
+    let lightning = column![lightning_choice, lightning_caption,].spacing(8);
+
+    let onchain_choice = radio(
+        "On-chain",
+        ReceiveMethod::OnChain,
+        Some(harbor.receive_method),
+        Message::ReceiveMethodChanged,
+    )
+    .text_size(18);
+
+    let onchain_caption = h_caption_text(
+        "Good for large amounts. Requires on-chain fees and 10 block confirmations.",
+    );
+
+    let onchain = column![onchain_choice, onchain_caption,].spacing(8);
+
+    let method_choice_label = text("Receive method").size(24);
+
+    let method_choice = column![method_choice_label, lightning, onchain].spacing(16);
+
     let receive_string = harbor
         .receive_invoice
         .as_ref()
@@ -70,21 +100,20 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             Some("sats"),
         );
 
-        // TODO how to separate lighting and onchain?
         let generating = harbor.receive_status == ReceiveStatus::Generating;
 
-        let generate_button = h_button("Generate Invoice", SvgIcon::DownLeft, generating)
+        let generate_button = h_button("Generate Invoice", SvgIcon::Qr, generating)
             .on_press(Message::GenerateInvoice);
 
-        let generate_address_button = h_button("Generate Address", SvgIcon::Squirrel, generating)
+        let generate_address_button = h_button("Generate Address", SvgIcon::Qr, generating)
             .on_press(Message::GenerateAddress);
 
-        column![
-            header,
-            amount_input,
-            generate_button,
-            generate_address_button
-        ]
+        match harbor.receive_method {
+            ReceiveMethod::Lightning => {
+                column![header, method_choice, amount_input, generate_button]
+            }
+            ReceiveMethod::OnChain => column![header, method_choice, generate_address_button],
+        }
     };
 
     container(scrollable(
