@@ -268,8 +268,6 @@ impl HarborCore {
 
         clients.insert(client.fedimint_client.federation_id(), client);
 
-        // todo add to database
-
         Ok(())
     }
 }
