@@ -1,6 +1,6 @@
-use crate::components::{h_button, SvgIcon};
+use crate::components::{h_button, h_screen_header, SvgIcon};
 use iced::widget::{center, column, container, row, text};
-use iced::{Alignment, Element};
+use iced::{Alignment, Element, Length};
 
 use crate::{HarborWallet, Message};
 
@@ -14,11 +14,15 @@ pub fn home(harbor: &HarborWallet) -> Element<Message> {
         h_button("Receive", SvgIcon::DownLeft, false).on_press(Message::Navigate(Route::Receive));
     let buttons = row![send_button, receive_button].spacing(32);
 
-    container(center(
-        column![balance, buttons]
-            .spacing(32)
-            .align_items(Alignment::Center)
-            .max_width(512),
-    ))
+    column![
+        h_screen_header(harbor, false),
+        container(center(
+            column![balance, buttons]
+                .spacing(32)
+                .align_items(Alignment::Center)
+                .max_width(512)
+        ))
+        .height(Length::Fill)
+    ]
     .into()
 }

@@ -1,8 +1,8 @@
-use iced::widget::{column, container, scrollable, text};
-use iced::{Color, Length};
-use iced::{Element, Padding};
+use iced::widget::{column, text};
+use iced::Color;
+use iced::Element;
 
-use crate::components::{h_button, h_header, h_input, SvgIcon};
+use crate::components::{basic_layout, h_button, h_header, h_input, h_screen_header, SvgIcon};
 use crate::{HarborWallet, Message, SendStatus};
 
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
@@ -59,12 +59,9 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         column![header, amount_input, dest_input, send_button]
     };
 
-    container(scrollable(
-        column
-            .spacing(48)
-            .width(Length::Fill)
-            .max_width(512)
-            .padding(Padding::new(48.)),
-    ))
+    column![
+        h_screen_header(harbor, true),
+        basic_layout(column.spacing(48)),
+    ]
     .into()
 }
