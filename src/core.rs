@@ -206,6 +206,11 @@ impl HarborCore {
             }
             None => {
                 let balance = client.get_balance().await;
+
+                if balance.sats_round_down() == 0 {
+                    return Err(anyhow!("No funds in wallet"));
+                }
+
                 // get fees for the entire balance
                 let fees = onchain
                     .get_withdraw_fees(
@@ -215,7 +220,11 @@ impl HarborCore {
                     .await?;
 
                 let fees_paid = Amount::from_sats(fees.amount().to_sat());
-                let amount = balance - fees_paid;
+                let amount = balance.saturating_sub(fees_paid);
+
+                if amount.sats_round_down() < 546 {
+                    return Err(anyhow!("Not enough funds to send"));
+                }
 
                 (fees, bitcoin::Amount::from_sat(amount.sats_round_down()))
             }
