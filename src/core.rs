@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::{Address, Network};
 use fedimint_core::api::InviteCode;
-use fedimint_core::config::FederationId;
+use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
@@ -13,13 +13,13 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
     subscription::{self, Subscription},
 };
-use log::{error, warn};
+use log::{error, trace, warn};
 use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
 
@@ -254,6 +254,22 @@ impl HarborCore {
         Ok(address)
     }
 
+    async fn get_federation_info(&self, invite_code: InviteCode) -> anyhow::Result<ClientConfig> {
+        let download = Instant::now();
+        let config = ClientConfig::download_from_invite_code(&invite_code)
+            .await
+            .map_err(|e| {
+                error!("Could not download federation info: {e}");
+                e
+            })?;
+        trace!(
+            "Downloaded federation info in: {}ms",
+            download.elapsed().as_millis()
+        );
+
+        Ok(config)
+    }
+
     async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
         let id = invite_code.federation_id();
 
@@ -439,6 +455,18 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                         }
                         Ok(address) => {
                             core.msg(CoreUIMsg::ReceiveAddressGenerated(address)).await;
+                        }
+                    }
+                }
+                UICoreMsg::GetFederationInfo(invite_code) => {
+                    match core.get_federation_info(invite_code).await {
+                        Err(e) => {
+                            error!("Error getting federation info: {e}");
+                            core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
+                                .await;
+                        }
+                        Ok(config) => {
+                            core.msg(CoreUIMsg::FederationInfo(config)).await;
                         }
                     }
                 }
