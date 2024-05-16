@@ -1,6 +1,7 @@
 use crate::components::{FederationItem, TransactionItem};
 use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
+use fedimint_core::config::ClientConfig;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;
@@ -11,6 +12,7 @@ pub enum UICoreMsg {
     ReceiveLightning(Amount),
     SendOnChain { address: Address, amount_sats: u64 },
     ReceiveOnChain,
+    GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     Unlock(String),
 }
@@ -41,6 +43,7 @@ pub enum CoreUIMsg {
     // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
     AddFederationFailed(String),
+    FederationInfo(ClientConfig),
     AddFederationSuccess,
     FederationListUpdated(Vec<FederationItem>),
     Unlocking,

@@ -405,6 +405,10 @@ impl HarborWallet {
                     self.add_federation_failure_reason = Some(reason);
                     Command::none()
                 }
+                CoreUIMsg::FederationInfo(_config) => {
+                    // todo update the UI with the new config
+                    Command::none()
+                }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
                     Command::none()
