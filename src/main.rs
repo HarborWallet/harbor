@@ -93,6 +93,7 @@ pub enum Message {
     DonateAmountChanged(String),
     CopyToClipboard(String),
     ReceiveMethodChanged(ReceiveMethod),
+    ShowSeedWords(bool),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -111,17 +112,23 @@ pub enum Message {
 #[derive(Default, Debug)]
 pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
-    balance_sats: u64,
     active_route: Route,
+    // Globals
+    balance_sats: u64,
+    transaction_history: Vec<TransactionItem>,
+    federation_list: Vec<FederationItem>,
+    // Lock screen
+    password_input_str: String,
+    unlock_status: UnlockStatus,
+    unlock_failure_reason: Option<String>,
+    // Send
     send_status: SendStatus,
     send_failure_reason: Option<String>,
     send_success_msg: Option<SendSuccessMsg>,
     send_dest_input_str: String,
     send_amount_input_str: String,
     is_max: bool,
-    password_input_str: String,
-    unlock_status: UnlockStatus,
-    unlock_failure_reason: Option<String>,
+    // Receive
     receive_failure_reason: Option<String>,
     receive_success_msg: Option<ReceiveSuccessMsg>,
     receive_status: ReceiveStatus,
@@ -130,13 +137,16 @@ pub struct HarborWallet {
     receive_address: Option<Address>,
     receive_qr_data: Option<Data>,
     receive_method: ReceiveMethod,
-    mint_invite_code_str: String,
-    add_federation_failure_reason: Option<String>,
-    federation_list: Vec<FederationItem>,
+    // Mints
     peek_federation_failure_reason: Option<String>,
     peek_federation_item: Option<FederationItem>,
+    mint_invite_code_str: String,
+    add_federation_failure_reason: Option<String>,
+    // Donate
     donate_amount_str: String,
-    transaction_history: Vec<TransactionItem>,
+    // Settings
+    settings_show_seed_words: bool,
+    seed_words: Option<String>,
 }
 
 impl HarborWallet {
@@ -209,6 +219,14 @@ impl HarborWallet {
         }
     }
 
+    async fn async_get_seed_words(ui_handle: Option<Arc<bridge::UIHandle>>) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().get_seed_words().await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
@@ -223,7 +241,14 @@ impl HarborWallet {
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
-                self.active_route = route;
+                match self.active_route {
+                    // Reset the seed words state when we leave the settings screen
+                    Route::Settings => {
+                        self.settings_show_seed_words = false;
+                        self.active_route = route;
+                    }
+                    _ => self.active_route = route,
+                }
                 Command::none()
             }
             Message::ReceiveAmountChanged(amount) => {
@@ -385,6 +410,16 @@ impl HarborWallet {
                 println!("Copying to clipboard: {s}");
                 clipboard::write(s)
             }
+            Message::ShowSeedWords(show) => {
+                if show {
+                    Command::perform(Self::async_get_seed_words(self.ui_handle.clone()), |_| {
+                        Message::Noop
+                    })
+                } else {
+                    self.settings_show_seed_words = false;
+                    Command::none()
+                }
+            }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg {
                 CoreUIMsg::Sending => {
@@ -492,6 +527,11 @@ impl HarborWallet {
                     self.unlock_failure_reason = Some(reason);
                     Command::none()
                 }
+                CoreUIMsg::SeedWords(words) => {
+                    self.seed_words = Some(words);
+                    self.settings_show_seed_words = true;
+                    Command::none()
+                }
             },
         }
     }
@@ -508,8 +548,7 @@ impl HarborWallet {
             Route::Donate => row![sidebar, crate::routes::donate(self)].into(),
             Route::History => row![sidebar, crate::routes::history(self)].into(),
             Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),
-            // TODO: just add settings route and we can remove this
-            _ => row![sidebar, crate::routes::home(self)].into(),
+            Route::Settings => row![sidebar, crate::routes::settings(self)].into(),
         };
 
         active_route
