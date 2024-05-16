@@ -95,6 +95,10 @@ impl UIHandle {
     pub async fn add_federation(&self, invite: InviteCode) {
         self.msg_send(UICoreMsg::AddFederation(invite)).await;
     }
+
+    pub async fn peek_federation(&self, invite: InviteCode) {
+        self.msg_send(UICoreMsg::GetFederationInfo(invite)).await;
+    }
 }
 
 impl CoreHandle {

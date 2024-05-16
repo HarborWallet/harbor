@@ -22,7 +22,10 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
     let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
         .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
 
-    let column = column![header, mint_input, add_mint_button].spacing(48);
+    let peek_mint_button = h_button("Peek Mint", SvgIcon::Squirrel, false)
+        .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
+
+    let column = column![header, mint_input, peek_mint_button, add_mint_button].spacing(48);
 
     // TODO: better error styling
     let column = column.push_maybe(
@@ -30,6 +33,13 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
             .add_federation_failure_reason
             .as_ref()
             .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
+    );
+
+    let column = column.push_maybe(
+        harbor
+            .peek_federation_item
+            .as_ref()
+            .map(|item| h_federation_item(item)),
     );
 
     let column = if harbor.federation_list.is_empty() {

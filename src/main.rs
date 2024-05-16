@@ -99,6 +99,7 @@ pub enum Message {
     GenerateAddress,
     Unlock(String),
     AddFederation(String),
+    PeekFederation(String),
     Donate,
     // Core messages we get from core
     CoreMessage(CoreUIMsg),
@@ -130,6 +131,8 @@ pub struct HarborWallet {
     mint_invite_code_str: String,
     add_federation_failure_reason: Option<String>,
     federation_list: Vec<FederationItem>,
+    peek_federation_failure_reason: Option<String>,
+    peek_federation_item: Option<FederationItem>,
     donate_amount_str: String,
     transaction_history: Vec<TransactionItem>,
 }
@@ -191,6 +194,14 @@ impl HarborWallet {
     async fn async_add_federation(ui_handle: Option<Arc<bridge::UIHandle>>, invite: InviteCode) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.clone().add_federation(invite).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_peek_federation(ui_handle: Option<Arc<bridge::UIHandle>>, invite: InviteCode) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().peek_federation(invite).await;
         } else {
             panic!("UI handle is None");
         }
@@ -346,6 +357,18 @@ impl HarborWallet {
                     Command::none()
                 }
             }
+            Message::PeekFederation(invite_code) => {
+                let invite = InviteCode::from_str(&invite_code);
+                if let Ok(invite) = invite {
+                    Command::perform(
+                        Self::async_peek_federation(self.ui_handle.clone(), invite),
+                        |_| Message::Noop,
+                    )
+                } else {
+                    self.peek_federation_failure_reason = Some("Invalid invite code".to_string());
+                    Command::none()
+                }
+            }
             Message::CopyToClipboard(s) => {
                 println!("Copying to clipboard: {s}");
                 clipboard::write(s)
@@ -405,8 +428,20 @@ impl HarborWallet {
                     self.add_federation_failure_reason = Some(reason);
                     Command::none()
                 }
-                CoreUIMsg::FederationInfo(_config) => {
+                CoreUIMsg::FederationInfo(config) => {
                     // todo update the UI with the new config
+                    let id = config.calculate_federation_id();
+                    let name = config.meta::<String>("federation_name");
+
+                    let name = match name {
+                        Ok(Some(n)) => n,
+                        _ => "Unknown".to_string(),
+                    };
+
+                    let item = FederationItem { id, name };
+
+                    self.peek_federation_item = Some(item);
+
                     Command::none()
                 }
                 CoreUIMsg::AddFederationSuccess => {
