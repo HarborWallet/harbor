@@ -1,9 +1,11 @@
 use iced::widget::container::Style;
-use iced::widget::{column, container, qr_code, radio, scrollable, text};
-use iced::{Border, Element, Font, Padding};
-use iced::{Color, Length};
+use iced::widget::{column, container, qr_code, radio, text};
+use iced::Color;
+use iced::{Border, Element, Font};
 
-use crate::components::{h_button, h_caption_text, h_header, h_input, SvgIcon};
+use crate::components::{
+    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, SvgIcon,
+};
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 
 pub fn receive(harbor: &HarborWallet) -> Element<Message> {
@@ -116,12 +118,9 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
         }
     };
 
-    container(scrollable(
-        column
-            .spacing(48)
-            .width(Length::Fill)
-            .max_width(512)
-            .padding(Padding::new(48.)),
-    ))
+    column![
+        h_screen_header(harbor, true),
+        basic_layout(column.spacing(48)),
+    ]
     .into()
 }

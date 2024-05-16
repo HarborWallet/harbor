@@ -1,8 +1,7 @@
-use iced::widget::{column, container, scrollable, text};
+use iced::widget::{column, text};
 use iced::{Color, Element};
-use iced::{Length, Padding};
 
-use crate::components::{h_button, h_federation_item, h_header, h_input, SvgIcon};
+use crate::components::{basic_layout, h_button, h_federation_item, h_header, h_input, SvgIcon};
 use crate::{HarborWallet, Message};
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
@@ -55,12 +54,5 @@ pub fn mints(harbor: &HarborWallet) -> Element<Message> {
         column.push(federation_list)
     };
 
-    container(scrollable(
-        column
-            .spacing(48)
-            .width(Length::Fill)
-            .max_width(512)
-            .padding(Padding::new(48.)),
-    ))
-    .into()
+    basic_layout(column.spacing(48))
 }

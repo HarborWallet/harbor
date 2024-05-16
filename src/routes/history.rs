@@ -1,8 +1,7 @@
-use iced::widget::{column, container, scrollable};
+use iced::widget::column;
 use iced::Element;
-use iced::{Length, Padding};
 
-use crate::components::{h_header, h_transaction_item};
+use crate::components::{basic_layout, h_header, h_screen_header, h_transaction_item};
 use crate::{HarborWallet, Message};
 
 pub fn history(harbor: &HarborWallet) -> Element<Message> {
@@ -17,12 +16,9 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
 
     let column = column![header, transactions].spacing(48);
 
-    container(scrollable(
-        column
-            .spacing(48)
-            .width(Length::Fill)
-            .max_width(512)
-            .padding(Padding::new(48.)),
-    ))
+    column![
+        h_screen_header(harbor, true),
+        basic_layout(column.spacing(48)),
+    ]
     .into()
 }
