@@ -8,13 +8,14 @@ use routes::Route;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
+use bridge::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
 use iced::subscription::Subscription;
 use iced::widget::row;
 use iced::Element;
 use iced::{clipboard, program, Color};
 use iced::{Command, Font};
 use log::{error, info};
+use uuid::Uuid;
 
 use crate::components::focus_input_id;
 
@@ -104,7 +105,13 @@ pub enum Message {
     PeekFederation(String),
     Donate,
     // Core messages we get from core
-    CoreMessage(CoreUIMsg),
+    CoreMessage(CoreUIMsgPacket),
+}
+
+impl Message {
+    pub fn core_msg(id: Option<Uuid>, msg: CoreUIMsg) -> Self {
+        Self::CoreMessage(CoreUIMsgPacket { id, msg })
+    }
 }
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
@@ -156,10 +163,11 @@ impl HarborWallet {
 
     async fn async_send_lightning(
         ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
         invoice: Bolt11Invoice,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().send_lightning(invoice).await;
+            ui_handle.clone().send_lightning(id, invoice).await;
         } else {
             panic!("UI handle is None");
         }
@@ -167,61 +175,72 @@ impl HarborWallet {
 
     async fn async_send_onchain(
         ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
         address: Address,
         amount_sats: Option<u64>,
     ) {
         println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
-            println!("Have a ui_handle, sending the invoice over");
-            ui_handle.clone().send_onchain(address, amount_sats).await;
+            ui_handle
+                .clone()
+                .send_onchain(id, address, amount_sats)
+                .await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_receive(ui_handle: Option<Arc<bridge::UIHandle>>, amount: u64) {
+    async fn async_receive(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid, amount: u64) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().receive(amount).await;
+            ui_handle.clone().receive(id, amount).await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_receive_onchain(ui_handle: Option<Arc<bridge::UIHandle>>) {
+    async fn async_receive_onchain(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().receive_onchain().await;
+            ui_handle.clone().receive_onchain(id).await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_unlock(ui_handle: Option<Arc<bridge::UIHandle>>, password: String) {
+    async fn async_unlock(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid, password: String) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().unlock(password).await;
+            ui_handle.clone().unlock(id, password).await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_add_federation(ui_handle: Option<Arc<bridge::UIHandle>>, invite: InviteCode) {
+    async fn async_add_federation(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
+        invite: InviteCode,
+    ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().add_federation(invite).await;
+            ui_handle.clone().add_federation(id, invite).await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_peek_federation(ui_handle: Option<Arc<bridge::UIHandle>>, invite: InviteCode) {
+    async fn async_peek_federation(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
+        invite: InviteCode,
+    ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().peek_federation(invite).await;
+            ui_handle.clone().peek_federation(id, invite).await;
         } else {
             panic!("UI handle is None");
         }
     }
 
-    async fn async_get_seed_words(ui_handle: Option<Arc<bridge::UIHandle>>) {
+    async fn async_get_seed_words(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().get_seed_words().await;
+            ui_handle.clone().get_seed_words(id).await;
         } else {
             panic!("UI handle is None");
         }
@@ -308,9 +327,10 @@ impl HarborWallet {
                 SendStatus::Sending => Command::none(),
                 _ => {
                     self.send_failure_reason = None;
+                    let id = Uuid::new_v4(); // todo use this id somewhere
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
                         Command::perform(
-                            Self::async_send_lightning(self.ui_handle.clone(), invoice),
+                            Self::async_send_lightning(self.ui_handle.clone(), id, invoice),
                             |_| Message::Noop,
                         )
                     } else if let Ok(address) = Address::from_str(&invoice_str) {
@@ -321,7 +341,7 @@ impl HarborWallet {
                             Some(self.send_amount_input_str.parse::<u64>().unwrap())
                         };
                         Command::perform(
-                            Self::async_send_onchain(self.ui_handle.clone(), address, amount),
+                            Self::async_send_onchain(self.ui_handle.clone(), id, address, amount),
                             |_| Message::Noop,
                         )
                     } else {
@@ -334,9 +354,10 @@ impl HarborWallet {
                 ReceiveStatus::Generating => Command::none(),
                 _ => {
                     self.receive_failure_reason = None;
+                    let id = Uuid::new_v4(); // todo use this id somewhere
                     match self.receive_amount_str.parse::<u64>() {
                         Ok(amount) => Command::perform(
-                            Self::async_receive(self.ui_handle.clone(), amount),
+                            Self::async_receive(self.ui_handle.clone(), id, amount),
                             |_| Message::Noop,
                         ),
                         Err(e) => {
@@ -350,10 +371,12 @@ impl HarborWallet {
             Message::GenerateAddress => match self.receive_status {
                 ReceiveStatus::Generating => Command::none(),
                 _ => {
+                    let id = Uuid::new_v4(); // todo use this id somewhere
                     self.receive_failure_reason = None;
-                    Command::perform(Self::async_receive_onchain(self.ui_handle.clone()), |_| {
-                        Message::Noop
-                    })
+                    Command::perform(
+                        Self::async_receive_onchain(self.ui_handle.clone(), id),
+                        |_| Message::Noop,
+                    )
                 }
             },
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
@@ -361,9 +384,10 @@ impl HarborWallet {
                     // TODO: don't hardcode this!
                     let hardcoded_donation_address = "tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v";
                     let address = Address::from_str(hardcoded_donation_address).unwrap();
+                    let id = Uuid::new_v4(); // todo use this id somewhere
 
                     Command::perform(
-                        Self::async_send_onchain(self.ui_handle.clone(), address, Some(amount)),
+                        Self::async_send_onchain(self.ui_handle.clone(), id, address, Some(amount)),
                         |_| Message::Noop,
                     )
                 }
@@ -377,16 +401,19 @@ impl HarborWallet {
                 UnlockStatus::Unlocking => Command::none(),
                 _ => {
                     self.unlock_failure_reason = None;
-                    Command::perform(Self::async_unlock(self.ui_handle.clone(), password), |_| {
-                        Message::Noop
-                    })
+                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    Command::perform(
+                        Self::async_unlock(self.ui_handle.clone(), id, password),
+                        |_| Message::Noop,
+                    )
                 }
             },
             Message::AddFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
+                    let id = Uuid::new_v4(); // todo use this id somewhere
                     Command::perform(
-                        Self::async_add_federation(self.ui_handle.clone(), invite),
+                        Self::async_add_federation(self.ui_handle.clone(), id, invite),
                         |_| Message::Noop,
                     )
                 } else {
@@ -397,8 +424,9 @@ impl HarborWallet {
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
+                    let id = Uuid::new_v4(); // todo use this id somewhere
                     Command::perform(
-                        Self::async_peek_federation(self.ui_handle.clone(), invite),
+                        Self::async_peek_federation(self.ui_handle.clone(), id, invite),
                         |_| Message::Noop,
                     )
                 } else {
@@ -412,16 +440,18 @@ impl HarborWallet {
             }
             Message::ShowSeedWords(show) => {
                 if show {
-                    Command::perform(Self::async_get_seed_words(self.ui_handle.clone()), |_| {
-                        Message::Noop
-                    })
+                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    Command::perform(
+                        Self::async_get_seed_words(self.ui_handle.clone(), id),
+                        |_| Message::Noop,
+                    )
                 } else {
                     self.settings_show_seed_words = false;
                     Command::none()
                 }
             }
             // Handle any messages we get from core
-            Message::CoreMessage(msg) => match msg {
+            Message::CoreMessage(msg) => match msg.msg {
                 CoreUIMsg::Sending => {
                     self.send_status = SendStatus::Sending;
                     Command::none()
