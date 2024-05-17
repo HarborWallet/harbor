@@ -1,4 +1,6 @@
-use iced::{widget::Svg, Theme};
+use iced::{widget::Svg, Element, Theme};
+
+use crate::Message;
 
 pub enum SvgIcon {
     ChevronDown,
@@ -13,9 +15,10 @@ pub enum SvgIcon {
     Copy,
     Plus,
     Qr,
+    Restart,
 }
 
-pub fn map_icon(icon: SvgIcon) -> Svg<'static, Theme> {
+pub fn map_icon(icon: SvgIcon, width: f32, height: f32) -> Element<'static, Message, Theme> {
     match icon {
         SvgIcon::ChevronDown => Svg::from_path("assets/icons/chevron_down.svg"),
         SvgIcon::DownLeft => Svg::from_path("assets/icons/down_left.svg"),
@@ -29,5 +32,9 @@ pub fn map_icon(icon: SvgIcon) -> Svg<'static, Theme> {
         SvgIcon::Copy => Svg::from_path("assets/icons/copy.svg"),
         SvgIcon::Plus => Svg::from_path("assets/icons/plus.svg"),
         SvgIcon::Qr => Svg::from_path("assets/icons/qr.svg"),
+        SvgIcon::Restart => Svg::from_path("assets/icons/restart.svg"),
     }
+    .width(width)
+    .height(height)
+    .into()
 }

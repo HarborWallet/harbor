@@ -39,3 +39,6 @@ pub use rules::*;
 
 mod layout;
 pub use layout::*;
+
+mod mini_copy;
+pub use mini_copy::*;
