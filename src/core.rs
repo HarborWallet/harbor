@@ -43,6 +43,7 @@ use crate::{
 
 const PEG_IN_TIMEOUT_YEAR: Duration = Duration::from_secs(86400 * 365);
 
+#[derive(Clone)]
 struct HarborCore {
     network: Network,
     mnemonic: Mnemonic,
@@ -446,81 +447,84 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
     loop {
         let msg = core_handle.recv().await;
 
-        if let Some(msg) = msg {
-            match msg {
-                UICoreMsg::SendLightning(invoice) => {
-                    log::info!("Got UICoreMsg::Send");
-                    core.msg(CoreUIMsg::Sending).await;
-                    if let Err(e) = core.send_lightning(invoice).await {
-                        error!("Error sending: {e}");
-                        core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
-                    }
-                }
-                UICoreMsg::ReceiveLightning(amount) => {
-                    core.msg(CoreUIMsg::ReceiveGenerating).await;
-                    match core.receive_lightning(amount).await {
-                        Err(e) => {
-                            core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
-                        }
-                        Ok(invoice) => {
-                            core.msg(CoreUIMsg::ReceiveInvoiceGenerated(invoice)).await;
+        let core = core.clone();
+        tokio::spawn(async move {
+            if let Some(msg) = msg {
+                match msg {
+                    UICoreMsg::SendLightning(invoice) => {
+                        log::info!("Got UICoreMsg::Send");
+                        core.msg(CoreUIMsg::Sending).await;
+                        if let Err(e) = core.send_lightning(invoice).await {
+                            error!("Error sending: {e}");
+                            core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
                         }
                     }
-                }
-                UICoreMsg::SendOnChain {
-                    address,
-                    amount_sats,
-                } => {
-                    log::info!("Got UICoreMsg::SendOnChain");
-                    core.msg(CoreUIMsg::Sending).await;
-                    if let Err(e) = core.send_onchain(address, amount_sats).await {
-                        error!("Error sending: {e}");
-                        core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
-                    }
-                }
-                UICoreMsg::ReceiveOnChain => {
-                    core.msg(CoreUIMsg::ReceiveGenerating).await;
-                    match core.receive_onchain().await {
-                        Err(e) => {
-                            core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
-                        }
-                        Ok(address) => {
-                            core.msg(CoreUIMsg::ReceiveAddressGenerated(address)).await;
+                    UICoreMsg::ReceiveLightning(amount) => {
+                        core.msg(CoreUIMsg::ReceiveGenerating).await;
+                        match core.receive_lightning(amount).await {
+                            Err(e) => {
+                                core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                            }
+                            Ok(invoice) => {
+                                core.msg(CoreUIMsg::ReceiveInvoiceGenerated(invoice)).await;
+                            }
                         }
                     }
-                }
-                UICoreMsg::GetFederationInfo(invite_code) => {
-                    match core.get_federation_info(invite_code).await {
-                        Err(e) => {
-                            error!("Error getting federation info: {e}");
+                    UICoreMsg::SendOnChain {
+                        address,
+                        amount_sats,
+                    } => {
+                        log::info!("Got UICoreMsg::SendOnChain");
+                        core.msg(CoreUIMsg::Sending).await;
+                        if let Err(e) = core.send_onchain(address, amount_sats).await {
+                            error!("Error sending: {e}");
+                            core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
+                        }
+                    }
+                    UICoreMsg::ReceiveOnChain => {
+                        core.msg(CoreUIMsg::ReceiveGenerating).await;
+                        match core.receive_onchain().await {
+                            Err(e) => {
+                                core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                            }
+                            Ok(address) => {
+                                core.msg(CoreUIMsg::ReceiveAddressGenerated(address)).await;
+                            }
+                        }
+                    }
+                    UICoreMsg::GetFederationInfo(invite_code) => {
+                        match core.get_federation_info(invite_code).await {
+                            Err(e) => {
+                                error!("Error getting federation info: {e}");
+                                core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
+                                    .await;
+                            }
+                            Ok(config) => {
+                                core.msg(CoreUIMsg::FederationInfo(config)).await;
+                            }
+                        }
+                    }
+                    UICoreMsg::AddFederation(invite_code) => {
+                        if let Err(e) = core.add_federation(invite_code).await {
+                            error!("Error adding federation: {e}");
                             core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
                                 .await;
-                        }
-                        Ok(config) => {
-                            core.msg(CoreUIMsg::FederationInfo(config)).await;
+                        } else {
+                            core.msg(CoreUIMsg::AddFederationSuccess).await;
+                            let new_federation_list = core.get_federation_items().await;
+                            core.msg(CoreUIMsg::FederationListUpdated(new_federation_list))
+                                .await;
                         }
                     }
-                }
-                UICoreMsg::AddFederation(invite_code) => {
-                    if let Err(e) = core.add_federation(invite_code).await {
-                        error!("Error adding federation: {e}");
-                        core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
-                            .await;
-                    } else {
-                        core.msg(CoreUIMsg::AddFederationSuccess).await;
-                        let new_federation_list = core.get_federation_items().await;
-                        core.msg(CoreUIMsg::FederationListUpdated(new_federation_list))
-                            .await;
+                    UICoreMsg::Unlock(_password) => {
+                        unreachable!("should already be unlocked")
                     }
-                }
-                UICoreMsg::Unlock(_password) => {
-                    unreachable!("should already be unlocked")
-                }
-                UICoreMsg::GetSeedWords => {
-                    let seed_words = core.get_seed_words().await;
-                    core.msg(CoreUIMsg::SeedWords(seed_words)).await;
+                    UICoreMsg::GetSeedWords => {
+                        let seed_words = core.get_seed_words().await;
+                        core.msg(CoreUIMsg::SeedWords(seed_words)).await;
+                    }
                 }
             }
-        }
+        });
     }
 }
