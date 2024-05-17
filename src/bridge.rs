@@ -122,7 +122,7 @@ pub struct CoreHandle {
 }
 
 pub fn create_handles() -> (UIHandle, CoreHandle) {
-    let (ui_to_core_tx, core_from_ui_rx) = mpsc::channel::<UICoreMsg>(1);
+    let (ui_to_core_tx, core_from_ui_rx) = mpsc::channel::<UICoreMsg>(50);
 
     let ui_handle = UIHandle { ui_to_core_tx };
 
