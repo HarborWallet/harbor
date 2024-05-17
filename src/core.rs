@@ -14,6 +14,7 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
+use tokio::time::sleep;
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -346,13 +347,6 @@ pub fn run_core() -> Subscription<Message> {
         std::any::TypeId::of::<Connect>(),
         100,
         |mut tx: Sender<Message>| async move {
-            // Setup UI Handle
-            let (ui_handle, mut core_handle) = bridge::create_handles();
-            let arc_ui_handle = Arc::new(ui_handle);
-            tx.send(Message::UIHandlerLoaded(arc_ui_handle.clone()))
-                .await
-                .expect("should send");
-
             let network = Network::Signet;
 
             // Create the datadir if it doesn't exist
@@ -360,80 +354,101 @@ pub fn run_core() -> Subscription<Message> {
             std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
             log::info!("Using datadir: {path:?}");
 
-            loop {
-                let msg = core_handle.recv().await;
+            tokio::spawn(async move {
+                log::info!("doing tokio spawn things");
+                // Setup UI Handle
+                let (ui_handle, mut core_handle) = bridge::create_handles();
+                let arc_ui_handle = Arc::new(ui_handle);
+                tx.send(Message::UIHandlerLoaded(arc_ui_handle.clone()))
+                    .await
+                    .expect("should send");
 
-                match msg {
-                    Some(UICoreMsg::Unlock(password)) => {
-                        log::info!("Sending unlock message");
-                        tx.send(Message::CoreMessage(CoreUIMsg::Unlocking))
-                            .await
-                            .expect("should send");
+                log::info!("Sent UI thread");
 
-                        // attempting to unlock
-                        let db_path = path.join("harbor.sqlite");
-                        let db =
-                            spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
+                loop {
+                    let msg = core_handle.recv().await;
+
+                    match msg {
+                        Some(UICoreMsg::Unlock(password)) => {
+                            log::info!("Sending unlock message");
+                            tx.send(Message::CoreMessage(CoreUIMsg::Unlocking))
                                 .await
-                                .expect("Could not create join handle");
+                                .expect("should send");
 
-                        if let Err(e) = db {
-                            // probably invalid password
-                            error!("error using password: {e}");
-
-                            tx.send(Message::CoreMessage(CoreUIMsg::UnlockFailed(
-                                "Invalid Password".to_string(),
-                            )))
+                            // attempting to unlock
+                            let db_path = path.join("harbor.sqlite");
+                            let db = spawn_blocking(move || {
+                                setup_db(db_path.to_str().unwrap(), password)
+                            })
                             .await
-                            .expect("should send");
-                            continue;
-                        }
-                        let db = db.expect("no error");
+                            .expect("Could not create join handle");
 
-                        let mnemonic = get_mnemonic(db.clone()).expect("should get seed");
+                            if let Err(e) = db {
+                                // probably invalid password
+                                error!("error using password: {e}");
 
-                        let stop = Arc::new(AtomicBool::new(false));
+                                tx.send(Message::CoreMessage(CoreUIMsg::UnlockFailed(
+                                    "Invalid Password".to_string(),
+                                )))
+                                .await
+                                .expect("should send");
+                                continue;
+                            }
+                            let db = db.expect("no error");
 
-                        // check db for fedimints
-                        let mut clients = HashMap::new();
-                        let federation_ids = db
-                            .list_federations()
-                            .expect("should load initial fedimints");
-                        for f in federation_ids {
-                            let client = FedimintClient::new(
-                                db.clone(),
-                                FederationInviteOrId::Id(
-                                    FederationId::from_str(&f).expect("should parse federation id"),
-                                ),
-                                &mnemonic,
+                            let mnemonic = get_mnemonic(db.clone()).expect("should get seed");
+
+                            let stop = Arc::new(AtomicBool::new(false));
+
+                            // check db for fedimints
+                            let mut clients = HashMap::new();
+                            let federation_ids = db
+                                .list_federations()
+                                .expect("should load initial fedimints");
+                            for f in federation_ids {
+                                let client = FedimintClient::new(
+                                    db.clone(),
+                                    FederationInviteOrId::Id(
+                                        FederationId::from_str(&f)
+                                            .expect("should parse federation id"),
+                                    ),
+                                    &mnemonic,
+                                    network,
+                                    stop.clone(),
+                                )
+                                .await
+                                .expect("Could not create fedimint client");
+
+                                clients.insert(client.fedimint_client.federation_id(), client);
+                            }
+
+                            let core = HarborCore {
+                                storage: db.clone(),
+                                tx: tx.clone(),
+                                mnemonic,
                                 network,
-                                stop.clone(),
-                            )
-                            .await
-                            .expect("Could not create fedimint client");
+                                clients: Arc::new(RwLock::new(clients)),
+                                stop,
+                            };
 
-                            clients.insert(client.fedimint_client.federation_id(), client);
+                            tx.send(Message::CoreMessage(CoreUIMsg::UnlockSuccess))
+                                .await
+                                .expect("should send");
+
+                            process_core(&mut core_handle, &core).await;
                         }
-
-                        let core = HarborCore {
-                            storage: db.clone(),
-                            tx: tx.clone(),
-                            mnemonic,
-                            network,
-                            clients: Arc::new(RwLock::new(clients)),
-                            stop,
-                        };
-
-                        tx.send(Message::CoreMessage(CoreUIMsg::UnlockSuccess))
-                            .await
-                            .expect("should send");
-
-                        process_core(&mut core_handle, &core).await;
-                    }
-                    _ => {
-                        warn!("Ignoring unrelated message to locked core")
+                        _ => {
+                            warn!("Ignoring unrelated message to locked core")
+                        }
                     }
                 }
+            })
+            .await
+            .unwrap();
+
+            loop {
+                sleep(Duration::from_secs(5)).await;
+                log::trace!("Subscription thread still running");
             }
         },
     )
