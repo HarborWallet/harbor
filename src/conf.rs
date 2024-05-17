@@ -21,7 +21,6 @@ pub fn data_dir(network: Network) -> PathBuf {
     }
 }
 
-// todo store in encrypted database
 pub fn get_mnemonic(db: Arc<dyn DBConnection + Send + Sync>) -> anyhow::Result<Mnemonic> {
     match db.get_seed()? {
         Some(m) => {
@@ -40,4 +39,21 @@ pub fn get_mnemonic(db: Arc<dyn DBConnection + Send + Sync>) -> anyhow::Result<M
             Ok(Mnemonic::from_str(&p.seed_words)?)
         }
     }
+}
+
+pub fn generate_mnemonic(
+    db: Arc<dyn DBConnection + Send + Sync>,
+    words: Option<String>,
+) -> anyhow::Result<Mnemonic> {
+    let mnemonic_words = words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
+
+    let new_profile = NewProfile {
+        id: uuid::Uuid::new_v4().to_string(),
+        seed_words: mnemonic_words,
+    };
+
+    let p = db.insert_new_profile(new_profile)?;
+
+    info!("creating new seed");
+    Ok(Mnemonic::from_str(&p.seed_words)?)
 }

@@ -24,7 +24,6 @@ use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
-use crate::components::FederationItem;
 use crate::db::check_password;
 use crate::fedimint_client::{
     spawn_onchain_payment_subscription, spawn_onchain_receive_subscription, FederationInviteOrId,
@@ -35,6 +34,7 @@ use crate::{
     db::DBConnection,
     Message,
 };
+use crate::{components::FederationItem, conf::generate_mnemonic};
 use crate::{
     db::setup_db,
     fedimint_client::{
@@ -44,6 +44,7 @@ use crate::{
 };
 
 const PEG_IN_TIMEOUT_YEAR: Duration = Duration::from_secs(86400 * 365);
+const HARBOR_FILE_NAME: &str = "harbor.sqlite";
 
 #[derive(Clone)]
 struct HarborCore {
@@ -381,11 +382,25 @@ pub fn run_core() -> Subscription<Message> {
             std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
             log::info!("Using datadir: {path:?}");
 
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
+            // Check if the database file exists already, if so tell UI to unlock
+            if std::fs::metadata(path.join(HARBOR_FILE_NAME)).is_ok() {
+                tx.send(Message::core_msg(None, CoreUIMsg::Locked))
+                    .await
+                    .expect("should send");
+            } else {
+                tx.send(Message::core_msg(None, CoreUIMsg::NeedsInit))
+                    .await
+                    .expect("should send");
+            }
+
             loop {
                 let msg = core_handle.recv().await;
 
                 let id = msg.as_ref().map(|m| m.id);
 
+                // Watch for either Unlock or Init, ignore everything else until started
                 match msg.map(|m| m.msg) {
                     Some(UICoreMsg::Unlock(password)) => {
                         log::info!("Sending unlock message");
@@ -394,7 +409,7 @@ pub fn run_core() -> Subscription<Message> {
                             .expect("should send");
 
                         // attempting to unlock
-                        let db_path = path.join("harbor.sqlite");
+                        let db_path = path.join(HARBOR_FILE_NAME);
 
                         let db_path = db_path.to_str().unwrap().to_string();
 
@@ -435,6 +450,7 @@ pub fn run_core() -> Subscription<Message> {
                         }
                         let db = db.expect("no error");
 
+                        // TODO do not automatically generate words anymore
                         let mnemonic = get_mnemonic(db.clone()).expect("should get seed");
 
                         let stop = Arc::new(AtomicBool::new(false));
@@ -475,6 +491,72 @@ pub fn run_core() -> Subscription<Message> {
 
                         process_core(&mut core_handle, &core).await;
                     }
+                    Some(UICoreMsg::Init { password, seed }) => {
+                        // TODO refactor and make this about init
+                        log::info!("Sending init message");
+                        tx.send(Message::core_msg(id, CoreUIMsg::Initing))
+                            .await
+                            .expect("should send");
+
+                        // attempting to unlock
+                        let db_path = path.join(HARBOR_FILE_NAME);
+                        let db =
+                            spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
+                                .await
+                                .expect("Could not create join handle");
+
+                        if let Err(e) = db {
+                            // probably invalid password
+                            error!("error setting password: {e}");
+
+                            tx.send(Message::core_msg(id, CoreUIMsg::InitFailed(e.to_string())))
+                                .await
+                                .expect("should send");
+                            continue;
+                        }
+                        let db = db.expect("no error");
+
+                        let mnemonic =
+                            generate_mnemonic(db.clone(), seed).expect("should generate words");
+                        let stop = Arc::new(AtomicBool::new(false));
+
+                        // check db for fedimints
+                        let mut clients = HashMap::new();
+                        let federation_ids = db
+                            .list_federations()
+                            .expect("should load initial fedimints");
+                        for f in federation_ids {
+                            let client = FedimintClient::new(
+                                db.clone(),
+                                FederationInviteOrId::Id(
+                                    FederationId::from_str(&f).expect("should parse federation id"),
+                                ),
+                                &mnemonic,
+                                network,
+                                stop.clone(),
+                            )
+                            .await
+                            .expect("Could not create fedimint client");
+
+                            clients.insert(client.fedimint_client.federation_id(), client);
+                        }
+
+                        let core = HarborCore {
+                            storage: db.clone(),
+                            tx: tx.clone(),
+                            mnemonic,
+                            network,
+                            clients: Arc::new(RwLock::new(clients)),
+                            stop,
+                        };
+
+                        tx.send(Message::core_msg(id, CoreUIMsg::InitSuccess))
+                            .await
+                            .expect("should send");
+
+                        process_core(&mut core_handle, &core).await;
+                    }
+
                     _ => {
                         warn!("Ignoring unrelated message to locked core")
                     }
@@ -576,6 +658,9 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                     }
                     UICoreMsg::Unlock(_password) => {
                         unreachable!("should already be unlocked")
+                    }
+                    UICoreMsg::Init { .. } => {
+                        unreachable!("should already be inited")
                     }
                     UICoreMsg::GetSeedWords => {
                         let seed_words = core.get_seed_words().await;
