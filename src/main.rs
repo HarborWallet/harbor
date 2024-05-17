@@ -1,5 +1,5 @@
 use bitcoin::Address;
-use components::{FederationItem, TransactionItem};
+use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -94,6 +94,8 @@ pub enum Message {
     CopyToClipboard(String),
     ReceiveMethodChanged(ReceiveMethod),
     ShowSeedWords(bool),
+    AddToast(Toast),
+    CloseToast(usize),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -113,6 +115,7 @@ pub enum Message {
 pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
     active_route: Route,
+    toasts: Vec<Toast>,
     // Globals
     balance_sats: u64,
     transaction_history: Vec<TransactionItem>,
@@ -302,6 +305,14 @@ impl HarborWallet {
                 self.receive_method = method;
                 Command::none()
             }
+            Message::AddToast(toast) => {
+                self.toasts.push(toast);
+                Command::none()
+            }
+            Message::CloseToast(index) => {
+                self.toasts.remove(index);
+                Command::none()
+            }
             // Async commands we fire from the UI to core
             Message::Noop => Command::none(),
             Message::Send(invoice_str) => match self.send_status {
@@ -406,10 +417,16 @@ impl HarborWallet {
                     Command::none()
                 }
             }
-            Message::CopyToClipboard(s) => {
-                println!("Copying to clipboard: {s}");
-                clipboard::write(s)
-            }
+            Message::CopyToClipboard(s) => Command::batch([
+                clipboard::write(s),
+                Command::perform(async {}, |_| {
+                    Message::AddToast(Toast {
+                        title: "Copied to clipboard".to_string(),
+                        body: "...".to_string(),
+                        status: ToastStatus::Neutral,
+                    })
+                }),
+            ]),
             Message::ShowSeedWords(show) => {
                 if show {
                     Command::perform(Self::async_get_seed_words(self.ui_handle.clone()), |_| {
@@ -551,7 +568,7 @@ impl HarborWallet {
             Route::Settings => row![sidebar, crate::routes::settings(self)].into(),
         };
 
-        active_route
+        ToastManager::new(active_route, &self.toasts, Message::CloseToast).into()
     }
 
     fn theme(&self) -> iced::Theme {

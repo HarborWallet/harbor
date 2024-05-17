@@ -16,9 +16,10 @@ pub enum SvgIcon {
     Plus,
     Qr,
     Restart,
+    SmallClose,
 }
 
-pub fn map_icon(icon: SvgIcon, width: f32, height: f32) -> Element<'static, Message, Theme> {
+pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Element<'a, Message, Theme> {
     match icon {
         SvgIcon::ChevronDown => Svg::from_path("assets/icons/chevron_down.svg"),
         SvgIcon::DownLeft => Svg::from_path("assets/icons/down_left.svg"),
@@ -33,6 +34,7 @@ pub fn map_icon(icon: SvgIcon, width: f32, height: f32) -> Element<'static, Mess
         SvgIcon::Plus => Svg::from_path("assets/icons/plus.svg"),
         SvgIcon::Qr => Svg::from_path("assets/icons/qr.svg"),
         SvgIcon::Restart => Svg::from_path("assets/icons/restart.svg"),
+        SvgIcon::SmallClose => Svg::from_path("assets/icons/small_close.svg"),
     }
     .width(width)
     .height(height)
