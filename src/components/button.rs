@@ -1,7 +1,7 @@
 use iced::{
     widget::{
         button::{self, Status},
-        center, horizontal_space, row, text, Button, Svg,
+        center, horizontal_space, row, text, Button,
     },
     Border, Color, Element, Length, Shadow, Theme,
 };
@@ -12,16 +12,13 @@ use super::{darken, lighten, map_icon, the_spinner, SvgIcon};
 
 pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Message, Theme> {
     let spinner: Element<'static, Message, Theme> = the_spinner();
-    let svg: Svg<'_, Theme> = map_icon(icon);
+    let svg = map_icon(icon, 24., 24.);
     let content = if loading {
         row![spinner].align_items(iced::Alignment::Center)
     } else {
-        row![
-            svg.width(Length::Fixed(24.)).height(Length::Fixed(24.)),
-            text(text_str).size(24.)
-        ]
-        .align_items(iced::Alignment::Center)
-        .spacing(16)
+        row![svg, text(text_str).size(24.)]
+            .align_items(iced::Alignment::Center)
+            .spacing(16)
     };
 
     Button::new(center(content))
@@ -62,22 +59,11 @@ pub fn sidebar_button(
     active_route: Route,
 ) -> Button<'_, Message, Theme> {
     let is_active = self_route == active_route;
-    let svg: Svg<'_, Theme> = map_icon(icon);
-    let content = row!(
-        svg.width(Length::Fixed(24.)).height(Length::Fixed(24.)),
-        text(text_str).size(24.),
-        horizontal_space(),
-        // .font(Font {
-
-        //     family: iced::font::Family::default(),
-        //     weight: iced::font::Weight::Bold,
-        //     stretch: iced::font::Stretch::Normal,
-        //     style: iced::font::Style::Normal,
-        // })
-    )
-    .align_items(iced::Alignment::Center)
-    .spacing(16)
-    .padding(16);
+    let svg = map_icon(icon, 24., 24.);
+    let content = row!(svg, text(text_str).size(24.), horizontal_space(),)
+        .align_items(iced::Alignment::Center)
+        .spacing(16)
+        .padding(16);
 
     Button::new(content)
         .style(move |theme, status| {
