@@ -154,6 +154,8 @@ pub struct HarborWallet {
     // Settings
     settings_show_seed_words: bool,
     seed_words: Option<String>,
+    current_send_id: Option<Uuid>,
+    current_receive_id: Option<Uuid>,
 }
 
 impl HarborWallet {
@@ -327,7 +329,8 @@ impl HarborWallet {
                 SendStatus::Sending => Command::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
+                    self.current_send_id = Some(id);
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
                         Command::perform(
                             Self::async_send_lightning(self.ui_handle.clone(), id, invoice),
@@ -346,6 +349,7 @@ impl HarborWallet {
                         )
                     } else {
                         error!("Invalid invoice or address");
+                        self.current_send_id = None;
                         Command::none()
                     }
                 }
@@ -353,8 +357,9 @@ impl HarborWallet {
             Message::GenerateInvoice => match self.receive_status {
                 ReceiveStatus::Generating => Command::none(),
                 _ => {
+                    let id = Uuid::new_v4();
+                    self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
-                    let id = Uuid::new_v4(); // todo use this id somewhere
                     match self.receive_amount_str.parse::<u64>() {
                         Ok(amount) => Command::perform(
                             Self::async_receive(self.ui_handle.clone(), id, amount),
@@ -371,7 +376,8 @@ impl HarborWallet {
             Message::GenerateAddress => match self.receive_status {
                 ReceiveStatus::Generating => Command::none(),
                 _ => {
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
+                    self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
                     Command::perform(
                         Self::async_receive_onchain(self.ui_handle.clone(), id),
@@ -384,7 +390,8 @@ impl HarborWallet {
                     // TODO: don't hardcode this!
                     let hardcoded_donation_address = "tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v";
                     let address = Address::from_str(hardcoded_donation_address).unwrap();
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
+                    self.current_send_id = Some(id);
 
                     Command::perform(
                         Self::async_send_onchain(self.ui_handle.clone(), id, address, Some(amount)),
@@ -453,27 +460,41 @@ impl HarborWallet {
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg.msg {
                 CoreUIMsg::Sending => {
-                    self.send_status = SendStatus::Sending;
+                    if self.current_send_id == msg.id {
+                        self.send_status = SendStatus::Sending;
+                    }
                     Command::none()
                 }
                 CoreUIMsg::SendSuccess(params) => {
                     info!("Send success: {params:?}");
-                    self.send_success_msg = Some(params);
+                    if self.current_send_id == msg.id {
+                        self.send_success_msg = Some(params);
+                        self.current_send_id = None;
+                    }
                     Command::none()
                 }
                 CoreUIMsg::SendFailure(reason) => {
-                    self.send_status = SendStatus::Idle;
-                    self.send_failure_reason = Some(reason);
+                    if self.current_send_id == msg.id {
+                        self.send_status = SendStatus::Idle;
+                        self.send_failure_reason = Some(reason);
+                        self.current_send_id = None;
+                    }
                     Command::none()
                 }
                 CoreUIMsg::ReceiveSuccess(params) => {
                     info!("Receive success: {params:?}");
-                    self.receive_success_msg = Some(params);
+                    if self.current_receive_id == msg.id {
+                        self.receive_success_msg = Some(params);
+                        self.current_receive_id = None;
+                    }
                     Command::none()
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
-                    self.receive_status = ReceiveStatus::Idle;
-                    self.receive_failure_reason = Some(reason);
+                    if self.current_receive_id == msg.id {
+                        self.receive_status = ReceiveStatus::Idle;
+                        self.receive_failure_reason = Some(reason);
+                        self.current_receive_id = None;
+                    }
                     Command::none()
                 }
                 CoreUIMsg::BalanceUpdated(balance) => {
