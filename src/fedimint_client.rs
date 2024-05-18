@@ -35,6 +35,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 use tokio::spawn;
+use uuid::Uuid;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -227,13 +228,15 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
 
 async fn update_history(
     storage: Arc<dyn DBConnection + Send + Sync>,
+    msg_id: Uuid,
     sender: &mut Sender<Message>,
 ) {
     if let Ok(history) = storage.get_transaction_history() {
         sender
-            .send(Message::CoreMessage(CoreUIMsg::TransactionHistoryUpdated(
-                history,
-            )))
+            .send(Message::core_msg(
+                Some(msg_id),
+                CoreUIMsg::TransactionHistoryUpdated(history),
+            ))
             .await
             .unwrap();
     }
@@ -244,6 +247,7 @@ pub(crate) async fn spawn_invoice_receive_subscription(
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
+    msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<LnReceiveState>,
 ) {
     spawn(async move {
@@ -253,22 +257,25 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 LnReceiveState::Canceled { reason } => {
                     error!("Payment canceled, reason: {:?}", reason);
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
-                            reason.to_string(),
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(reason.to_string()),
+                        ))
                         .await
                         .unwrap();
 
                     if let Err(e) = storage.mark_ln_receive_as_failed(operation_id) {
                         error!("Could not mark lightning receive as failed: {e}");
                     }
+                    break;
                 }
                 LnReceiveState::Claimed => {
                     info!("Payment claimed");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess(
-                            ReceiveSuccessMsg::Lightning,
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveSuccess(ReceiveSuccessMsg::Lightning),
+                        ))
                         .await
                         .unwrap();
 
@@ -278,11 +285,14 @@ pub(crate) async fn spawn_invoice_receive_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::BalanceUpdated(new_balance),
+                        ))
                         .await
                         .unwrap();
 
-                    update_history(storage.clone(), &mut sender).await;
+                    update_history(storage.clone(), msg_id, &mut sender).await;
 
                     break;
                 }
@@ -297,6 +307,7 @@ pub(crate) async fn spawn_invoice_payment_subscription(
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
+    msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<LnPayState>,
 ) {
     spawn(async move {
@@ -306,9 +317,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                 LnPayState::Canceled => {
                     error!("Payment canceled");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(
-                            "Canceled".to_string(),
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendFailure("Canceled".to_string()),
+                        ))
                         .await
                         .unwrap();
 
@@ -320,7 +332,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                 LnPayState::UnexpectedError { error_message } => {
                     error!("Unexpected payment error: {:?}", error_message);
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(error_message)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendFailure(error_message),
+                        ))
                         .await
                         .unwrap();
 
@@ -335,7 +350,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         FromHex::from_hex(&preimage).expect("Invalid preimage");
                     let params = SendSuccessMsg::Lightning { preimage };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendSuccess(params),
+                        ))
                         .await
                         .unwrap();
 
@@ -345,11 +363,14 @@ pub(crate) async fn spawn_invoice_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::BalanceUpdated(new_balance),
+                        ))
                         .await
                         .unwrap();
 
-                    update_history(storage.clone(), &mut sender).await;
+                    update_history(storage.clone(), msg_id, &mut sender).await;
 
                     break;
                 }
@@ -364,6 +385,7 @@ pub(crate) async fn spawn_internal_payment_subscription(
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
+    msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<InternalPayState>,
 ) {
     spawn(async move {
@@ -373,9 +395,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 InternalPayState::FundingFailed { error } => {
                     error!("Funding failed: {error:?}");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
-                            error.to_string(),
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(error.to_string()),
+                        ))
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
@@ -386,7 +409,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 InternalPayState::UnexpectedError(error_message) => {
                     error!("Unexpected payment error: {error_message:?}");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(error_message)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendFailure(error_message),
+                        ))
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
@@ -400,7 +426,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         preimage: preimage.0,
                     };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendSuccess(params),
+                        ))
                         .await
                         .unwrap();
 
@@ -411,11 +440,14 @@ pub(crate) async fn spawn_internal_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::BalanceUpdated(new_balance),
+                        ))
                         .await
                         .unwrap();
 
-                    update_history(storage, &mut sender).await;
+                    update_history(storage, msg_id, &mut sender).await;
 
                     break;
                 }
@@ -430,6 +462,7 @@ pub(crate) async fn spawn_onchain_payment_subscription(
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
+    msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<WithdrawState>,
 ) {
     spawn(async move {
@@ -440,9 +473,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                 WithdrawState::Failed(error) => {
                     error!("Onchain payment failed: {error:?}");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendFailure(
-                            error.to_string(),
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendFailure(error),
+                        ))
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_onchain_payment_as_failed(operation_id) {
@@ -455,7 +489,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     info!("Onchain payment success: {txid}");
                     let params = SendSuccessMsg::Onchain { txid };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::SendSuccess(params)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::SendSuccess(params),
+                        ))
                         .await
                         .unwrap();
 
@@ -465,11 +502,14 @@ pub(crate) async fn spawn_onchain_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::BalanceUpdated(new_balance),
+                        ))
                         .await
                         .unwrap();
 
-                    update_history(storage.clone(), &mut sender).await;
+                    update_history(storage.clone(), msg_id, &mut sender).await;
 
                     break;
                 }
@@ -483,6 +523,7 @@ pub(crate) async fn spawn_onchain_receive_subscription(
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
+    msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<DepositState>,
 ) {
     spawn(async move {
@@ -493,9 +534,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                 DepositState::Failed(error) => {
                     error!("Onchain receive failed: {error:?}");
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveFailed(
-                            error.to_string(),
-                        )))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(error),
+                        ))
                         .await
                         .unwrap();
 
@@ -512,7 +554,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     let amount = data.btc_transaction.output[index].value;
                     let params = ReceiveSuccessMsg::Onchain { txid };
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::ReceiveSuccess(params)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveSuccess(params),
+                        ))
                         .await
                         .unwrap();
 
@@ -523,7 +568,7 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
-                    update_history(storage.clone(), &mut sender).await;
+                    update_history(storage.clone(), msg_id, &mut sender).await;
                 }
                 DepositState::Confirmed(data) => {
                     info!("Onchain receive confirmed: {data:?}");
@@ -532,7 +577,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     info!("Onchain receive claimed: {data:?}");
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::CoreMessage(CoreUIMsg::BalanceUpdated(new_balance)))
+                        .send(Message::core_msg(
+                            Some(msg_id),
+                            CoreUIMsg::BalanceUpdated(new_balance),
+                        ))
                         .await
                         .unwrap();
 
@@ -540,7 +588,7 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
-                    update_history(storage.clone(), &mut sender).await;
+                    update_history(storage.clone(), msg_id, &mut sender).await;
 
                     break;
                 }

@@ -22,6 +22,7 @@ use iced::{
 use log::{error, trace, warn};
 use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
+use uuid::Uuid;
 
 use crate::components::FederationItem;
 use crate::fedimint_client::{
@@ -54,10 +55,10 @@ struct HarborCore {
 }
 
 impl HarborCore {
-    async fn msg(&self, msg: CoreUIMsg) {
+    async fn msg(&self, id: Option<Uuid>, msg: CoreUIMsg) {
         self.tx
             .clone()
-            .send(Message::CoreMessage(msg))
+            .send(Message::core_msg(id, msg))
             .await
             .unwrap();
     }
@@ -69,14 +70,14 @@ impl HarborCore {
             balance += client.fedimint_client.get_balance().await;
         }
 
-        self.msg(CoreUIMsg::BalanceUpdated(balance)).await;
+        self.msg(None, CoreUIMsg::BalanceUpdated(balance)).await;
 
         let history = self.storage.get_transaction_history().unwrap();
-        self.msg(CoreUIMsg::TransactionHistoryUpdated(history))
+        self.msg(None, CoreUIMsg::TransactionHistoryUpdated(history))
             .await;
 
         let federation_items = self.get_federation_items().await;
-        self.msg(CoreUIMsg::FederationListUpdated(federation_items))
+        self.msg(None, CoreUIMsg::FederationListUpdated(federation_items))
             .await;
     }
 
@@ -85,7 +86,7 @@ impl HarborCore {
         self.clients.read().await.values().next().unwrap().clone()
     }
 
-    async fn send_lightning(&self, invoice: Bolt11Invoice) -> anyhow::Result<()> {
+    async fn send_lightning(&self, msg_id: Uuid, invoice: Bolt11Invoice) -> anyhow::Result<()> {
         if invoice.amount_milli_satoshis().is_none() {
             return Err(anyhow!("Invoice must have an amount"));
         }
@@ -123,6 +124,7 @@ impl HarborCore {
                     client.clone(),
                     self.storage.clone(),
                     op_id,
+                    msg_id,
                     sub,
                 )
                 .await;
@@ -134,6 +136,7 @@ impl HarborCore {
                     client.clone(),
                     self.storage.clone(),
                     op_id,
+                    msg_id,
                     sub,
                 )
                 .await;
@@ -145,7 +148,11 @@ impl HarborCore {
         Ok(())
     }
 
-    async fn receive_lightning(&self, amount: Amount) -> anyhow::Result<Bolt11Invoice> {
+    async fn receive_lightning(
+        &self,
+        msg_id: Uuid,
+        amount: Amount,
+    ) -> anyhow::Result<Bolt11Invoice> {
         let client = self.get_client().await.fedimint_client;
         let lightning_module = client.get_first_module::<LightningClientModule>();
 
@@ -182,6 +189,7 @@ impl HarborCore {
                 client.clone(),
                 self.storage.clone(),
                 op_id,
+                msg_id,
                 subscription,
             )
             .await;
@@ -193,7 +201,12 @@ impl HarborCore {
     }
 
     /// Sends a given amount of sats to a given address, if the amount is None, send all funds
-    async fn send_onchain(&self, address: Address, sats: Option<u64>) -> anyhow::Result<()> {
+    async fn send_onchain(
+        &self,
+        msg_id: Uuid,
+        address: Address,
+        sats: Option<u64>,
+    ) -> anyhow::Result<()> {
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client().await.fedimint_client;
         let onchain = client.get_first_module::<WalletClientModule>();
@@ -248,6 +261,7 @@ impl HarborCore {
             client.clone(),
             self.storage.clone(),
             op_id,
+            msg_id,
             sub,
         )
         .await;
@@ -255,7 +269,7 @@ impl HarborCore {
         Ok(())
     }
 
-    async fn receive_onchain(&self) -> anyhow::Result<Address> {
+    async fn receive_onchain(&self, msg_id: Uuid) -> anyhow::Result<Address> {
         // todo add federation id selection
         let client = self.get_client().await.fedimint_client;
         let onchain = client.get_first_module::<WalletClientModule>();
@@ -275,6 +289,7 @@ impl HarborCore {
             client.clone(),
             self.storage.clone(),
             op_id,
+            msg_id,
             sub,
         )
         .await;
@@ -364,10 +379,12 @@ pub fn run_core() -> Subscription<Message> {
             loop {
                 let msg = core_handle.recv().await;
 
-                match msg {
+                let id = msg.as_ref().map(|m| m.id);
+
+                match msg.map(|m| m.msg) {
                     Some(UICoreMsg::Unlock(password)) => {
                         log::info!("Sending unlock message");
-                        tx.send(Message::CoreMessage(CoreUIMsg::Unlocking))
+                        tx.send(Message::core_msg(id, CoreUIMsg::Unlocking))
                             .await
                             .expect("should send");
 
@@ -382,9 +399,10 @@ pub fn run_core() -> Subscription<Message> {
                             // probably invalid password
                             error!("error using password: {e}");
 
-                            tx.send(Message::CoreMessage(CoreUIMsg::UnlockFailed(
-                                "Invalid Password".to_string(),
-                            )))
+                            tx.send(Message::core_msg(
+                                id,
+                                CoreUIMsg::UnlockFailed(e.to_string()),
+                            ))
                             .await
                             .expect("should send");
                             continue;
@@ -425,7 +443,7 @@ pub fn run_core() -> Subscription<Message> {
                             stop,
                         };
 
-                        tx.send(Message::CoreMessage(CoreUIMsg::UnlockSuccess))
+                        tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
                             .await
                             .expect("should send");
 
@@ -450,23 +468,26 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
         let core = core.clone();
         tokio::spawn(async move {
             if let Some(msg) = msg {
-                match msg {
+                match msg.msg {
                     UICoreMsg::SendLightning(invoice) => {
                         log::info!("Got UICoreMsg::Send");
-                        core.msg(CoreUIMsg::Sending).await;
-                        if let Err(e) = core.send_lightning(invoice).await {
+                        core.msg(Some(msg.id), CoreUIMsg::Sending).await;
+                        if let Err(e) = core.send_lightning(msg.id, invoice).await {
                             error!("Error sending: {e}");
-                            core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
+                            core.msg(Some(msg.id), CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::ReceiveLightning(amount) => {
-                        core.msg(CoreUIMsg::ReceiveGenerating).await;
-                        match core.receive_lightning(amount).await {
+                        core.msg(Some(msg.id), CoreUIMsg::ReceiveGenerating).await;
+                        match core.receive_lightning(msg.id, amount).await {
                             Err(e) => {
-                                core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                core.msg(Some(msg.id), CoreUIMsg::ReceiveFailed(e.to_string()))
+                                    .await;
                             }
                             Ok(invoice) => {
-                                core.msg(CoreUIMsg::ReceiveInvoiceGenerated(invoice)).await;
+                                core.msg(Some(msg.id), CoreUIMsg::ReceiveInvoiceGenerated(invoice))
+                                    .await;
                             }
                         }
                     }
@@ -475,20 +496,23 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                         amount_sats,
                     } => {
                         log::info!("Got UICoreMsg::SendOnChain");
-                        core.msg(CoreUIMsg::Sending).await;
-                        if let Err(e) = core.send_onchain(address, amount_sats).await {
+                        core.msg(Some(msg.id), CoreUIMsg::Sending).await;
+                        if let Err(e) = core.send_onchain(msg.id, address, amount_sats).await {
                             error!("Error sending: {e}");
-                            core.msg(CoreUIMsg::SendFailure(e.to_string())).await;
+                            core.msg(Some(msg.id), CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::ReceiveOnChain => {
-                        core.msg(CoreUIMsg::ReceiveGenerating).await;
-                        match core.receive_onchain().await {
+                        core.msg(Some(msg.id), CoreUIMsg::ReceiveGenerating).await;
+                        match core.receive_onchain(msg.id).await {
                             Err(e) => {
-                                core.msg(CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                core.msg(Some(msg.id), CoreUIMsg::ReceiveFailed(e.to_string()))
+                                    .await;
                             }
                             Ok(address) => {
-                                core.msg(CoreUIMsg::ReceiveAddressGenerated(address)).await;
+                                core.msg(Some(msg.id), CoreUIMsg::ReceiveAddressGenerated(address))
+                                    .await;
                             }
                         }
                     }
@@ -496,24 +520,32 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                         match core.get_federation_info(invite_code).await {
                             Err(e) => {
                                 error!("Error getting federation info: {e}");
-                                core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
-                                    .await;
+                                core.msg(
+                                    Some(msg.id),
+                                    CoreUIMsg::AddFederationFailed(e.to_string()),
+                                )
+                                .await;
                             }
                             Ok(config) => {
-                                core.msg(CoreUIMsg::FederationInfo(config)).await;
+                                core.msg(Some(msg.id), CoreUIMsg::FederationInfo(config))
+                                    .await;
                             }
                         }
                     }
                     UICoreMsg::AddFederation(invite_code) => {
                         if let Err(e) = core.add_federation(invite_code).await {
                             error!("Error adding federation: {e}");
-                            core.msg(CoreUIMsg::AddFederationFailed(e.to_string()))
+                            core.msg(Some(msg.id), CoreUIMsg::AddFederationFailed(e.to_string()))
                                 .await;
                         } else {
-                            core.msg(CoreUIMsg::AddFederationSuccess).await;
-                            let new_federation_list = core.get_federation_items().await;
-                            core.msg(CoreUIMsg::FederationListUpdated(new_federation_list))
+                            core.msg(Some(msg.id), CoreUIMsg::AddFederationSuccess)
                                 .await;
+                            let new_federation_list = core.get_federation_items().await;
+                            core.msg(
+                                Some(msg.id),
+                                CoreUIMsg::FederationListUpdated(new_federation_list),
+                            )
+                            .await;
                         }
                     }
                     UICoreMsg::Unlock(_password) => {
@@ -521,7 +553,8 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                     }
                     UICoreMsg::GetSeedWords => {
                         let seed_words = core.get_seed_words().await;
-                        core.msg(CoreUIMsg::SeedWords(seed_words)).await;
+                        core.msg(Some(msg.id), CoreUIMsg::SeedWords(seed_words))
+                            .await;
                     }
                 }
             }
