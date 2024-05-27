@@ -32,3 +32,28 @@ fn to_hsl(color: Color) -> Hsl {
 fn from_hsl(hsl: Hsl) -> Color {
     Rgb::from_color(hsl).into()
 }
+
+pub fn format_timestamp(timestamp: &u64) -> String {
+    let signed = timestamp.to_owned() as i64;
+    let date_time = chrono::DateTime::from_timestamp(signed, 0).unwrap();
+    format!("{}", date_time.format("%m/%d/%Y, %l:%M %P"))
+}
+
+pub fn format_amount(amount: u64) -> String {
+    if amount == 1 {
+        return "1 sat".to_string();
+    }
+    // https://stackoverflow.com/questions/26998485/is-it-possible-to-print-a-number-formatted-with-thousand-separator-in-rust
+    // Rust is a real baby about doing useful things
+    let num = amount
+        .to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<&str>, _>>()
+        .unwrap()
+        .join(",");
+
+    format!("{num} sats")
+}

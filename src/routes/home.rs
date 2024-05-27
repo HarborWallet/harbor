@@ -1,4 +1,4 @@
-use crate::components::{h_button, h_screen_header, SvgIcon};
+use crate::components::{format_amount, h_button, h_screen_header, SvgIcon};
 use iced::widget::{center, column, container, row, text};
 use iced::{Alignment, Element, Length};
 
@@ -7,7 +7,8 @@ use crate::{HarborWallet, Message};
 use super::Route;
 
 pub fn home(harbor: &HarborWallet) -> Element<Message> {
-    let balance = text(format!("{} sats", harbor.balance_sats)).size(64);
+    let formatted_balance = format_amount(harbor.balance_sats);
+    let balance = text(formatted_balance).size(64);
     let send_button =
         h_button("Send", SvgIcon::UpRight, false).on_press(Message::Navigate(Route::Send));
     let receive_button =
