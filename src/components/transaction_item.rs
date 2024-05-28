@@ -1,9 +1,11 @@
 use iced::{
-    widget::{row, text},
-    Element,
+    widget::{column, row, svg, text, text::Style},
+    Element, Theme,
 };
 
 use crate::Message;
+
+use super::{format_amount, format_timestamp, lighten, map_icon, MUTINY_GREEN, MUTINY_RED};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TransactionItemKind {
@@ -52,13 +54,38 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         direction,
         timestamp,
     } = item;
-    let row = row![
-        text(format!("{kind:?}")).size(24),
-        text(format!("{amount} sats")).size(24),
-        text(format!("{direction:?}")).size(24),
-        text(format!("{timestamp}")).size(24),
-    ]
-    .spacing(16);
+    let kind_icon = match kind {
+        TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),
+        TransactionItemKind::Onchain => map_icon(super::SvgIcon::Chain, 24., 24.),
+    };
 
-    row.into()
+    let direction_icon = match direction {
+        TransactionDirection::Incoming => {
+            map_icon(super::SvgIcon::DownLeft, 24., 24.).style(|_theme, _status| svg::Style {
+                color: Some(MUTINY_GREEN),
+            })
+        }
+        TransactionDirection::Outgoing => {
+            map_icon(super::SvgIcon::UpRight, 24., 24.).style(|_theme, _status| svg::Style {
+                color: Some(MUTINY_RED),
+            })
+        }
+    };
+
+    let formatted_amount = text(format_amount(*amount)).size(24);
+
+    let row = row![direction_icon, kind_icon, formatted_amount,]
+        .align_items(iced::Alignment::Center)
+        .spacing(16);
+
+    let timestamp = text(format_timestamp(timestamp))
+        .size(18)
+        .style(|theme: &Theme| {
+            let gray = lighten(theme.palette().background, 0.5);
+            Style { color: Some(gray) }
+        });
+
+    let col = column![row, timestamp].spacing(8);
+
+    col.into()
 }

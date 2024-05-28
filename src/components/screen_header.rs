@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{HarborWallet, Message};
 
-use super::{hr, map_icon, vr, FederationItem, SvgIcon};
+use super::{format_amount, hr, map_icon, vr, FederationItem, SvgIcon};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.federation_list.first() {
@@ -17,7 +17,9 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             .width(Length::Shrink)
             .padding(16);
 
-        let balance = row![text(format!("{} sats", harbor.balance_sats)).size(24)]
+        let formatted_balance = format_amount(harbor.balance_sats);
+
+        let balance = row![text(formatted_balance).size(24)]
             .align_items(Alignment::Center)
             .padding(16);
 
