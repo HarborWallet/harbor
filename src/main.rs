@@ -550,7 +550,12 @@ impl HarborWallet {
                         _ => "Unknown".to_string(),
                     };
 
-                    let item = FederationItem { id, name };
+                    // TODO: what to do about balance in this case? Maybe it should be Option<u64>?
+                    let item = FederationItem {
+                        id,
+                        name,
+                        balance: 0,
+                    };
 
                     self.peek_federation_item = Some(item);
 
@@ -609,7 +614,7 @@ impl HarborWallet {
             Route::Home => row![sidebar, crate::routes::home(self)].into(),
             Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
-            Route::Mints => row![sidebar, crate::routes::mints(self)].into(),
+            Route::Mints(_) => row![sidebar, crate::routes::mints(self)].into(),
             Route::Donate => row![sidebar, crate::routes::donate(self)].into(),
             Route::History => row![sidebar, crate::routes::history(self)].into(),
             Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),

@@ -1,11 +1,11 @@
 use iced::{
-    widget::{column, row, svg, text, text::Style},
-    Element, Theme,
+    widget::{column, row, svg, text},
+    Element,
 };
 
 use crate::Message;
 
-use super::{format_amount, format_timestamp, lighten, map_icon, MUTINY_GREEN, MUTINY_RED};
+use super::{format_amount, format_timestamp, map_icon, subtitle, MUTINY_GREEN, MUTINY_RED};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TransactionItemKind {
@@ -78,12 +78,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         .align_items(iced::Alignment::Center)
         .spacing(16);
 
-    let timestamp = text(format_timestamp(timestamp))
-        .size(18)
-        .style(|theme: &Theme| {
-            let gray = lighten(theme.palette().background, 0.5);
-            Style { color: Some(gray) }
-        });
+    let timestamp = text(format_timestamp(timestamp)).size(18).style(subtitle);
 
     let col = column![row, timestamp].spacing(8);
 

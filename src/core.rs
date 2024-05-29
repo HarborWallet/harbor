@@ -348,6 +348,8 @@ impl HarborCore {
                     .fedimint_client
                     .get_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
+                // TODO: get the balance per fedimint
+                balance: 420,
             })
             .collect::<Vec<FederationItem>>()
     }
