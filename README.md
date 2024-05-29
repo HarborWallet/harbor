@@ -29,10 +29,11 @@ git clone <harbor git URL> harbor
 cd harbor
 ```
 
-2. Install NixOS on your machine if you do not have it already: 
+2. Install NixOS on your machine if you do not have it already.
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+// Follow any Nix installation instructions in the terminal, including post install steps.
 ```
 
 3. Everything is done in a nix develop shell for now: 
@@ -41,22 +42,25 @@ curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix 
 nix develop
 ```
 
-4. Build, test, run, etc. 
-
-
+4. Run the unit tests
 ```
 just test
 ```
 
+5. Build and Run
+
 ```
+// debug build
 just run
 ```
 
 ```
+// release build
 just release
 ```
 
-5. Reset local DB (for init, schema generation, etc.)
+#### Database Changes
+Reset local DB (for init, schema generation, etc.)
 
 ```
 just reset-db
