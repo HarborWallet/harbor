@@ -11,7 +11,7 @@ Highlights:
 - Multi-mint - spread funds over multiple mints
 - Automation - can run in the background and move your funds automatically
 
-**NOTE:** This is brand new alpha software that could rapidly change in feature set. There is risk of losing funds. Compile and run at your own risk.
+**NOTE:** This is alpha software that could rapidly change in feature set. There is risk of losing funds. Compile and run at your own risk.
 
 ### Compatibility
 Harbor is a desktop app built in Rust, using the [iced](https://iced.rs) framework, that runs on Mac, Windows, and Linux. It currently supports [Fedimint](https://fedimint.org), Bitcoin, and Lightning. (We see you, Cashu 👀)
@@ -58,6 +58,7 @@ just run
 // release build
 just release
 ```
+**NOTE**: The first password you type in the box is saved as your password. There will be a proper onboarding workflow in the future.
 
 #### Database Changes
 Reset local DB (for init, schema generation, etc.)
