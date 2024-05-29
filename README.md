@@ -20,21 +20,28 @@ Binaries will be available in the future. For now you need to compile it yoursel
 
 <img src="https://harbor.cash/screens/home.png" width=50% height=50%>
 
-## Develop
+## Building
 
-1. Install nixos on your machine if you do not have it already: 
+1. Clone the `MutinyWallet/harbor` repo and `cd` into it.
+
+```
+git clone <harbor git URL> harbor
+cd harbor
+```
+
+2. Install NixOS on your machine if you do not have it already: 
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 ```
 
-2. Everything is done in a nix develop shell for now: 
+3. Everything is done in a nix develop shell for now: 
 
 ```
 nix develop
 ```
 
-3. Build, test, run, etc. 
+4. Build, test, run, etc. 
 
 
 ```
@@ -49,7 +56,7 @@ just run
 just release
 ```
 
-4. Reset local DB (for init, schema generation, etc.)
+5. Reset local DB (for init, schema generation, etc.)
 
 ```
 just reset-db
