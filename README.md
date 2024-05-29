@@ -1,3 +1,5 @@
+<img src="https://github.com/MutinyWallet/harbor/assets/132156916/899ad35c-0bf9-4341-a0df-231ce81a9a65" width=25% height=25%>
+
 # Harbor
 
 Harbor is an ecash desktop wallet for better bitcoin privacy. Use this tool to interact with ecash mints, moving money in and out using existing Bitcoin wallets. As you use mints, you may be able to increase the privacy of your money. Harbor also aims to demystify ecash mints for users and make them easier to use.
@@ -10,6 +12,8 @@ Highlights:
 - Automation
 
 **NOTE:** This is brand new alpha software that could rapidly change in feature set. There is risk of losing funds. Compile and run at your own risk.
+
+<img src="https://harbor.cash/home.png" width=50% height=50%>
 
 ## Develop
 
