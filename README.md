@@ -5,13 +5,18 @@
 Harbor is an ecash desktop wallet for better bitcoin privacy. Use this tool to interact with ecash mints, moving money in and out using existing Bitcoin wallets. As you use mints, you may be able to increase the privacy of your money. Harbor also aims to demystify ecash mints for users and make them easier to use.
 
 Highlights:
-- Ecash
+- Ecash 
 - Bitcoin
 - Privacy
 - Multi-mint
 - Automation
 
 **NOTE:** This is brand new alpha software that could rapidly change in feature set. There is risk of losing funds. Compile and run at your own risk.
+
+### Compatibility
+Harbor is a desktop app built in Rust, using the iced framework, that runs on Mac, Windows, and Linux. It currently supports Fedimint, Bitcoin, and Lightning.
+
+Binaries will be available in the future. For now you need to compile it yourself following the instructions below.
 
 <img src="https://harbor.cash/home.png" width=50% height=50%>
 
