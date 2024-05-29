@@ -12,8 +12,8 @@ pub fn home(harbor: &HarborWallet) -> Element<Message> {
     let send_button =
         h_button("Send", SvgIcon::UpRight, false).on_press(Message::Navigate(Route::Send));
     let receive_button =
-        h_button("Receive", SvgIcon::DownLeft, false).on_press(Message::Navigate(Route::Receive));
-    let buttons = row![send_button, receive_button].spacing(32);
+        h_button("Deposit", SvgIcon::DownLeft, false).on_press(Message::Navigate(Route::Receive));
+    let buttons = row![receive_button, send_button].spacing(32);
 
     column![
         h_screen_header(harbor, false),
