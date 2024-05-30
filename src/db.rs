@@ -21,12 +21,11 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 pub(crate) fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection>> {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
 
-    // CI is slow, make timeout longer
-    let timeout = if std::env::var("CI").is_ok() {
-        Duration::from_secs(30)
-    } else {
-        Duration::from_secs(5)
-    };
+    // tests can be slow, make timeout longer
+    #[cfg(test)]
+    let timeout = Duration::from_secs(30);
+    #[cfg(not(test))]
+    let timeout = Duration::from_secs(5);
 
     let pool = Pool::builder()
         .max_size(50)
