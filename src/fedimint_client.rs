@@ -44,6 +44,7 @@ pub(crate) struct FedimintClient {
     stop: Arc<AtomicBool>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum FederationInviteOrId {
     Invite(InviteCode),
