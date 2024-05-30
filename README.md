@@ -1,4 +1,5 @@
-<img src="https://github.com/MutinyWallet/harbor/assets/132156916/899ad35c-0bf9-4341-a0df-231ce81a9a65" width=25% height=25%>
+<!-- <img src="https://github.com/MutinyWallet/harbor/assets/132156916/899ad35c-0bf9-4341-a0df-231ce81a9a65" width=25% height=25%> -->
+<img src="https://blog.mutinywallet.com/content/images/size/w2000/2024/05/harbor-preview.jpeg" width=50% height=50%>
 
 # Harbor
 
