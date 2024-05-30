@@ -50,6 +50,8 @@ just test
 
 5. Build and Run
 
+If you're on linux you may need to exit the nix shell to be able to run the program.
+
 ```
 // debug build
 just run
