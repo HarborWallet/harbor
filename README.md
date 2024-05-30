@@ -66,3 +66,13 @@ Reset local DB (for init, schema generation, etc.)
 ```
 just reset-db
 ```
+
+## Feedback & Support
+
+A product like this is unique. We need all the feedback, help, and support we can get. We believe in building a tool like this out in the open as fully open-sourced MIT code that is freely available and does not depend on a centralized coordinator or single developer. However, we're unable to gain insights into how people use this tool, whether users like it or how many users even exist.
+
+Therefore, we need your help. For one, we need feedback. Do you want to use a tool like this? What features are most important to you, and what do you want? Please use the discussion boards here on GitHub or the [Harbor channel on our Discord](https://discord.gg/5fFBKkcW). This will primarily drive the Harbor feature set.
+
+Building free and open-source software is not free to us developers. While we believe in this tool's mission, we must rely on donations. We cannot profit from transactions for this service, and it must be fully open-sourced for this community to use it.
+
+Visit our [Geyser funding page](https://geyser.fund/project/harbor). Any donations are greatly appreciated for funding development and signaling that it's a valuable tool to you.
