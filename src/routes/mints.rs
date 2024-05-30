@@ -32,38 +32,62 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
 fn mints_add(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Add Mint", "Add a new mint to your wallet.");
 
-    let mint_input = h_input(
-        "Mint Invite Code",
-        "",
-        &harbor.mint_invite_code_str,
-        Message::MintInviteCodeInputChanged,
-        None,
-        false,
-        None,
-        None,
-    );
+    let column = match &harbor.peek_federation_item {
+        None => {
+            let mint_input = h_input(
+                "Mint Invite Code",
+                "",
+                &harbor.mint_invite_code_str,
+                Message::MintInviteCodeInputChanged,
+                None,
+                false,
+                None,
+                None,
+            );
 
-    let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
-        .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
+            let peek_mint_button = h_button("Preview", SvgIcon::Eye, false)
+                .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
 
-    // let peek_mint_button = h_button("Peek Mint", SvgIcon::Squirrel, false)
-    //     .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
+            let column = column![header, mint_input, peek_mint_button].spacing(48);
 
-    let column = column![
-        header,
-        mint_input,
-        // peek_mint_button,
-        add_mint_button
-    ]
-    .spacing(48);
+            let column = column.push_maybe(
+                harbor
+                    .peek_federation_failure_reason
+                    .as_ref()
+                    .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
+            );
 
-    // TODO: better error styling
-    let column = column.push_maybe(
-        harbor
-            .add_federation_failure_reason
-            .as_ref()
-            .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
-    );
+            column
+        }
+
+        Some(peek_federation_item) => {
+            let federation_preview = h_federation_item(peek_federation_item);
+
+            let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
+                .on_press(Message::AddFederation(peek_federation_item.id));
+
+            let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
+                .on_press(Message::CancelAddFederation);
+
+            let column = column![
+                header,
+                federation_preview,
+                add_mint_button,
+                start_over_button
+            ]
+            .spacing(48);
+
+            // TODO: better error styling
+            let column = column.push_maybe(
+                harbor
+                    .add_federation_failure_reason
+                    .as_ref()
+                    .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
+            );
+
+            column
+        }
+    };
 
     basic_layout(column.spacing(48))
 }

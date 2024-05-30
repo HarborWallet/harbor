@@ -20,6 +20,7 @@ pub enum SvgIcon {
     SmallClose,
     Bolt,
     Chain,
+    Eye,
 }
 
 macro_rules! icon_handle {

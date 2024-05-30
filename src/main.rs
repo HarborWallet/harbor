@@ -2,6 +2,7 @@ use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
+use fedimint_core::config::FederationId;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
 use routes::Route;
@@ -97,13 +98,14 @@ pub enum Message {
     ShowSeedWords(bool),
     AddToast(Toast),
     CloseToast(usize),
+    CancelAddFederation,
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
-    AddFederation(String),
+    AddFederation(FederationId),
     PeekFederation(String),
     Donate,
     // Core messages we get from core
@@ -219,10 +221,10 @@ impl HarborWallet {
     async fn async_add_federation(
         ui_handle: Option<Arc<bridge::UIHandle>>,
         id: Uuid,
-        invite: InviteCode,
+        federation_id: FederationId,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.add_federation(id, invite).await;
+            ui_handle.add_federation(id, federation_id).await;
         } else {
             panic!("UI handle is None");
         }
@@ -248,6 +250,13 @@ impl HarborWallet {
         }
     }
 
+    fn clear_add_federation_state(&mut self) {
+        self.add_federation_failure_reason = None;
+        self.peek_federation_failure_reason = None;
+        self.peek_federation_item = None;
+        self.mint_invite_code_str = String::new();
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
@@ -268,6 +277,17 @@ impl HarborWallet {
                         self.settings_show_seed_words = false;
                         self.active_route = route;
                     }
+                    // Reset the add federation state when leaving mints
+                    Route::Mints(_) => match route {
+                        // Staying in mints, don't reset
+                        Route::Mints(_) => {
+                            self.active_route = route;
+                        }
+                        _ => {
+                            self.clear_add_federation_state();
+                            self.active_route = route;
+                        }
+                    },
                     _ => self.active_route = route,
                 }
                 Command::none()
@@ -329,6 +349,12 @@ impl HarborWallet {
             }
             Message::CloseToast(index) => {
                 self.toasts.remove(index);
+                Command::none()
+            }
+            Message::CancelAddFederation => {
+                self.clear_add_federation_state();
+                self.active_route = Route::Mints(routes::MintSubroute::List);
+
                 Command::none()
             }
             // Async commands we fire from the UI to core
@@ -423,18 +449,12 @@ impl HarborWallet {
                     )
                 }
             },
-            Message::AddFederation(invite_code) => {
-                let invite = InviteCode::from_str(&invite_code);
-                if let Ok(invite) = invite {
-                    let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
-                        Self::async_add_federation(self.ui_handle.clone(), id, invite),
-                        |_| Message::Noop,
-                    )
-                } else {
-                    self.add_federation_failure_reason = Some("Invalid invite code".to_string());
-                    Command::none()
-                }
+            Message::AddFederation(federation_id) => {
+                let id = Uuid::new_v4(); // todo use this id somewhere
+                Command::perform(
+                    Self::async_add_federation(self.ui_handle.clone(), id, federation_id),
+                    |_| Message::Noop,
+                )
             }
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
@@ -563,6 +583,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
+                    self.active_route = Route::Mints(routes::MintSubroute::List);
                     Command::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
