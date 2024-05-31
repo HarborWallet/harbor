@@ -14,22 +14,41 @@ use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use rusqlite::{Connection, OpenFlags};
 use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
+pub(crate) fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
+    let conn = Connection::open_with_flags(
+        url,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+    )?;
+
+    // Set the key for the encrypted database
+    let password = normalize_password(password);
+    conn.execute_batch(&format!("PRAGMA key = '{password}';"))?;
+
+    // Try to prepare a query to verify if the key is correct
+    let res = conn.prepare("SELECT name FROM sqlite_master WHERE type='table';");
+
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            if e.to_string() == "file is not a database" {
+                Err(anyhow::anyhow!("Invalid password"))
+            } else {
+                Err(anyhow::anyhow!("Could not open database: {e}"))
+            }
+        }
+    }
+}
+
 pub(crate) fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection>> {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
 
-    // tests can be slow, make timeout longer
-    #[cfg(test)]
-    let timeout = Duration::from_secs(30);
-    #[cfg(not(test))]
-    let timeout = Duration::from_secs(5);
-
     let pool = Pool::builder()
         .max_size(50)
-        .connection_timeout(timeout)
         .connection_customizer(Box::new(ConnectionOptions {
             key: password,
             enable_wal: true,
@@ -364,6 +383,10 @@ impl DBConnection for SQLConnection {
     }
 }
 
+fn normalize_password(password: &str) -> String {
+    password.replace("'", "''")
+}
+
 #[derive(Debug)]
 pub struct ConnectionOptions {
     pub key: String,
@@ -377,7 +400,7 @@ impl diesel::r2d2::CustomizeConnection<SqliteConnection, diesel::r2d2::Error>
 {
     fn on_acquire(&self, conn: &mut SqliteConnection) -> Result<(), diesel::r2d2::Error> {
         (|| {
-            let password = self.key.as_str().replace("'", "''");
+            let password = normalize_password(&self.key);
             conn.batch_execute(&format!("PRAGMA key='{password}'"))?;
             if self.enable_wal {
                 conn.batch_execute("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")?;
