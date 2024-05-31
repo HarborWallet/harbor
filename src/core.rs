@@ -25,6 +25,7 @@ use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
 use crate::components::FederationItem;
+use crate::db::check_password;
 use crate::fedimint_client::{
     spawn_onchain_payment_subscription, spawn_onchain_receive_subscription, FederationInviteOrId,
 };
@@ -390,14 +391,29 @@ pub fn run_core() -> Subscription<Message> {
 
                         // attempting to unlock
                         let db_path = path.join("harbor.sqlite");
-                        let db =
-                            spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
-                                .await
-                                .expect("Could not create join handle");
 
-                        if let Err(e) = db {
+                        let db_path = db_path.to_str().unwrap().to_string();
+                        if let Err(e) = check_password(&db_path, &password) {
                             // probably invalid password
                             error!("error using password: {e}");
+
+                            tx.send(Message::core_msg(
+                                id,
+                                CoreUIMsg::UnlockFailed(e.to_string()),
+                            ))
+                            .await
+                            .expect("should send");
+                            continue;
+                        }
+
+                        log::info!("Correct password");
+
+                        let db = spawn_blocking(move || setup_db(&db_path, password))
+                            .await
+                            .expect("Could not create join handle");
+
+                        if let Err(e) = db {
+                            error!("error opening database: {e}");
 
                             tx.send(Message::core_msg(
                                 id,
