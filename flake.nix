@@ -39,6 +39,7 @@
           pkgs.xorg.libXi
           pkgs.xorg.libXrandr
           pkgs.diesel-cli
+          pkgs.wayland
         ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
           pkgs.darwin.apple_sdk.frameworks.AppKit 
           pkgs.darwin.apple_sdk.frameworks.CoreText
@@ -61,7 +62,7 @@
           packages = inputs;
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
-            export LD_LIBRARY_PATH=${pkgs.openssl}/lib:$LD_LIBRARY_PATH
+            export LD_LIBRARY_PATH=${pkgs.openssl}/lib:$LD_LIBRARY_PATH:${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib
           '';
         };
       }
