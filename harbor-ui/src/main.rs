@@ -123,6 +123,9 @@ pub enum Message {
     AddToast(Toast),
     CloseToast(usize),
     CancelAddFederation,
+    SetTransferFrom(String),
+    SetTransferTo(String),
+    TransferAmountInputChanged(String),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -183,6 +186,10 @@ pub struct HarborWallet {
     // Mints
     peek_federation_item: Option<FederationItem>,
     mint_invite_code_str: String,
+    // Transfer
+    transfer_from_federation_selection: Option<String>,
+    transfer_to_federation_selection: Option<String>,
+    transfer_amount_input_str: String,
     // Donate
     donate_amount_str: String,
     // Settings
@@ -415,6 +422,18 @@ impl HarborWallet {
                 self.clear_add_federation_state();
                 self.active_route = Route::Mints(routes::MintSubroute::List);
 
+                Task::none()
+            }
+            Message::SetTransferFrom(s) => {
+                self.transfer_from_federation_selection = Some(s);
+                Task::none()
+            }
+            Message::SetTransferTo(s) => {
+                self.transfer_to_federation_selection = Some(s);
+                Task::none()
+            }
+            Message::TransferAmountInputChanged(input) => {
+                self.transfer_amount_input_str = input;
                 Task::none()
             }
             // Async commands we fire from the UI to core
