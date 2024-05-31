@@ -377,8 +377,8 @@ impl diesel::r2d2::CustomizeConnection<SqliteConnection, diesel::r2d2::Error>
 {
     fn on_acquire(&self, conn: &mut SqliteConnection) -> Result<(), diesel::r2d2::Error> {
         (|| {
-            // FIXME: Special characters might fuck up
-            conn.batch_execute(&format!("PRAGMA key={}", self.key))?;
+            let password = self.key.as_str().replace("'", "''");
+            conn.batch_execute(&format!("PRAGMA key='{password}'"))?;
             if self.enable_wal {
                 conn.batch_execute("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")?;
             }
@@ -415,7 +415,7 @@ mod tests {
     use std::str::FromStr;
     use tempdir::TempDir;
 
-    const DEFAULT_PASSWORD: &str = "test";
+    const DEFAULT_PASSWORD: &str = "p.a$$w0rd!'x";
     const FEDERATION_ID: &str = "c8d423964c7ad944d30f57359b6e5b260e211dcfdb945140e28d4df51fd572d2";
 
     fn setup_test_db() -> Arc<SQLConnection> {
