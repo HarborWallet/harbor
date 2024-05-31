@@ -15,6 +15,7 @@
       let
         overlays = [ rust-overlay.overlays.default ];
         pkgs = import nixpkgs { inherit system overlays; };
+        lib = pkgs.lib;
         rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         inputs = [
           rust
@@ -57,8 +58,15 @@
         };
 
 
-        devShell = pkgs.mkShell {
+        devShell = pkgs.mkShell rec {
           packages = inputs;
+          buildInputs = with pkgs; [
+            libxkbcommon
+            libGL
+            # WINIT_UNIX_BACKEND=wayland
+            wayland
+          ];
+          LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
             export LD_LIBRARY_PATH=${pkgs.openssl}/lib:$LD_LIBRARY_PATH
