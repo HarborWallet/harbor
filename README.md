@@ -32,6 +32,8 @@ cd harbor
 
 2. Install NixOS on your machine if you do not have it already.
 
+⚠️ NOTE: Nix OS support on linux environments is still in progress: https://github.com/MutinyWallet/harbor/issues/7
+
 ```
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 // Follow any Nix installation instructions in the terminal, including post install steps.
