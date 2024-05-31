@@ -366,7 +366,7 @@ pub fn run_core() -> Subscription<Message> {
             // Setup UI Handle
             let (ui_handle, mut core_handle) = bridge::create_handles();
             let arc_ui_handle = Arc::new(ui_handle);
-            tx.send(Message::UIHandlerLoaded(arc_ui_handle.clone()))
+            tx.send(Message::UIHandlerLoaded(arc_ui_handle))
                 .await
                 .expect("should send");
 

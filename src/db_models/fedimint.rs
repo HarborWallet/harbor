@@ -30,8 +30,8 @@ impl Fedimint {
 
     pub fn update(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
         let _ = diesel::update(fedimint::table)
-            .filter(fedimint::id.eq(self.id.clone()))
-            .set(fedimint::value.eq(self.value.clone()))
+            .filter(fedimint::id.eq(&self.id))
+            .set(fedimint::value.eq(&self.value))
             .execute(conn)?;
 
         Ok(())

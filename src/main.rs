@@ -172,7 +172,7 @@ impl HarborWallet {
         invoice: Bolt11Invoice,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().send_lightning(id, invoice).await;
+            ui_handle.send_lightning(id, invoice).await;
         } else {
             panic!("UI handle is None");
         }
@@ -186,10 +186,7 @@ impl HarborWallet {
     ) {
         println!("Got to async_send");
         if let Some(ui_handle) = ui_handle {
-            ui_handle
-                .clone()
-                .send_onchain(id, address, amount_sats)
-                .await;
+            ui_handle.send_onchain(id, address, amount_sats).await;
         } else {
             panic!("UI handle is None");
         }
@@ -197,7 +194,7 @@ impl HarborWallet {
 
     async fn async_receive(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid, amount: u64) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().receive(id, amount).await;
+            ui_handle.receive(id, amount).await;
         } else {
             panic!("UI handle is None");
         }
@@ -205,7 +202,7 @@ impl HarborWallet {
 
     async fn async_receive_onchain(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().receive_onchain(id).await;
+            ui_handle.receive_onchain(id).await;
         } else {
             panic!("UI handle is None");
         }
@@ -213,7 +210,7 @@ impl HarborWallet {
 
     async fn async_unlock(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid, password: String) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().unlock(id, password).await;
+            ui_handle.unlock(id, password).await;
         } else {
             panic!("UI handle is None");
         }
@@ -225,7 +222,7 @@ impl HarborWallet {
         invite: InviteCode,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().add_federation(id, invite).await;
+            ui_handle.add_federation(id, invite).await;
         } else {
             panic!("UI handle is None");
         }
@@ -237,7 +234,7 @@ impl HarborWallet {
         invite: InviteCode,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().peek_federation(id, invite).await;
+            ui_handle.peek_federation(id, invite).await;
         } else {
             panic!("UI handle is None");
         }
@@ -245,7 +242,7 @@ impl HarborWallet {
 
     async fn async_get_seed_words(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.clone().get_seed_words(id).await;
+            ui_handle.get_seed_words(id).await;
         } else {
             panic!("UI handle is None");
         }
