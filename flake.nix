@@ -19,6 +19,7 @@
         rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         inputs = [
           rust
+          pkgs.cargo-watch
           pkgs.rust-analyzer
           pkgs.openssl
           pkgs.zlib
