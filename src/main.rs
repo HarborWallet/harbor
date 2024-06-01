@@ -2,6 +2,7 @@ use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
+use fedimint_core::core::ModuleKind;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
 use routes::Route;
@@ -439,6 +440,7 @@ impl HarborWallet {
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
+                    self.add_federation_failure_reason = None;
                     let id = Uuid::new_v4(); // todo use this id somewhere
                     Command::perform(
                         Self::async_peek_federation(self.ui_handle.clone(), id, invite),
@@ -538,6 +540,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationFailed(reason) => {
                     self.add_federation_failure_reason = Some(reason);
+                    self.peek_federation_item = None;
                     Command::none()
                 }
                 CoreUIMsg::FederationInfo(config) => {
@@ -551,6 +554,12 @@ impl HarborWallet {
                         .map(|url| url.name.clone())
                         .collect();
 
+                    let module_kinds = config
+                        .modules
+                        .into_values()
+                        .map(|module_config| module_config.kind().to_owned())
+                        .collect::<Vec<ModuleKind>>();
+
                     let name = match name {
                         Ok(Some(n)) => n,
                         _ => "Unknown".to_string(),
@@ -560,6 +569,7 @@ impl HarborWallet {
                         id,
                         name,
                         guardians: Some(guardians),
+                        module_kinds: Some(module_kinds),
                     };
 
                     self.peek_federation_item = Some(item);
@@ -568,6 +578,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
+                    self.peek_federation_item = None;
                     Command::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {

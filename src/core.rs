@@ -349,6 +349,7 @@ impl HarborCore {
                     .get_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
                 guardians: None,
+                module_kinds: None,
             })
             .collect::<Vec<FederationItem>>()
     }
