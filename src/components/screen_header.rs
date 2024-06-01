@@ -14,6 +14,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             id: _,
             balance: _,
             guardians: _guardians,
+            module_kinds: _module_kinds,
         } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
         let current_federation = row![people_icon, text(name).size(24)]
