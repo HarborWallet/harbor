@@ -544,13 +544,23 @@ impl HarborWallet {
                     // todo update the UI with the new config
                     let id = config.calculate_federation_id();
                     let name = config.meta::<String>("federation_name");
+                    let guardians: Vec<String> = config
+                        .global
+                        .api_endpoints
+                        .values()
+                        .map(|url| url.name.clone())
+                        .collect();
 
                     let name = match name {
                         Ok(Some(n)) => n,
                         _ => "Unknown".to_string(),
                     };
 
-                    let item = FederationItem { id, name };
+                    let item = FederationItem {
+                        id,
+                        name,
+                        guardians: Some(guardians),
+                    };
 
                     self.peek_federation_item = Some(item);
 

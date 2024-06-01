@@ -348,6 +348,7 @@ impl HarborCore {
                     .fedimint_client
                     .get_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
+                guardians: None,
             })
             .collect::<Vec<FederationItem>>()
     }
