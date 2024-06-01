@@ -57,3 +57,27 @@ pub fn format_amount(amount: u64) -> String {
 
     format!("{num} sats")
 }
+
+pub fn truncate_text(input: &str, max_len: usize, center: bool) -> String {
+    match center {
+        // center the elllipses around middle of the string
+        true => {
+            if input.len() > max_len {
+                format!(
+                    "{}...{}",
+                    &input[..(max_len / 2)],
+                    &input[(input.len() - max_len / 2)..]
+                )
+            } else {
+                input.to_string()
+            }
+        }
+        false => {
+            if input.len() > max_len {
+                format!("{}...", &input[input.len() - max_len..])
+            } else {
+                input.to_string()
+            }
+        }
+    }
+}
