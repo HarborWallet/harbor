@@ -394,7 +394,7 @@ pub fn run_core() -> Subscription<Message> {
 
                         let db_path = db_path.to_str().unwrap().to_string();
 
-                        // if the db file doesn't exist, call setup_db
+                        // if the db file doesn't exist, dont call check_password
                         if !std::path::Path::new(&db_path).exists() {
                             info!("Database does not exist, it will be created");
                         } else {
