@@ -393,6 +393,14 @@ pub fn run_core() -> Subscription<Message> {
                         let db_path = path.join("harbor.sqlite");
 
                         let db_path = db_path.to_str().unwrap().to_string();
+
+                        // if the db file doesn't exist, call setup_db
+                        if !std::path::Path::new(&db_path).exists() {
+                            if let Err(e) = setup_db(&db_path, password.clone()) {
+                                error!("error setting up db: {e}");
+                            }
+                        }
+
                         if let Err(e) = check_password(&db_path, &password) {
                             // probably invalid password
                             error!("error using password: {e}");
