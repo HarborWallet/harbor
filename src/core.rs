@@ -19,7 +19,7 @@ use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
     subscription::{self, Subscription},
 };
-use log::{error, trace, warn};
+use log::{error, info, trace, warn};
 use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
@@ -393,20 +393,26 @@ pub fn run_core() -> Subscription<Message> {
                         let db_path = path.join("harbor.sqlite");
 
                         let db_path = db_path.to_str().unwrap().to_string();
-                        if let Err(e) = check_password(&db_path, &password) {
-                            // probably invalid password
-                            error!("error using password: {e}");
 
-                            tx.send(Message::core_msg(
-                                id,
-                                CoreUIMsg::UnlockFailed(e.to_string()),
-                            ))
-                            .await
-                            .expect("should send");
-                            continue;
+                        // if the db file doesn't exist, dont call check_password
+                        if !std::path::Path::new(&db_path).exists() {
+                            info!("Database does not exist, it will be created");
+                        } else {
+                            if let Err(e) = check_password(&db_path, &password) {
+                                // probably invalid password
+                                error!("error using password: {e}");
+
+                                tx.send(Message::core_msg(
+                                    id,
+                                    CoreUIMsg::UnlockFailed(e.to_string()),
+                                ))
+                                .await
+                                .expect("should send");
+                                continue;
+                            }
+
+                            log::info!("Correct password");
                         }
-
-                        log::info!("Correct password");
 
                         let db = spawn_blocking(move || setup_db(&db_path, password))
                             .await
