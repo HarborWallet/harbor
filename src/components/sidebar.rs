@@ -1,19 +1,17 @@
 use crate::components::SvgIcon;
 use iced::widget::container::Style;
-use iced::widget::{column, container, vertical_space, Svg};
+use iced::widget::{column, container, vertical_space};
 use iced::Border;
 use iced::{Alignment, Element, Shadow};
 
 use crate::{HarborWallet, Message, Route};
 
-use super::{lighten, sidebar_button};
+use super::{harbor_logo, lighten, sidebar_button};
 
 pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
     let sidebar = container(
         column![
-            Svg::from_path("assets/harbor_logo.svg")
-                .width(167)
-                .height(61),
+            harbor_logo(),
             sidebar_button("Home", SvgIcon::Home, Route::Home, harbor.active_route)
                 .on_press(Message::Navigate(Route::Home)),
             sidebar_button("Mints", SvgIcon::People, Route::Mints, harbor.active_route)

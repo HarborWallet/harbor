@@ -1,4 +1,7 @@
-use iced::{widget::Svg, Theme};
+use iced::{
+    widget::{svg::Handle, Svg},
+    Theme,
+};
 
 pub enum SvgIcon {
     ChevronDown,
@@ -19,25 +22,42 @@ pub enum SvgIcon {
     Chain,
 }
 
+macro_rules! icon_handle {
+    ($icon:expr) => {
+        Svg::new(Handle::from_memory(include_bytes!(concat!(
+            "../../assets/icons/",
+            $icon
+        ))))
+    };
+}
+
 pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
     match icon {
-        SvgIcon::ChevronDown => Svg::from_path("assets/icons/chevron_down.svg"),
-        SvgIcon::DownLeft => Svg::from_path("assets/icons/down_left.svg"),
-        SvgIcon::Heart => Svg::from_path("assets/icons/heart.svg"),
-        SvgIcon::Home => Svg::from_path("assets/icons/home.svg"),
-        SvgIcon::LeftRight => Svg::from_path("assets/icons/left_right.svg"),
-        SvgIcon::People => Svg::from_path("assets/icons/people.svg"),
-        SvgIcon::Settings => Svg::from_path("assets/icons/settings.svg"),
-        SvgIcon::Squirrel => Svg::from_path("assets/icons/squirrel.svg"),
-        SvgIcon::UpRight => Svg::from_path("assets/icons/up_right.svg"),
-        SvgIcon::Copy => Svg::from_path("assets/icons/copy.svg"),
-        SvgIcon::Plus => Svg::from_path("assets/icons/plus.svg"),
-        SvgIcon::Qr => Svg::from_path("assets/icons/qr.svg"),
-        SvgIcon::Restart => Svg::from_path("assets/icons/restart.svg"),
-        SvgIcon::SmallClose => Svg::from_path("assets/icons/small_close.svg"),
-        SvgIcon::Bolt => Svg::from_path("assets/icons/bolt.svg"),
-        SvgIcon::Chain => Svg::from_path("assets/icons/chain.svg"),
+        SvgIcon::ChevronDown => icon_handle!("chevron_down.svg"),
+        SvgIcon::DownLeft => icon_handle!("down_left.svg"),
+        SvgIcon::Heart => icon_handle!("heart.svg"),
+        SvgIcon::Home => icon_handle!("home.svg"),
+        SvgIcon::LeftRight => icon_handle!("left_right.svg"),
+        SvgIcon::People => icon_handle!("people.svg"),
+        SvgIcon::Settings => icon_handle!("settings.svg"),
+        SvgIcon::Squirrel => icon_handle!("squirrel.svg"),
+        SvgIcon::UpRight => icon_handle!("up_right.svg"),
+        SvgIcon::Copy => icon_handle!("copy.svg"),
+        SvgIcon::Plus => icon_handle!("plus.svg"),
+        SvgIcon::Qr => icon_handle!("qr.svg"),
+        SvgIcon::Restart => icon_handle!("restart.svg"),
+        SvgIcon::SmallClose => icon_handle!("small_close.svg"),
+        SvgIcon::Bolt => icon_handle!("bolt.svg"),
+        SvgIcon::Chain => icon_handle!("chain.svg"),
     }
     .width(width)
     .height(height)
+}
+
+pub fn harbor_logo() -> Svg<'static, Theme> {
+    Svg::new(Handle::from_memory(include_bytes!(
+        "../../assets/harbor_logo.svg"
+    )))
+    .width(167)
+    .height(61)
 }

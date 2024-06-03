@@ -1,9 +1,9 @@
 use crate::{
-    components::{h_button, h_input, SvgIcon},
+    components::{h_button, h_input, harbor_logo, SvgIcon},
     UnlockStatus,
 };
 use iced::{
-    widget::{center, column, container, text, Svg},
+    widget::{center, column, container, text},
     Color,
 };
 use iced::{Alignment, Element, Length};
@@ -36,11 +36,7 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
         None,
     );
 
-    let harbor_logo = Svg::from_path("assets/harbor_logo.svg")
-        .width(167)
-        .height(61);
-
-    let page_column = column![harbor_logo, password_input, unlock_button,]
+    let page_column = column![harbor_logo(), password_input, unlock_button,]
         .spacing(32)
         .align_items(Alignment::Center)
         .width(Length::Fixed(256.));
