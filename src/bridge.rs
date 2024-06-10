@@ -1,7 +1,7 @@
 use crate::components::{FederationItem, TransactionItem};
 use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
-use fedimint_core::config::{ClientConfig, FederationId};
+use fedimint_core::config::ClientConfig;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;

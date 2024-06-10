@@ -2,7 +2,6 @@ use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
-use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
