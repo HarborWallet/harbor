@@ -1,4 +1,5 @@
 use crate::components::SvgIcon;
+use crate::routes::MintSubroute;
 use iced::widget::container::Style;
 use iced::widget::{column, container, vertical_space};
 use iced::Border;
@@ -14,8 +15,13 @@ pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
             harbor_logo(),
             sidebar_button("Home", SvgIcon::Home, Route::Home, harbor.active_route)
                 .on_press(Message::Navigate(Route::Home)),
-            sidebar_button("Mints", SvgIcon::People, Route::Mints, harbor.active_route)
-                .on_press(Message::Navigate(Route::Mints)),
+            sidebar_button(
+                "Mints",
+                SvgIcon::People,
+                Route::Mints(MintSubroute::List),
+                harbor.active_route
+            )
+            .on_press(Message::Navigate(Route::Mints(MintSubroute::List))),
             sidebar_button(
                 "Transfer",
                 SvgIcon::LeftRight,

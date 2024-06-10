@@ -36,7 +36,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
     let column = match (&harbor.receive_success_msg, receive_string) {
         // Starting state
         (None, None) => {
-            let header = h_header("Receive", "Receive on-chain or via lightning.");
+            let header = h_header("Deposit", "Receive on-chain or via lightning.");
 
             let lightning_choice = radio(
                 "Lightning",
@@ -61,7 +61,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             );
             let onchain = column![onchain_choice, onchain_caption,].spacing(8);
 
-            let method_choice_label = text("Receive method").size(24);
+            let method_choice_label = text("Method").size(24);
             let method_choice = column![method_choice_label, lightning, onchain].spacing(16);
 
             let amount_input = h_input(
