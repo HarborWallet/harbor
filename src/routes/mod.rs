@@ -26,18 +26,11 @@ pub mod settings;
 pub use settings::*;
 
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
-pub enum MintSubroute {
-    #[default]
-    List,
-    Add,
-}
-
-#[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum Route {
     #[default]
     Unlock,
     Home,
-    Mints(MintSubroute),
+    Mints,
     Transfer,
     History,
     Settings,

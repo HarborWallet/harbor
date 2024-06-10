@@ -1,7 +1,7 @@
 use crate::components::{FederationItem, TransactionItem};
 use bitcoin::{Address, Txid};
 use fedimint_core::api::InviteCode;
-use fedimint_core::config::{ClientConfig, FederationId};
+use fedimint_core::config::ClientConfig;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use tokio::sync::mpsc;
@@ -23,7 +23,7 @@ pub enum UICoreMsg {
     },
     ReceiveOnChain,
     GetFederationInfo(InviteCode),
-    AddFederation(FederationId),
+    AddFederation(InviteCode),
     Unlock(String),
     GetSeedWords,
 }
@@ -128,9 +128,9 @@ impl UIHandle {
         .await;
     }
 
-    pub async fn add_federation(&self, id: Uuid, federation_id: FederationId) {
+    pub async fn add_federation(&self, id: Uuid, invite: InviteCode) {
         self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::AddFederation(federation_id),
+            msg: UICoreMsg::AddFederation(invite),
             id,
         })
         .await;

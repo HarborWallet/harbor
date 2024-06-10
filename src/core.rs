@@ -314,7 +314,9 @@ impl HarborCore {
         Ok(config)
     }
 
-    async fn add_federation(&self, id: FederationId) -> anyhow::Result<()> {
+    async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
+        let id = invite_code.federation_id();
+
         let mut clients = self.clients.write().await;
         if clients.get(&id).is_some() {
             return Err(anyhow!("Federation already added"));
@@ -322,7 +324,7 @@ impl HarborCore {
 
         let client = FedimintClient::new(
             self.storage.clone(),
-            FederationInviteOrId::Id(id),
+            FederationInviteOrId::Invite(invite_code),
             &self.mnemonic,
             self.network,
             self.stop.clone(),
@@ -346,8 +348,6 @@ impl HarborCore {
                     .fedimint_client
                     .get_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
-                // TODO: get the balance per fedimint
-                balance: 420,
             })
             .collect::<Vec<FederationItem>>()
     }
@@ -554,8 +554,8 @@ async fn process_core(core_handle: &mut bridge::CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
-                    UICoreMsg::AddFederation(federation_id) => {
-                        if let Err(e) = core.add_federation(federation_id).await {
+                    UICoreMsg::AddFederation(invite_code) => {
+                        if let Err(e) = core.add_federation(invite_code).await {
                             error!("Error adding federation: {e}");
                             core.msg(Some(msg.id), CoreUIMsg::AddFederationFailed(e.to_string()))
                                 .await;
