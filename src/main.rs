@@ -106,7 +106,7 @@ pub enum Message {
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
-    AddFederation(FederationId),
+    AddFederation(String),
     PeekFederation(String),
     Donate,
     // Core messages we get from core
@@ -222,10 +222,10 @@ impl HarborWallet {
     async fn async_add_federation(
         ui_handle: Option<Arc<bridge::UIHandle>>,
         id: Uuid,
-        federation_id: FederationId,
+        invite: InviteCode,
     ) {
         if let Some(ui_handle) = ui_handle {
-            ui_handle.add_federation(id, federation_id).await;
+            ui_handle.add_federation(id, invite).await;
         } else {
             panic!("UI handle is None");
         }
@@ -450,12 +450,18 @@ impl HarborWallet {
                     )
                 }
             },
-            Message::AddFederation(federation_id) => {
-                let id = Uuid::new_v4(); // todo use this id somewhere
-                Command::perform(
-                    Self::async_add_federation(self.ui_handle.clone(), id, federation_id),
-                    |_| Message::Noop,
-                )
+            Message::AddFederation(invite_code) => {
+                let invite = InviteCode::from_str(&invite_code);
+                if let Ok(invite) = invite {
+                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    Command::perform(
+                        Self::async_add_federation(self.ui_handle.clone(), id, invite),
+                        |_| Message::Noop,
+                    )
+                } else {
+                    self.add_federation_failure_reason = Some("Invalid invite code".to_string());
+                    Command::none()
+                }
             }
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);

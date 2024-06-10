@@ -64,7 +64,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
             let federation_preview = h_federation_item(peek_federation_item);
 
             let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
-                .on_press(Message::AddFederation(peek_federation_item.id));
+                .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
 
             let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
                 .on_press(Message::CancelAddFederation);
