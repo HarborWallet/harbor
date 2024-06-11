@@ -1,6 +1,7 @@
 use iced::{
     widget::{
-        button::{self, Status}, Button,
+        button::{self, Status},
+        Button,
     },
     Border, Color, Length, Shadow, Theme,
 };

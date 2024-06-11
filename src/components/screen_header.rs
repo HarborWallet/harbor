@@ -9,7 +9,13 @@ use super::{format_amount, hr, map_icon, vr, FederationItem, SvgIcon};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.federation_list.first() {
-        let FederationItem { name, id: _id } = item;
+        let FederationItem {
+            name,
+            id: _,
+            balance: _,
+            guardians: _guardians,
+            module_kinds: _module_kinds,
+        } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
         let current_federation = row![people_icon, text(name).size(24)]
             .align_items(Alignment::Center)

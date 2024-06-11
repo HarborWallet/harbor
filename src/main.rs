@@ -2,6 +2,7 @@ use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
 use fedimint_core::api::InviteCode;
+use fedimint_core::core::ModuleKind;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
 use routes::Route;
@@ -97,6 +98,7 @@ pub enum Message {
     ShowSeedWords(bool),
     AddToast(Toast),
     CloseToast(usize),
+    CancelAddFederation,
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -248,6 +250,13 @@ impl HarborWallet {
         }
     }
 
+    fn clear_add_federation_state(&mut self) {
+        self.add_federation_failure_reason = None;
+        self.peek_federation_failure_reason = None;
+        self.peek_federation_item = None;
+        self.mint_invite_code_str = String::new();
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             // Setup
@@ -268,6 +277,17 @@ impl HarborWallet {
                         self.settings_show_seed_words = false;
                         self.active_route = route;
                     }
+                    // Reset the add federation state when leaving mints
+                    Route::Mints(_) => match route {
+                        // Staying in mints, don't reset
+                        Route::Mints(_) => {
+                            self.active_route = route;
+                        }
+                        _ => {
+                            self.clear_add_federation_state();
+                            self.active_route = route;
+                        }
+                    },
                     _ => self.active_route = route,
                 }
                 Command::none()
@@ -329,6 +349,12 @@ impl HarborWallet {
             }
             Message::CloseToast(index) => {
                 self.toasts.remove(index);
+                Command::none()
+            }
+            Message::CancelAddFederation => {
+                self.clear_add_federation_state();
+                self.active_route = Route::Mints(routes::MintSubroute::List);
+
                 Command::none()
             }
             // Async commands we fire from the UI to core
@@ -439,6 +465,7 @@ impl HarborWallet {
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
+                    self.add_federation_failure_reason = None;
                     let id = Uuid::new_v4(); // todo use this id somewhere
                     Command::perform(
                         Self::async_peek_federation(self.ui_handle.clone(), id, invite),
@@ -538,19 +565,39 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationFailed(reason) => {
                     self.add_federation_failure_reason = Some(reason);
+                    self.peek_federation_item = None;
                     Command::none()
                 }
                 CoreUIMsg::FederationInfo(config) => {
                     // todo update the UI with the new config
                     let id = config.calculate_federation_id();
                     let name = config.meta::<String>("federation_name");
+                    let guardians: Vec<String> = config
+                        .global
+                        .api_endpoints
+                        .values()
+                        .map(|url| url.name.clone())
+                        .collect();
+
+                    let module_kinds = config
+                        .modules
+                        .into_values()
+                        .map(|module_config| module_config.kind().to_owned())
+                        .collect::<Vec<ModuleKind>>();
 
                     let name = match name {
                         Ok(Some(n)) => n,
                         _ => "Unknown".to_string(),
                     };
 
-                    let item = FederationItem { id, name };
+                    // TODO: what to do about balance in this case? Maybe it should be Option<u64>?
+                    let item = FederationItem {
+                        id,
+                        name,
+                        balance: 0,
+                        guardians: Some(guardians),
+                        module_kinds: Some(module_kinds),
+                    };
 
                     self.peek_federation_item = Some(item);
 
@@ -558,6 +605,8 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
+                    self.active_route = Route::Mints(routes::MintSubroute::List);
+                    self.peek_federation_item = None;
                     Command::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
@@ -609,7 +658,7 @@ impl HarborWallet {
             Route::Home => row![sidebar, crate::routes::home(self)].into(),
             Route::Receive => row![sidebar, crate::routes::receive(self)].into(),
             Route::Send => row![sidebar, crate::routes::send(self)].into(),
-            Route::Mints => row![sidebar, crate::routes::mints(self)].into(),
+            Route::Mints(_) => row![sidebar, crate::routes::mints(self)].into(),
             Route::Donate => row![sidebar, crate::routes::donate(self)].into(),
             Route::History => row![sidebar, crate::routes::history(self)].into(),
             Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),
