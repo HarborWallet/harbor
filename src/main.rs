@@ -34,7 +34,6 @@ pub mod routes;
 pub fn main() -> iced::Result {
     pretty_env_logger::init();
     program("Harbor", HarborWallet::update, HarborWallet::view)
-        // .load(HarborWallet::load)
         .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
         .theme(HarborWallet::theme)
@@ -61,6 +60,15 @@ enum ReceiveStatus {
     Idle,
     Generating,
     WaitingToReceive,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+enum WelcomeStatus {
+    #[default]
+    Loading,
+    NeedsInit,
+    Inited,
+    Initing,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -91,6 +99,7 @@ pub enum Message {
     SetIsMax(bool),
     SendStateReset,
     PasswordInputChanged(String),
+    SeedInputChanged(String),
     MintInviteCodeInputChanged(String),
     DonateAmountChanged(String),
     CopyToClipboard(String),
@@ -105,6 +114,7 @@ pub enum Message {
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
+    Init(String), // TODO add seed option
     AddFederation(String),
     PeekFederation(String),
     Donate,
@@ -129,6 +139,10 @@ pub struct HarborWallet {
     balance_sats: u64,
     transaction_history: Vec<TransactionItem>,
     federation_list: Vec<FederationItem>,
+    // Welcome screen
+    init_status: WelcomeStatus,
+    seed_input_str: String,
+    init_failure_reason: Option<String>,
     // Lock screen
     password_input_str: String,
     unlock_status: UnlockStatus,
@@ -218,6 +232,14 @@ impl HarborWallet {
         }
     }
 
+    async fn async_init(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid, password: String) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.clone().init(id, password).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
     async fn async_add_federation(
         ui_handle: Option<Arc<bridge::UIHandle>>,
         id: Uuid,
@@ -263,11 +285,7 @@ impl HarborWallet {
             Message::UIHandlerLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
-
-                focus_input_id("password_unlock_input")
-
-                // Command::none()
-                // Mess
+                Command::none()
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
@@ -310,6 +328,10 @@ impl HarborWallet {
             }
             Message::PasswordInputChanged(input) => {
                 self.password_input_str = input;
+                Command::none()
+            }
+            Message::SeedInputChanged(input) => {
+                self.seed_input_str = input;
                 Command::none()
             }
             Message::MintInviteCodeInputChanged(input) => {
@@ -445,6 +467,17 @@ impl HarborWallet {
                     let id = Uuid::new_v4(); // todo use this id somewhere
                     Command::perform(
                         Self::async_unlock(self.ui_handle.clone(), id, password),
+                        |_| Message::Noop,
+                    )
+                }
+            },
+            Message::Init(password) => match self.unlock_status {
+                UnlockStatus::Unlocking => Command::none(),
+                _ => {
+                    self.unlock_failure_reason = None;
+                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    Command::perform(
+                        Self::async_init(self.ui_handle.clone(), id, password),
                         |_| Message::Noop,
                     )
                 }
@@ -626,6 +659,30 @@ impl HarborWallet {
                     self.receive_address = Some(address);
                     Command::none()
                 }
+                CoreUIMsg::NeedsInit => {
+                    info!("Got init message");
+                    self.init_status = WelcomeStatus::NeedsInit;
+                    focus_input_id("password_init_input")
+                }
+                CoreUIMsg::Initing => {
+                    self.init_status = WelcomeStatus::Initing;
+                    Command::none()
+                }
+                CoreUIMsg::InitSuccess => {
+                    self.init_status = WelcomeStatus::Inited;
+                    self.active_route = Route::Home;
+                    Command::none()
+                }
+                CoreUIMsg::InitFailed(reason) => {
+                    self.init_status = WelcomeStatus::NeedsInit;
+                    self.init_failure_reason = Some(reason);
+                    Command::none()
+                }
+                CoreUIMsg::Locked => {
+                    info!("Got locked message");
+                    self.active_route = Route::Unlock;
+                    focus_input_id("password_unlock_input")
+                }
                 CoreUIMsg::Unlocking => {
                     info!("Got unlocking message");
                     self.unlock_status = UnlockStatus::Unlocking;
@@ -663,6 +720,7 @@ impl HarborWallet {
             Route::History => row![sidebar, crate::routes::history(self)].into(),
             Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),
             Route::Settings => row![sidebar, crate::routes::settings(self)].into(),
+            Route::Welcome => crate::routes::welcome(self),
         };
 
         ToastManager::new(active_route, &self.toasts, Message::CloseToast).into()

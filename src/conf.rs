@@ -1,6 +1,7 @@
+use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use bitcoin::Network;
-use log::info;
+use log::{error, info};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -21,23 +22,32 @@ pub fn data_dir(network: Network) -> PathBuf {
     }
 }
 
-// todo store in encrypted database
-pub fn get_mnemonic(db: Arc<dyn DBConnection + Send + Sync>) -> anyhow::Result<Mnemonic> {
+pub fn retrieve_mnemonic(db: Arc<dyn DBConnection + Send + Sync>) -> anyhow::Result<Mnemonic> {
     match db.get_seed()? {
         Some(m) => {
             info!("retrieved existing seed");
             Ok(Mnemonic::from_str(&m)?)
         }
         None => {
-            let new_profile = NewProfile {
-                id: uuid::Uuid::new_v4().to_string(),
-                seed_words: Mnemonic::generate_in(Language::English, 12)?.to_string(),
-            };
-
-            let p = db.insert_new_profile(new_profile)?;
-
-            info!("creating new seed");
-            Ok(Mnemonic::from_str(&p.seed_words)?)
+            error!("Tried to retrieve seed but none was stored");
+            Err(anyhow!("No seed stored"))
         }
     }
+}
+
+pub fn generate_mnemonic(
+    db: Arc<dyn DBConnection + Send + Sync>,
+    words: Option<String>,
+) -> anyhow::Result<Mnemonic> {
+    let mnemonic_words = words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
+
+    let new_profile = NewProfile {
+        id: uuid::Uuid::new_v4().to_string(),
+        seed_words: mnemonic_words,
+    };
+
+    let p = db.insert_new_profile(new_profile)?;
+
+    info!("creating new seed");
+    Ok(Mnemonic::from_str(&p.seed_words)?)
 }

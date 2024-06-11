@@ -25,6 +25,10 @@ pub enum UICoreMsg {
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     Unlock(String),
+    Init {
+        password: String,
+        seed: Option<String>,
+    },
     GetSeedWords,
 }
 
@@ -63,6 +67,11 @@ pub enum CoreUIMsg {
     FederationInfo(ClientConfig),
     AddFederationSuccess,
     FederationListUpdated(Vec<FederationItem>),
+    NeedsInit,
+    Initing,
+    InitSuccess,
+    InitFailed(String),
+    Locked,
     Unlocking,
     UnlockSuccess,
     UnlockFailed(String),
@@ -123,6 +132,17 @@ impl UIHandle {
     pub async fn unlock(&self, id: Uuid, password: String) {
         self.msg_send(UICoreMsgPacket {
             msg: UICoreMsg::Unlock(password),
+            id,
+        })
+        .await;
+    }
+
+    pub async fn init(&self, id: Uuid, password: String) {
+        self.msg_send(UICoreMsgPacket {
+            msg: UICoreMsg::Init {
+                password,
+                seed: None, // FIXME: Use this
+            },
             id,
         })
         .await;
