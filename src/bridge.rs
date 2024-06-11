@@ -141,7 +141,7 @@ impl UIHandle {
         self.msg_send(UICoreMsgPacket {
             msg: UICoreMsg::Init {
                 password,
-                seed: None,
+                seed: None, // FIXME: Use this
             },
             id,
         })

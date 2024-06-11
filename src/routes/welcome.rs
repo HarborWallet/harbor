@@ -44,7 +44,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
                 Message::PasswordInputChanged,
                 action.clone(),
                 true,
-                Some("password_unlock_input"),
+                Some("password_init_input"),
                 None,
             );
 

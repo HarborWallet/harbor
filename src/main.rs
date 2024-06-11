@@ -285,12 +285,7 @@ impl HarborWallet {
             Message::UIHandlerLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
-
-                // TODO I don't think this is the best place for it
-                focus_input_id("password_unlock_input")
-
-                // Command::none()
-                // Mess
+                Command::none()
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
@@ -664,15 +659,10 @@ impl HarborWallet {
                     self.receive_address = Some(address);
                     Command::none()
                 }
-                CoreUIMsg::Locked => {
-                    info!("Got locked message");
-                    self.active_route = Route::Unlock;
-                    Command::none()
-                }
                 CoreUIMsg::NeedsInit => {
                     info!("Got init message");
                     self.init_status = WelcomeStatus::NeedsInit;
-                    Command::none()
+                    focus_input_id("password_init_input")
                 }
                 CoreUIMsg::Initing => {
                     self.init_status = WelcomeStatus::Initing;
@@ -687,6 +677,11 @@ impl HarborWallet {
                     self.init_status = WelcomeStatus::NeedsInit;
                     self.init_failure_reason = Some(reason);
                     Command::none()
+                }
+                CoreUIMsg::Locked => {
+                    info!("Got locked message");
+                    self.active_route = Route::Unlock;
+                    focus_input_id("password_unlock_input")
                 }
                 CoreUIMsg::Unlocking => {
                     info!("Got unlocking message");

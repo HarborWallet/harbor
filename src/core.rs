@@ -19,7 +19,7 @@ use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
     subscription::{self, Subscription},
 };
-use log::{error, info, trace, warn};
+use log::{error, trace, warn};
 use tokio::sync::RwLock;
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
@@ -30,7 +30,7 @@ use crate::fedimint_client::{
 };
 use crate::{
     bridge::{self, CoreUIMsg, UICoreMsg},
-    conf::{self, get_mnemonic},
+    conf::{self, retrieve_mnemonic},
     db::DBConnection,
     Message,
 };
@@ -382,6 +382,7 @@ pub fn run_core() -> Subscription<Message> {
             std::fs::create_dir_all(path.clone()).expect("Could not create datadir");
             log::info!("Using datadir: {path:?}");
 
+            // FIXME: Artificial sleep because it loads too fast
             tokio::time::sleep(Duration::from_secs(1)).await;
 
             // Check if the database file exists already, if so tell UI to unlock
@@ -410,28 +411,39 @@ pub fn run_core() -> Subscription<Message> {
 
                         // attempting to unlock
                         let db_path = path.join(HARBOR_FILE_NAME);
-
                         let db_path = db_path.to_str().unwrap().to_string();
 
-                        // if the db file doesn't exist, dont call check_password
+                        // if the db file doesn't exist, error out to go through init flow
                         if !std::path::Path::new(&db_path).exists() {
-                            info!("Database does not exist, it will be created");
-                        } else {
-                            if let Err(e) = check_password(&db_path, &password) {
-                                // probably invalid password
-                                error!("error using password: {e}");
+                            error!("Database does not exist, new wallet is required");
 
-                                tx.send(Message::core_msg(
-                                    id,
-                                    CoreUIMsg::UnlockFailed(e.to_string()),
-                                ))
-                                .await
-                                .expect("should send");
-                                continue;
-                            }
+                            tx.send(Message::core_msg(
+                                id,
+                                CoreUIMsg::UnlockFailed(
+                                    "Database does not exist, new wallet is required".to_string(),
+                                ),
+                            ))
+                            .await
+                            .expect("should send");
 
-                            log::info!("Correct password");
+                            continue;
                         }
+
+                        if let Err(e) = check_password(&db_path, &password) {
+                            // probably invalid password
+                            error!("error using password: {e}");
+
+                            tx.send(Message::core_msg(
+                                id,
+                                CoreUIMsg::UnlockFailed(e.to_string()),
+                            ))
+                            .await
+                            .expect("should send");
+
+                            continue;
+                        }
+
+                        log::info!("Correct password");
 
                         let db = spawn_blocking(move || setup_db(&db_path, password))
                             .await
@@ -450,8 +462,7 @@ pub fn run_core() -> Subscription<Message> {
                         }
                         let db = db.expect("no error");
 
-                        // TODO do not automatically generate words anymore
-                        let mnemonic = get_mnemonic(db.clone()).expect("should get seed");
+                        let mnemonic = retrieve_mnemonic(db.clone()).expect("should get seed");
 
                         let stop = Arc::new(AtomicBool::new(false));
 
@@ -492,13 +503,12 @@ pub fn run_core() -> Subscription<Message> {
                         process_core(&mut core_handle, &core).await;
                     }
                     Some(UICoreMsg::Init { password, seed }) => {
-                        // TODO refactor and make this about init
                         log::info!("Sending init message");
                         tx.send(Message::core_msg(id, CoreUIMsg::Initing))
                             .await
                             .expect("should send");
 
-                        // attempting to unlock
+                        // set up the DB with the provided password
                         let db_path = path.join(HARBOR_FILE_NAME);
                         let db =
                             spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
@@ -506,48 +516,24 @@ pub fn run_core() -> Subscription<Message> {
                                 .expect("Could not create join handle");
 
                         if let Err(e) = db {
-                            // probably invalid password
-                            error!("error setting password: {e}");
+                            error!("error creating DB: {e}");
 
                             tx.send(Message::core_msg(id, CoreUIMsg::InitFailed(e.to_string())))
                                 .await
                                 .expect("should send");
+
                             continue;
                         }
                         let db = db.expect("no error");
 
-                        let mnemonic =
-                            generate_mnemonic(db.clone(), seed).expect("should generate words");
-                        let stop = Arc::new(AtomicBool::new(false));
-
-                        // check db for fedimints
-                        let mut clients = HashMap::new();
-                        let federation_ids = db
-                            .list_federations()
-                            .expect("should load initial fedimints");
-                        for f in federation_ids {
-                            let client = FedimintClient::new(
-                                db.clone(),
-                                FederationInviteOrId::Id(
-                                    FederationId::from_str(&f).expect("should parse federation id"),
-                                ),
-                                &mnemonic,
-                                network,
-                                stop.clone(),
-                            )
-                            .await
-                            .expect("Could not create fedimint client");
-
-                            clients.insert(client.fedimint_client.federation_id(), client);
-                        }
-
                         let core = HarborCore {
                             storage: db.clone(),
                             tx: tx.clone(),
-                            mnemonic,
+                            mnemonic: generate_mnemonic(db.clone(), seed)
+                                .expect("should generate words"),
                             network,
-                            clients: Arc::new(RwLock::new(clients)),
-                            stop,
+                            clients: Arc::new(RwLock::new(HashMap::new())),
+                            stop: Arc::new(AtomicBool::new(false)),
                         };
 
                         tx.send(Message::core_msg(id, CoreUIMsg::InitSuccess))
