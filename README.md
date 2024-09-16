@@ -1,4 +1,4 @@
-<!-- <img src="https://github.com/MutinyWallet/harbor/assets/132156916/899ad35c-0bf9-4341-a0df-231ce81a9a65" width=25% height=25%> -->
+<!-- <img src="https://github.com/HarborWallet/harbor/assets/132156916/899ad35c-0bf9-4341-a0df-231ce81a9a65" width=25% height=25%> -->
 <img src="https://blog.mutinywallet.com/content/images/size/w2000/2024/05/harbor-preview.jpeg" width=100% height=100%>
 
 # Harbor
@@ -23,7 +23,7 @@ Binaries will be available in the future. For now you need to compile it yoursel
 
 ## Building
 
-1. Clone the `MutinyWallet/harbor` repo and `cd` into it.
+1. Clone the `HarborWallet/harbor` repo and `cd` into it.
 
 ```
 git clone <harbor git URL> harbor
@@ -32,7 +32,7 @@ cd harbor
 
 2. Install NixOS on your machine if you do not have it already.
 
-⚠️ NOTE: Nix OS support on linux environments is still in progress, this may or may not work for you yet: https://github.com/MutinyWallet/harbor/issues/7
+⚠️ NOTE: Nix OS support on linux environments is still in progress, this may or may not work for you yet: https://github.com/HarborWallet/harbor/issues/7
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
