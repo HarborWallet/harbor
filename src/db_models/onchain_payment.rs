@@ -1,7 +1,7 @@
 use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::on_chain_payments;
 use crate::db_models::PaymentStatus;
-use bitcoin::hashes::hex::{FromHex, ToHex};
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
 use diesel::prelude::*;
 use fedimint_core::config::FederationId;
@@ -42,14 +42,14 @@ impl OnChainPayment {
         FederationId::from_str(&self.fedimint_id).expect("invalid fedimint id")
     }
 
-    pub fn address(&self) -> Address {
+    pub fn address(&self) -> Address<NetworkUnchecked> {
         Address::from_str(&self.address).expect("invalid address")
     }
 
     pub fn txid(&self) -> Option<Txid> {
         self.txid
             .as_ref()
-            .map(|p| FromHex::from_hex(p).expect("invalid txid"))
+            .map(|p| Txid::from_str(p).expect("invalid txid"))
     }
 
     pub fn status(&self) -> PaymentStatus {
@@ -60,14 +60,14 @@ impl OnChainPayment {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address,
+        address: Address<NetworkUnchecked>,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()> {
         let new = NewOnChainPayment {
-            operation_id: operation_id.to_string(),
+            operation_id: operation_id.fmt_full().to_string(),
             fedimint_id: fedimint_id.to_string(),
-            address: address.to_string(),
+            address: address.assume_checked().to_string(),
             amount_sats: amount_sats as i64,
             fee_sats: fee_sats as i64,
             status: PaymentStatus::Pending as i32,
@@ -85,7 +85,7 @@ impl OnChainPayment {
         operation_id: OperationId,
     ) -> anyhow::Result<Option<Self>> {
         Ok(on_chain_payments::table
-            .filter(on_chain_payments::operation_id.eq(operation_id.to_string()))
+            .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string()))
             .first::<Self>(conn)
             .optional()?)
     }
@@ -97,10 +97,10 @@ impl OnChainPayment {
     ) -> anyhow::Result<()> {
         diesel::update(
             on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.to_string())),
+                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set((
-            on_chain_payments::txid.eq(Some(txid.to_hex())),
+            on_chain_payments::txid.eq(Some(txid.to_string())),
             // fedimint doesn't tell us when the tx is confirmed so just jump to success
             on_chain_payments::status.eq(PaymentStatus::Success as i32),
         ))
@@ -115,7 +115,7 @@ impl OnChainPayment {
     ) -> anyhow::Result<()> {
         diesel::update(
             on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.to_string())),
+                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set(on_chain_payments::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;

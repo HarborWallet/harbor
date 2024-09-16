@@ -1,7 +1,7 @@
 use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::lightning_receives;
 use crate::db_models::PaymentStatus;
-use bitcoin::hashes::hex::{FromHex, ToHex};
+use bitcoin::hashes::hex::FromHex;
 use diesel::prelude::*;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
@@ -87,15 +87,15 @@ impl LightningReceive {
             return Err(anyhow::anyhow!("Internal error: amount mismatch"));
         }
 
-        let payment_hash = bolt11.payment_hash().to_hex();
+        let payment_hash = bolt11.payment_hash().to_string();
         let new = NewLightningReceive {
-            operation_id: operation_id.to_string(),
+            operation_id: operation_id.fmt_full().to_string(),
             fedimint_id: fedimint_id.to_string(),
             payment_hash,
             bolt11: bolt11.to_string(),
             amount_msats: amount.msats as i64,
             fee_msats: fee.msats as i64,
-            preimage: preimage.to_hex(),
+            preimage: hex::encode(preimage),
             status: PaymentStatus::Pending as i32,
         };
 
@@ -111,7 +111,7 @@ impl LightningReceive {
         operation_id: OperationId,
     ) -> anyhow::Result<Option<Self>> {
         Ok(lightning_receives::table
-            .filter(lightning_receives::operation_id.eq(operation_id.to_string()))
+            .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string()))
             .first::<Self>(conn)
             .optional()?)
     }
@@ -122,7 +122,7 @@ impl LightningReceive {
     ) -> anyhow::Result<()> {
         diesel::update(
             lightning_receives::table
-                .filter(lightning_receives::operation_id.eq(operation_id.to_string())),
+                .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set(lightning_receives::status.eq(PaymentStatus::Success as i32))
         .execute(conn)?;
@@ -136,7 +136,7 @@ impl LightningReceive {
     ) -> anyhow::Result<()> {
         diesel::update(
             lightning_receives::table
-                .filter(lightning_receives::operation_id.eq(operation_id.to_string())),
+                .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set(lightning_receives::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;

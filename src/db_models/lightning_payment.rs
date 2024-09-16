@@ -1,7 +1,7 @@
 use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::lightning_payments;
 use crate::db_models::PaymentStatus;
-use bitcoin::hashes::hex::{FromHex, ToHex};
+use bitcoin::hashes::hex::FromHex;
 use diesel::prelude::*;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
@@ -87,9 +87,9 @@ impl LightningPayment {
             return Err(anyhow::anyhow!("Internal error: amount mismatch"));
         }
 
-        let payment_hash = bolt11.payment_hash().to_hex();
+        let payment_hash = bolt11.payment_hash().to_string();
         let new = NewLightningPayment {
-            operation_id: operation_id.to_string(),
+            operation_id: operation_id.fmt_full().to_string(),
             fedimint_id: fedimint_id.to_string(),
             payment_hash,
             bolt11: bolt11.to_string(),
@@ -110,7 +110,7 @@ impl LightningPayment {
         operation_id: OperationId,
     ) -> anyhow::Result<Option<Self>> {
         Ok(lightning_payments::table
-            .filter(lightning_payments::operation_id.eq(operation_id.to_string()))
+            .filter(lightning_payments::operation_id.eq(operation_id.fmt_full().to_string()))
             .first::<Self>(conn)
             .optional()?)
     }
@@ -122,10 +122,10 @@ impl LightningPayment {
     ) -> anyhow::Result<()> {
         diesel::update(
             lightning_payments::table
-                .filter(lightning_payments::operation_id.eq(operation_id.to_string())),
+                .filter(lightning_payments::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set((
-            lightning_payments::preimage.eq(Some(preimage.to_hex())),
+            lightning_payments::preimage.eq(Some(hex::encode(preimage))),
             lightning_payments::status.eq(PaymentStatus::Success as i32),
         ))
         .execute(conn)?;
@@ -139,7 +139,7 @@ impl LightningPayment {
     ) -> anyhow::Result<()> {
         diesel::update(
             lightning_payments::table
-                .filter(lightning_payments::operation_id.eq(operation_id.to_string())),
+                .filter(lightning_payments::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set(lightning_payments::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;
