@@ -3,6 +3,7 @@ use crate::db_models::{
     Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
     OnChainReceive, Profile,
 };
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
 use diesel::{
     connection::SimpleConnection,
@@ -19,6 +20,7 @@ use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
+#[allow(dead_code)]
 pub(crate) fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
     let conn = Connection::open_with_flags(
         url,
@@ -114,7 +116,7 @@ pub trait DBConnection {
         &self,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address,
+        address: Address<NetworkUnchecked>,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()>;
@@ -277,7 +279,7 @@ impl DBConnection for SQLConnection {
         &self,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address,
+        address: Address<NetworkUnchecked>,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()> {
@@ -675,7 +677,9 @@ mod tests {
         let mut conn = pool.get().unwrap();
 
         let operation_id = OperationId::new_random();
-        let address = Address::from_str("tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v").unwrap();
+        let address = Address::from_str("tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v")
+            .unwrap()
+            .assume_checked();
 
         let amount: u64 = 10_000;
         let fee: u64 = 200;
@@ -697,7 +701,7 @@ mod tests {
             payment.fedimint_id(),
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
-        assert_eq!(payment.address(), address);
+        assert_eq!(payment.address().assume_checked(), address);
         assert!(payment.amount_sats.is_none());
         assert!(payment.fee_sats.is_none());
         assert_eq!(payment.txid(), None);

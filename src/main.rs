@@ -1,8 +1,9 @@
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
 use core::run_core;
-use fedimint_core::api::InviteCode;
 use fedimint_core::core::ModuleKind;
+use fedimint_core::invite_code::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use iced::widget::qr_code::Data;
 use routes::Route;
@@ -197,7 +198,7 @@ impl HarborWallet {
     async fn async_send_onchain(
         ui_handle: Option<Arc<bridge::UIHandle>>,
         id: Uuid,
-        address: Address,
+        address: Address<NetworkUnchecked>,
         amount_sats: Option<u64>,
     ) {
         println!("Got to async_send");

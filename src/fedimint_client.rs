@@ -10,7 +10,7 @@ use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{get_default_client_secret, RootSecretStrategy};
 use fedimint_client::ClientHandleArc;
-use fedimint_core::config::{ClientConfig, FederationId};
+use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::mem_impl::MemDatabase;
 use fedimint_core::db::mem_impl::MemTransaction;
@@ -18,16 +18,18 @@ use fedimint_core::db::IDatabaseTransactionOps;
 use fedimint_core::db::IRawDatabase;
 use fedimint_core::db::IRawDatabaseTransaction;
 use fedimint_core::db::PrefixStream;
-use fedimint_core::{api::InviteCode, db::IDatabaseTransactionOpsCore};
+use fedimint_core::{db::IDatabaseTransactionOpsCore, invite_code::InviteCode};
 use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
 };
 use fedimint_ln_common::LightningGateway;
 use fedimint_mint_client::MintClientInit;
-use fedimint_wallet_client::{DepositState, WalletClientInit, WalletClientModule, WithdrawState};
+use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
+use std::fmt::Debug;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{
@@ -77,10 +79,10 @@ impl FedimintClient {
 
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
-        let mut client_builder = fedimint_client::Client::builder(db.into());
+        let mut client_builder = fedimint_client::Client::builder(db.into()).await?;
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(MintClientInit);
-        client_builder.with_module(LightningClientInit);
+        client_builder.with_module(LightningClientInit::default());
 
         client_builder.with_primary_module(1);
 
@@ -99,7 +101,7 @@ impl FedimintClient {
             )
         } else if let FederationInviteOrId::Invite(i) = invite_or_id {
             let download = Instant::now();
-            let config = ClientConfig::download_from_invite_code(&i)
+            let config = fedimint_api_client::download_from_invite_code(&i)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");
@@ -112,7 +114,11 @@ impl FedimintClient {
 
             Some(
                 client_builder
-                    .join(get_default_client_secret(&secret, &federation_id), config)
+                    .join(
+                        get_default_client_secret(&secret, &federation_id),
+                        config,
+                        None,
+                    )
                     .await
                     .map_err(|e| {
                         error!("Could not join federation: {e}");
@@ -524,14 +530,14 @@ pub(crate) async fn spawn_onchain_receive_subscription(
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
     msg_id: Uuid,
-    subscription: UpdateStreamOrOutcome<DepositState>,
+    subscription: UpdateStreamOrOutcome<DepositStateV2>,
 ) {
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
             match op_state {
-                DepositState::WaitingForTransaction => {}
-                DepositState::Failed(error) => {
+                DepositStateV2::WaitingForTransaction => {}
+                DepositStateV2::Failed(error) => {
                     error!("Onchain receive failed: {error:?}");
                     sender
                         .send(Message::core_msg(
@@ -547,11 +553,12 @@ pub(crate) async fn spawn_onchain_receive_subscription(
 
                     break;
                 }
-                DepositState::WaitingForConfirmation(data) => {
-                    info!("Onchain receive waiting for confirmation: {data:?}");
-                    let txid = data.btc_transaction.txid();
-                    let index = data.out_idx as usize;
-                    let amount = data.btc_transaction.output[index].value;
+                DepositStateV2::WaitingForConfirmation {
+                    btc_deposited,
+                    btc_out_point,
+                } => {
+                    info!("Onchain receive waiting for confirmation: {btc_deposited} from {btc_out_point:?}");
+                    let txid = btc_out_point.txid;
                     let params = ReceiveSuccessMsg::Onchain { txid };
                     sender
                         .send(Message::core_msg(
@@ -562,19 +569,28 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                         .unwrap();
 
                     let fee_sats = 0; // fees for receives may exist one day
-                    if let Err(e) =
-                        storage.set_onchain_receive_txid(operation_id, txid, amount, fee_sats)
-                    {
+                    if let Err(e) = storage.set_onchain_receive_txid(
+                        operation_id,
+                        txid,
+                        btc_deposited.to_sat(),
+                        fee_sats,
+                    ) {
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
                 }
-                DepositState::Confirmed(data) => {
-                    info!("Onchain receive confirmed: {data:?}");
+                DepositStateV2::Confirmed {
+                    btc_deposited,
+                    btc_out_point,
+                } => {
+                    info!("Onchain receive confirmed: {btc_deposited} from {btc_out_point:?}");
                 }
-                DepositState::Claimed(data) => {
-                    info!("Onchain receive claimed: {data:?}");
+                DepositStateV2::Claimed {
+                    btc_deposited,
+                    btc_out_point,
+                } => {
+                    info!("Onchain receive claimed: {btc_deposited} from {btc_out_point:?}");
                     let new_balance = client.get_balance().await;
                     sender
                         .send(Message::core_msg(
@@ -658,12 +674,25 @@ impl IRawDatabase for FedimintStorage {
             mem: self.fedimint_memory.begin_transaction().await,
         }
     }
+
+    fn checkpoint(&self, _backup_path: &Path) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub struct SQLPseudoTransaction<'a> {
     pub(crate) storage: Arc<dyn DBConnection + Send + Sync>,
     federation_id: String,
     mem: MemTransaction<'a>,
+}
+
+impl Debug for SQLPseudoTransaction<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SQLPseudoTransaction")
+            .field("federation_id", &self.federation_id)
+            .field("mem", &self.mem)
+            .finish()
+    }
 }
 
 #[async_trait]

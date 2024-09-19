@@ -1,8 +1,9 @@
 use anyhow::anyhow;
 use bip39::Mnemonic;
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network};
-use fedimint_core::api::InviteCode;
 use fedimint_core::config::{ClientConfig, FederationId};
+use fedimint_core::invite_code::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use iced::{
     futures::{channel::mpsc::Sender, SinkExt},
@@ -43,7 +44,6 @@ use crate::{
     },
 };
 
-const PEG_IN_TIMEOUT_YEAR: Duration = Duration::from_secs(86400 * 365);
 const HARBOR_FILE_NAME: &str = "harbor.sqlite";
 
 #[derive(Clone)]
@@ -206,7 +206,7 @@ impl HarborCore {
     async fn send_onchain(
         &self,
         msg_id: Uuid,
-        address: Address,
+        address: Address<NetworkUnchecked>,
         sats: Option<u64>,
     ) -> anyhow::Result<()> {
         // todo go through all clients and select the first one that has enough balance
@@ -276,15 +276,12 @@ impl HarborCore {
         let client = self.get_client().await.fedimint_client;
         let onchain = client.get_first_module::<WalletClientModule>();
 
-        // expire the address in 1 year
-        let valid_until = SystemTime::now() + PEG_IN_TIMEOUT_YEAR;
-
-        let (op_id, address) = onchain.get_deposit_address(valid_until, ()).await?;
+        let (op_id, address, _) = onchain.allocate_deposit_address_expert_only(()).await?;
 
         self.storage
             .create_onchain_receive(op_id, client.federation_id(), address.clone())?;
 
-        let sub = onchain.subscribe_deposit_updates(op_id).await?;
+        let sub = onchain.subscribe_deposit(op_id).await?;
 
         spawn_onchain_receive_subscription(
             self.tx.clone(),
@@ -301,7 +298,7 @@ impl HarborCore {
 
     async fn get_federation_info(&self, invite_code: InviteCode) -> anyhow::Result<ClientConfig> {
         let download = Instant::now();
-        let config = ClientConfig::download_from_invite_code(&invite_code)
+        let config = fedimint_api_client::download_from_invite_code(&invite_code)
             .await
             .map_err(|e| {
                 error!("Could not download federation info: {e}");
