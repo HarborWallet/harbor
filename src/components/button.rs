@@ -14,10 +14,10 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
     let spinner: Element<'static, Message, Theme> = the_spinner();
     let svg = map_icon(icon, 24., 24.);
     let content = if loading {
-        row![spinner].align_items(iced::Alignment::Center)
+        row![spinner].align_y(iced::Alignment::Center)
     } else {
         row![svg, text(text_str).size(24.)]
-            .align_items(iced::Alignment::Center)
+            .align_y(iced::Alignment::Center)
             .spacing(16)
     };
 
@@ -61,9 +61,9 @@ pub fn sidebar_button(
     let is_active = self_route == active_route;
     let svg = map_icon(icon, 24., 24.);
     let content = row!(svg, text(text_str).size(24.), horizontal_space(),)
-        .align_items(iced::Alignment::Center)
+        .align_y(iced::Alignment::Center)
         .spacing(16)
-        .padding(16);
+        .padding(8);
 
     Button::new(content)
         .style(move |theme, status| {

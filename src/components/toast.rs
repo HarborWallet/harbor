@@ -106,7 +106,7 @@ impl<'a> ToastManager<'a> {
                         horizontal_space(),
                         close_button.on_press((on_close)(index))
                     ]
-                    .align_items(Alignment::Center),
+                    .align_y(Alignment::Center),
                     text(toast.body.as_str())
                 ])
                 .width(Length::Fill)
@@ -198,7 +198,7 @@ impl<'a> Widget<Message, Theme, Renderer> for ToastManager<'a> {
         state: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.content
@@ -339,7 +339,7 @@ impl<'a, 'b, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
-        if let Event::Window(_, window::Event::RedrawRequested(now)) = &event {
+        if let Event::Window(window::Event::RedrawRequested(now)) = &event {
             let mut next_redraw: Option<window::RedrawRequest> = None;
 
             self.instants
@@ -427,7 +427,7 @@ impl<'a, 'b, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a,
         &mut self,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn widget::Operation<Message>,
+        operation: &mut dyn widget::Operation,
     ) {
         operation.container(None, layout.bounds(), &mut |operation| {
             self.toasts

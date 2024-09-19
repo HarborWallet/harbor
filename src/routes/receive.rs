@@ -152,7 +152,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                 text(txid_str_shortened).font(mono_font),
                 mini_copy(txid_str)
             ]
-            .align_items(iced::Alignment::Center)
+            .align_y(iced::Alignment::Center)
             .spacing(8);
 
             column![header, txid, reset_button]

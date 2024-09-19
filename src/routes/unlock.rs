@@ -38,7 +38,7 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
 
     let page_column = column![harbor_logo(), password_input, unlock_button,]
         .spacing(32)
-        .align_items(Alignment::Center)
+        .align_x(Alignment::Center)
         .width(Length::Fixed(256.));
 
     let page_column = page_column.push_maybe(harbor.unlock_failure_reason.as_ref().map(|r| {

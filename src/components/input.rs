@@ -3,15 +3,14 @@ use iced::{
         column, row, text,
         text_input::{self, focus, Id},
         TextInput,
-    },
-    Background, Border, Color, Command, Element, Theme,
+    }, Background, Border, Color, Element, Task, Theme
 };
 
 use crate::Message;
 
 use super::{darken, lighten};
 
-pub fn focus_input_id(id: &'static str) -> Command<Message> {
+pub fn focus_input_id(id: &'static str) -> Task<Message> {
     let id = Id::new(id);
     focus(id)
 }
@@ -73,7 +72,7 @@ pub fn h_input<'a>(
         let suffix_text = text(suffix).size(24);
         row![input, suffix_text]
             .spacing(8)
-            .align_items(iced::Alignment::Center)
+            .align_y(iced::Alignment::Center)
     } else {
         row![input]
     };
