@@ -75,7 +75,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
     let formatted_amount = text(format_amount(*amount)).size(24);
 
     let row = row![direction_icon, kind_icon, formatted_amount,]
-        .align_items(iced::Alignment::Center)
+        .align_y(iced::Alignment::Center)
         .spacing(16);
 
     let timestamp = text(format_timestamp(timestamp)).size(18).style(subtitle);

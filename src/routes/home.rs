@@ -20,7 +20,7 @@ pub fn home(harbor: &HarborWallet) -> Element<Message> {
         container(center(
             column![balance, buttons]
                 .spacing(32)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .max_width(512)
         ))
         .height(Length::Fill)

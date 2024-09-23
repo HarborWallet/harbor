@@ -19,7 +19,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
 
             column![harbor_logo(), welcome_message, spinner]
                 .spacing(32)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .width(Length::Fixed(350.))
         }
         WelcomeStatus::NeedsInit => {
@@ -52,7 +52,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
 
             column![harbor_logo(), welcome_message, password_input, new_wallet]
                 .spacing(32)
-                .align_items(Alignment::Center)
+                .align_x(Alignment::Center)
                 .width(Length::Fixed(350.))
         }
     };

@@ -18,7 +18,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
         let current_federation = row![people_icon, text(name).size(24)]
-            .align_items(Alignment::Center)
+            .align_y(Alignment::Center)
             .spacing(16)
             .width(Length::Shrink)
             .padding(16);
@@ -26,7 +26,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         let formatted_balance = format_amount(harbor.balance_sats);
 
         let balance = row![text(formatted_balance).size(24)]
-            .align_items(Alignment::Center)
+            .align_y(Alignment::Center)
             .padding(16);
 
         let row = row![current_federation].spacing(16);

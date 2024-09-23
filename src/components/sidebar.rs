@@ -48,7 +48,7 @@ pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
                 .on_press(Message::Navigate(Route::Donate)),
         ]
         .spacing(8)
-        .align_items(Alignment::Start),
+        .align_x(Alignment::Start),
     )
     .padding(8)
     .style(|theme| -> Style {

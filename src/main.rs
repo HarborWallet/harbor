@@ -1,6 +1,8 @@
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::Address;
 use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
+use iced::Subscription;
+use iced::Task;
 use core::run_core;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -11,11 +13,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use bridge::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
-use iced::subscription::Subscription;
 use iced::widget::row;
 use iced::Element;
-use iced::{clipboard, program, Color};
-use iced::{Command, Font};
+use iced::Font;
+use iced::{clipboard, Color};
 use log::{error, info};
 use uuid::Uuid;
 
@@ -34,7 +35,7 @@ pub mod routes;
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
     pretty_env_logger::init();
-    program("Harbor", HarborWallet::update, HarborWallet::view)
+    iced::application("Harbor", HarborWallet::update, HarborWallet::view)
         .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
         .theme(HarborWallet::theme)
@@ -180,7 +181,7 @@ pub struct HarborWallet {
 
 impl HarborWallet {
     fn subscription(&self) -> Subscription<Message> {
-        run_core()
+        Subscription::run(run_core)
     }
 
     async fn async_send_lightning(
@@ -280,13 +281,13 @@ impl HarborWallet {
         self.mint_invite_code_str = String::new();
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             // Setup
             Message::UIHandlerLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
-                Command::none()
+                Task::none()
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
@@ -309,39 +310,39 @@ impl HarborWallet {
                     },
                     _ => self.active_route = route,
                 }
-                Command::none()
+                Task::none()
             }
             Message::ReceiveAmountChanged(amount) => {
                 self.receive_amount_str = amount;
-                Command::none()
+                Task::none()
             }
             Message::SendDestInputChanged(input) => {
                 self.send_dest_input_str = input;
-                Command::none()
+                Task::none()
             }
             Message::SendAmountInputChanged(input) => {
                 self.send_amount_input_str = input;
-                Command::none()
+                Task::none()
             }
             Message::SetIsMax(is_max) => {
                 self.is_max = is_max;
-                Command::none()
+                Task::none()
             }
             Message::PasswordInputChanged(input) => {
                 self.password_input_str = input;
-                Command::none()
+                Task::none()
             }
             Message::SeedInputChanged(input) => {
                 self.seed_input_str = input;
-                Command::none()
+                Task::none()
             }
             Message::MintInviteCodeInputChanged(input) => {
                 self.mint_invite_code_str = input;
-                Command::none()
+                Task::none()
             }
             Message::DonateAmountChanged(input) => {
                 self.donate_amount_str = input;
-                Command::none()
+                Task::none()
             }
             Message::SendStateReset => {
                 self.send_failure_reason = None;
@@ -350,7 +351,7 @@ impl HarborWallet {
                 self.send_amount_input_str = String::new();
                 self.is_max = false;
                 self.send_status = SendStatus::Idle;
-                Command::none()
+                Task::none()
             }
             Message::ReceiveStateReset => {
                 self.receive_failure_reason = None;
@@ -360,36 +361,36 @@ impl HarborWallet {
                 self.receive_address = None;
                 self.receive_qr_data = None;
                 self.receive_status = ReceiveStatus::Idle;
-                Command::none()
+                Task::none()
             }
             Message::ReceiveMethodChanged(method) => {
                 self.receive_method = method;
-                Command::none()
+                Task::none()
             }
             Message::AddToast(toast) => {
                 self.toasts.push(toast);
-                Command::none()
+                Task::none()
             }
             Message::CloseToast(index) => {
                 self.toasts.remove(index);
-                Command::none()
+                Task::none()
             }
             Message::CancelAddFederation => {
                 self.clear_add_federation_state();
                 self.active_route = Route::Mints(routes::MintSubroute::List);
 
-                Command::none()
+                Task::none()
             }
             // Async commands we fire from the UI to core
-            Message::Noop => Command::none(),
+            Message::Noop => Task::none(),
             Message::Send(invoice_str) => match self.send_status {
-                SendStatus::Sending => Command::none(),
+                SendStatus::Sending => Task::none(),
                 _ => {
                     self.send_failure_reason = None;
                     let id = Uuid::new_v4();
                     self.current_send_id = Some(id);
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
-                        Command::perform(
+                        Task::perform(
                             Self::async_send_lightning(self.ui_handle.clone(), id, invoice),
                             |_| Message::Noop,
                         )
@@ -400,43 +401,43 @@ impl HarborWallet {
                             // TODO: error handling
                             Some(self.send_amount_input_str.parse::<u64>().unwrap())
                         };
-                        Command::perform(
+                        Task::perform(
                             Self::async_send_onchain(self.ui_handle.clone(), id, address, amount),
                             |_| Message::Noop,
                         )
                     } else {
                         error!("Invalid invoice or address");
                         self.current_send_id = None;
-                        Command::none()
+                        Task::none()
                     }
                 }
             },
             Message::GenerateInvoice => match self.receive_status {
-                ReceiveStatus::Generating => Command::none(),
+                ReceiveStatus::Generating => Task::none(),
                 _ => {
                     let id = Uuid::new_v4();
                     self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
                     match self.receive_amount_str.parse::<u64>() {
-                        Ok(amount) => Command::perform(
+                        Ok(amount) => Task::perform(
                             Self::async_receive(self.ui_handle.clone(), id, amount),
                             |_| Message::Noop,
                         ),
                         Err(e) => {
                             self.receive_amount_str = String::new();
                             eprintln!("Error parsing amount: {e}");
-                            Command::none()
+                            Task::none()
                         }
                     }
                 }
             },
             Message::GenerateAddress => match self.receive_status {
-                ReceiveStatus::Generating => Command::none(),
+                ReceiveStatus::Generating => Task::none(),
                 _ => {
                     let id = Uuid::new_v4();
                     self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
-                    Command::perform(
+                    Task::perform(
                         Self::async_receive_onchain(self.ui_handle.clone(), id),
                         |_| Message::Noop,
                     )
@@ -450,7 +451,7 @@ impl HarborWallet {
                     let id = Uuid::new_v4();
                     self.current_send_id = Some(id);
 
-                    Command::perform(
+                    Task::perform(
                         Self::async_send_onchain(self.ui_handle.clone(), id, address, Some(amount)),
                         |_| Message::Noop,
                     )
@@ -458,26 +459,26 @@ impl HarborWallet {
                 Err(e) => {
                     self.receive_amount_str = String::new();
                     eprintln!("Error parsing amount: {e}");
-                    Command::none()
+                    Task::none()
                 }
             },
             Message::Unlock(password) => match self.unlock_status {
-                UnlockStatus::Unlocking => Command::none(),
+                UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     self.unlock_failure_reason = None;
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
+                    Task::perform(
                         Self::async_unlock(self.ui_handle.clone(), id, password),
                         |_| Message::Noop,
                     )
                 }
             },
             Message::Init(password) => match self.unlock_status {
-                UnlockStatus::Unlocking => Command::none(),
+                UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     self.unlock_failure_reason = None;
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
+                    Task::perform(
                         Self::async_init(self.ui_handle.clone(), id, password),
                         |_| Message::Noop,
                     )
@@ -487,13 +488,13 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
+                    Task::perform(
                         Self::async_add_federation(self.ui_handle.clone(), id, invite),
                         |_| Message::Noop,
                     )
                 } else {
                     self.add_federation_failure_reason = Some("Invalid invite code".to_string());
-                    Command::none()
+                    Task::none()
                 }
             }
             Message::PeekFederation(invite_code) => {
@@ -501,18 +502,18 @@ impl HarborWallet {
                 if let Ok(invite) = invite {
                     self.add_federation_failure_reason = None;
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
+                    Task::perform(
                         Self::async_peek_federation(self.ui_handle.clone(), id, invite),
                         |_| Message::Noop,
                     )
                 } else {
                     self.peek_federation_failure_reason = Some("Invalid invite code".to_string());
-                    Command::none()
+                    Task::none()
                 }
             }
-            Message::CopyToClipboard(s) => Command::batch([
+            Message::CopyToClipboard(s) => Task::batch([
                 clipboard::write(s),
-                Command::perform(async {}, |_| {
+                Task::perform(async {}, |_| {
                     Message::AddToast(Toast {
                         title: "Copied to clipboard".to_string(),
                         body: "...".to_string(),
@@ -523,13 +524,13 @@ impl HarborWallet {
             Message::ShowSeedWords(show) => {
                 if show {
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Command::perform(
+                    Task::perform(
                         Self::async_get_seed_words(self.ui_handle.clone(), id),
                         |_| Message::Noop,
                     )
                 } else {
                     self.settings_show_seed_words = false;
-                    Command::none()
+                    Task::none()
                 }
             }
             // Handle any messages we get from core
@@ -538,7 +539,7 @@ impl HarborWallet {
                     if self.current_send_id == msg.id {
                         self.send_status = SendStatus::Sending;
                     }
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::SendSuccess(params) => {
                     info!("Send success: {params:?}");
@@ -546,7 +547,7 @@ impl HarborWallet {
                         self.send_success_msg = Some(params);
                         self.current_send_id = None;
                     }
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::SendFailure(reason) => {
                     if self.current_send_id == msg.id {
@@ -554,7 +555,7 @@ impl HarborWallet {
                         self.send_failure_reason = Some(reason);
                         self.current_send_id = None;
                     }
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::ReceiveSuccess(params) => {
                     info!("Receive success: {params:?}");
@@ -562,7 +563,7 @@ impl HarborWallet {
                         self.receive_success_msg = Some(params);
                         self.current_receive_id = None;
                     }
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
                     if self.current_receive_id == msg.id {
@@ -570,19 +571,19 @@ impl HarborWallet {
                         self.receive_failure_reason = Some(reason);
                         self.current_receive_id = None;
                     }
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::BalanceUpdated(balance) => {
                     self.balance_sats = balance.sats_round_down();
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::TransactionHistoryUpdated(history) => {
                     self.transaction_history = history;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::ReceiveGenerating => {
                     self.receive_status = ReceiveStatus::Generating;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::ReceiveInvoiceGenerated(invoice) => {
                     self.receive_status = ReceiveStatus::WaitingToReceive;
@@ -595,12 +596,12 @@ impl HarborWallet {
                         .unwrap(),
                     );
                     self.receive_invoice = Some(invoice);
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::AddFederationFailed(reason) => {
                     self.add_federation_failure_reason = Some(reason);
                     self.peek_federation_item = None;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::FederationInfo(config) => {
                     // todo update the UI with the new config
@@ -635,17 +636,17 @@ impl HarborWallet {
 
                     self.peek_federation_item = Some(item);
 
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
                     self.active_route = Route::Mints(routes::MintSubroute::List);
                     self.peek_federation_item = None;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
                     self.federation_list = list;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {
                     self.receive_status = ReceiveStatus::WaitingToReceive;
@@ -658,7 +659,7 @@ impl HarborWallet {
                         .unwrap(),
                     );
                     self.receive_address = Some(address);
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::NeedsInit => {
                     info!("Got init message");
@@ -667,17 +668,17 @@ impl HarborWallet {
                 }
                 CoreUIMsg::Initing => {
                     self.init_status = WelcomeStatus::Initing;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::InitSuccess => {
                     self.init_status = WelcomeStatus::Inited;
                     self.active_route = Route::Home;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::InitFailed(reason) => {
                     self.init_status = WelcomeStatus::NeedsInit;
                     self.init_failure_reason = Some(reason);
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::Locked => {
                     info!("Got locked message");
@@ -687,22 +688,22 @@ impl HarborWallet {
                 CoreUIMsg::Unlocking => {
                     info!("Got unlocking message");
                     self.unlock_status = UnlockStatus::Unlocking;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::UnlockSuccess => {
                     self.unlock_status = UnlockStatus::Unlocked;
                     self.active_route = Route::Home;
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::UnlockFailed(reason) => {
                     self.unlock_status = UnlockStatus::Locked;
                     self.unlock_failure_reason = Some(reason);
-                    Command::none()
+                    Task::none()
                 }
                 CoreUIMsg::SeedWords(words) => {
                     self.seed_words = Some(words);
                     self.settings_show_seed_words = true;
-                    Command::none()
+                    Task::none()
                 }
             },
         }

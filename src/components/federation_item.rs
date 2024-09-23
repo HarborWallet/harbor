@@ -28,7 +28,7 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
     } = item;
 
     let name_row = row![map_icon(SvgIcon::People, 24., 24.), text(name).size(24)]
-        .align_items(Alignment::Center)
+        .align_y(Alignment::Center)
         .spacing(16);
 
     let balance_row = text(format_amount(*balance)).size(24);
