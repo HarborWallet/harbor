@@ -1,7 +1,7 @@
 use crate::components::{FederationItem, TransactionItem};
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
-use fedimint_core::config::ClientConfig;
+use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -16,13 +16,22 @@ pub struct UICoreMsgPacket {
 
 #[derive(Debug, Clone)]
 pub enum UICoreMsg {
-    SendLightning(Bolt11Invoice),
-    ReceiveLightning(Amount),
+    SendLightning {
+        federation_id: FederationId,
+        invoice: Bolt11Invoice,
+    },
+    ReceiveLightning {
+        federation_id: FederationId,
+        amount: Amount,
+    },
     SendOnChain {
         address: Address<NetworkUnchecked>,
+        federation_id: FederationId,
         amount_sats: Option<u64>,
     },
-    ReceiveOnChain,
+    ReceiveOnChain {
+        federation_id: FederationId,
+    },
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     Unlock(String),
@@ -61,9 +70,9 @@ pub enum CoreUIMsg {
     ReceiveAddressGenerated(Address),
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
-    BalanceUpdated(Amount),
     // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
+    FederationBalanceUpdated { id: FederationId, balance: Amount },
     AddFederationFailed(String),
     FederationInfo(ClientConfig),
     AddFederationSuccess,
@@ -95,9 +104,17 @@ impl UIHandle {
         self.ui_to_core_tx.send(msg).await.unwrap();
     }
 
-    pub async fn send_lightning(&self, id: Uuid, invoice: Bolt11Invoice) {
+    pub async fn send_lightning(
+        &self,
+        id: Uuid,
+        federation_id: FederationId,
+        invoice: Bolt11Invoice,
+    ) {
         self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::SendLightning(invoice),
+            msg: UICoreMsg::SendLightning {
+                federation_id,
+                invoice,
+            },
             id,
         })
         .await;
@@ -106,11 +123,13 @@ impl UIHandle {
     pub async fn send_onchain(
         &self,
         id: Uuid,
+        federation_id: FederationId,
         address: Address<NetworkUnchecked>,
         amount_sats: Option<u64>,
     ) {
         self.msg_send(UICoreMsgPacket {
             msg: UICoreMsg::SendOnChain {
+                federation_id,
                 address,
                 amount_sats,
             },
@@ -119,17 +138,21 @@ impl UIHandle {
         .await;
     }
 
-    pub async fn receive(&self, id: Uuid, amount: u64) {
+    pub async fn receive(&self, id: Uuid, federation_id: FederationId, amount: u64) {
+        let amount = Amount::from_sats(amount);
         self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::ReceiveLightning(Amount::from_sats(amount)),
+            msg: UICoreMsg::ReceiveLightning {
+                federation_id,
+                amount,
+            },
             id,
         })
         .await;
     }
 
-    pub async fn receive_onchain(&self, id: Uuid) {
+    pub async fn receive_onchain(&self, id: Uuid, federation_id: FederationId) {
         self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::ReceiveOnChain,
+            msg: UICoreMsg::ReceiveOnChain { federation_id },
             id,
         })
         .await;
