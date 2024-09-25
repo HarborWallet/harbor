@@ -293,7 +293,10 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     sender
                         .send(Message::core_msg(
                             Some(msg_id),
-                            CoreUIMsg::BalanceUpdated(new_balance),
+                            CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
                         ))
                         .await
                         .unwrap();
@@ -371,7 +374,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     sender
                         .send(Message::core_msg(
                             Some(msg_id),
-                            CoreUIMsg::BalanceUpdated(new_balance),
+                            CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
                         ))
                         .await
                         .unwrap();
@@ -448,7 +454,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     sender
                         .send(Message::core_msg(
                             Some(msg_id),
-                            CoreUIMsg::BalanceUpdated(new_balance),
+                            CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
                         ))
                         .await
                         .unwrap();
@@ -510,7 +519,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     sender
                         .send(Message::core_msg(
                             Some(msg_id),
-                            CoreUIMsg::BalanceUpdated(new_balance),
+                            CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
                         ))
                         .await
                         .unwrap();
@@ -595,7 +607,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     sender
                         .send(Message::core_msg(
                             Some(msg_id),
-                            CoreUIMsg::BalanceUpdated(new_balance),
+                            CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
                         ))
                         .await
                         .unwrap();

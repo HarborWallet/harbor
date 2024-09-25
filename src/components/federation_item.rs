@@ -6,7 +6,7 @@ use iced::{
 
 use crate::Message;
 
-use super::{bold_text, regular_text, subtitle, truncate_text};
+use super::{bold_text, h_button, regular_text, subtitle, truncate_text};
 use super::{format_amount, map_icon, SvgIcon};
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ pub struct FederationItem {
     pub module_kinds: Option<Vec<ModuleKind>>,
 }
 
-pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
+pub fn h_federation_item(item: &FederationItem, show_button: bool) -> Element<Message> {
     let FederationItem {
         id,
         name,
@@ -62,6 +62,12 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
         ]
         .spacing(8);
         column = column.push(modules_row);
+    }
+
+    if show_button {
+        let button = h_button("Set as active Mint", SvgIcon::Squirrel, false)
+            .on_press(Message::ChangeFederation(*id));
+        column = column.push(button);
     }
 
     column.into()

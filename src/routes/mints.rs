@@ -12,11 +12,13 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let list = if harbor.federation_list.is_empty() {
         column![text("No federations added yet.").size(18)]
     } else {
+        let active_federation = harbor.active_federation.as_ref().expect("No active federation");
+
         harbor
             .federation_list
             .iter()
             .fold(column![], |column, item| {
-                column.push(h_federation_item(item))
+                column.push(h_federation_item(item, item.id != active_federation.id))
             })
             .spacing(48)
     };
@@ -61,7 +63,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
         }
 
         Some(peek_federation_item) => {
-            let federation_preview = h_federation_item(peek_federation_item);
+            let federation_preview = h_federation_item(peek_federation_item, false);
 
             let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
                 .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
