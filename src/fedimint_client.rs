@@ -80,6 +80,8 @@ impl FedimintClient {
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
         let mut client_builder = fedimint_client::Client::builder(db.into()).await?;
+        client_builder.with_tor_connector();
+
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(MintClientInit);
         client_builder.with_module(LightningClientInit::default());
@@ -99,9 +101,10 @@ impl FedimintClient {
                         e
                     })?,
             )
-        } else if let FederationInviteOrId::Invite(i) = invite_or_id {
+        } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
             let download = Instant::now();
-            let config = fedimint_api_client::download_from_invite_code(&i)
+            let config = fedimint_api_client::api::net::Connector::Tor
+                .download_from_invite_code(&invite_code)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");

@@ -314,7 +314,8 @@ impl HarborCore {
 
     async fn get_federation_info(&self, invite_code: InviteCode) -> anyhow::Result<ClientConfig> {
         let download = Instant::now();
-        let config = fedimint_api_client::download_from_invite_code(&invite_code)
+        let config = fedimint_api_client::api::net::Connector::Tor
+            .download_from_invite_code(&invite_code)
             .await
             .map_err(|e| {
                 error!("Could not download federation info: {e}");
