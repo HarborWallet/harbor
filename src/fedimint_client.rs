@@ -29,13 +29,11 @@ use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
 use std::fmt::Debug;
+use std::ops::Range;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use std::{
-    fmt,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::{fmt, sync::atomic::AtomicBool};
 use tokio::spawn;
 use uuid::Uuid;
 
@@ -145,7 +143,9 @@ impl FedimintClient {
         trace!("Retrieving fedimint wallet client module");
 
         // check federation is on expected network
-        let wallet_client = fedimint_client.get_first_module::<WalletClientModule>();
+        let wallet_client = fedimint_client
+            .get_first_module::<WalletClientModule>()
+            .expect("must have wallet module");
         // compare magic bytes because different versions of rust-bitcoin
         if network != wallet_client.get_network() {
             error!(
@@ -158,10 +158,11 @@ impl FedimintClient {
 
         // Update gateway cache in background
         let client_clone = fedimint_client.clone();
-        let stop_clone = stop.clone();
         spawn(async move {
             let start = Instant::now();
-            let lightning_module = client_clone.get_first_module::<LightningClientModule>();
+            let lightning_module = client_clone
+                .get_first_module::<LightningClientModule>()
+                .expect("must have ln module");
 
             match lightning_module.update_gateway_cache().await {
                 Ok(_) => {
@@ -178,14 +179,9 @@ impl FedimintClient {
             );
 
             // continually update gateway cache
-            loop {
-                lightning_module
-                    .update_gateway_cache_continuously(|g| async { g })
-                    .await;
-                if stop_clone.load(Ordering::Relaxed) {
-                    break;
-                }
-            }
+            lightning_module
+                .update_gateway_cache_continuously(|g| async { g })
+                .await;
         });
 
         debug!("Built fedimint client");
@@ -198,7 +194,10 @@ impl FedimintClient {
 }
 
 pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<LightningGateway> {
-    let ln = client.get_first_module::<LightningClientModule>();
+    let ln = client
+        .get_first_module::<LightningClientModule>()
+        .expect("must have ln module");
+
     let gateways = ln.list_gateways().await;
     let mut selected_gateway: Option<LightningGateway> = None;
     for gateway in gateways.iter() {
@@ -714,7 +713,7 @@ impl Debug for SQLPseudoTransaction<'_> {
 }
 
 #[async_trait]
-impl<'a> IRawDatabaseTransaction for SQLPseudoTransaction<'a> {
+impl IRawDatabaseTransaction for SQLPseudoTransaction<'_> {
     async fn commit_tx(mut self) -> anyhow::Result<()> {
         let key_value_pairs = self
             .mem
@@ -732,7 +731,7 @@ impl<'a> IRawDatabaseTransaction for SQLPseudoTransaction<'a> {
 }
 
 #[async_trait]
-impl<'a> IDatabaseTransactionOpsCore for SQLPseudoTransaction<'a> {
+impl IDatabaseTransactionOpsCore for SQLPseudoTransaction<'_> {
     async fn raw_insert_bytes(
         &mut self,
         key: &[u8],
@@ -765,10 +764,14 @@ impl<'a> IDatabaseTransactionOpsCore for SQLPseudoTransaction<'a> {
             .raw_find_by_prefix_sorted_descending(key_prefix)
             .await
     }
+
+    async fn raw_find_by_range(&mut self, range: Range<&[u8]>) -> anyhow::Result<PrefixStream<'_>> {
+        self.mem.raw_find_by_range(range).await
+    }
 }
 
 #[async_trait]
-impl<'a> IDatabaseTransactionOps for SQLPseudoTransaction<'a> {
+impl IDatabaseTransactionOps for SQLPseudoTransaction<'_> {
     async fn rollback_tx_to_savepoint(&mut self) -> anyhow::Result<()> {
         self.mem.rollback_tx_to_savepoint().await
     }

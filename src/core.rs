@@ -107,7 +107,9 @@ impl HarborCore {
 
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client(federation_id).await.fedimint_client;
-        let lightning_module = client.get_first_module::<LightningClientModule>();
+        let lightning_module = client
+            .get_first_module::<LightningClientModule>()
+            .expect("must have ln module");
 
         let gateway = select_gateway(&client)
             .await
@@ -168,7 +170,9 @@ impl HarborCore {
         amount: Amount,
     ) -> anyhow::Result<Bolt11Invoice> {
         let client = self.get_client(federation_id).await.fedimint_client;
-        let lightning_module = client.get_first_module::<LightningClientModule>();
+        let lightning_module = client
+            .get_first_module::<LightningClientModule>()
+            .expect("must have ln module");
 
         let gateway = select_gateway(&client)
             .await
@@ -224,7 +228,9 @@ impl HarborCore {
     ) -> anyhow::Result<()> {
         // todo go through all clients and select the first one that has enough balance
         let client = self.get_client(federation_id).await.fedimint_client;
-        let onchain = client.get_first_module::<WalletClientModule>();
+        let onchain = client
+            .get_first_module::<WalletClientModule>()
+            .expect("must have wallet module");
 
         // todo add manual fee selection
         let (fees, amount) = match sats {
@@ -290,7 +296,9 @@ impl HarborCore {
         federation_id: FederationId,
     ) -> anyhow::Result<Address> {
         let client = self.get_client(federation_id).await.fedimint_client;
-        let onchain = client.get_first_module::<WalletClientModule>();
+        let onchain = client
+            .get_first_module::<WalletClientModule>()
+            .expect("must have wallet module");
 
         let (op_id, address, _) = onchain.allocate_deposit_address_expert_only(()).await?;
 

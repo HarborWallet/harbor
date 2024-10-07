@@ -137,7 +137,7 @@ impl<'a> ToastManager<'a> {
     }
 }
 
-impl<'a> Widget<Message, Theme, Renderer> for ToastManager<'a> {
+impl Widget<Message, Theme, Renderer> for ToastManager<'_> {
     fn size(&self) -> Size<Length> {
         self.content.as_widget().size()
     }
@@ -311,7 +311,7 @@ struct Overlay<'a, 'b, Message> {
     timeout_secs: u64,
 }
 
-impl<'a, 'b, Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'a, 'b, Message> {
+impl<Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'_, '_, Message> {
     fn layout(&mut self, renderer: &Renderer, bounds: Size) -> layout::Node {
         let limits = layout::Limits::new(Size::ZERO, bounds);
 
