@@ -1,4 +1,4 @@
-use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
+use crate::db_models::transaction_item::{TransactionDirection, TransactionItem, TransactionItemKind};
 use crate::db_models::schema::lightning_payments;
 use crate::db_models::PaymentStatus;
 use bitcoin::hashes::hex::FromHex;

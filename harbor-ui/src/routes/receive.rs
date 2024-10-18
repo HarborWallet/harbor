@@ -2,8 +2,7 @@ use iced::widget::container::Style;
 use iced::widget::{column, container, qr_code, radio, row, text};
 use iced::Color;
 use iced::{Border, Element, Font};
-
-use crate::bridge::ReceiveSuccessMsg;
+use harbor_client::ReceiveSuccessMsg;
 use crate::components::{
     basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, mini_copy, SvgIcon,
 };

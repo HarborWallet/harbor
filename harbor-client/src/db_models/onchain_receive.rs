@@ -1,5 +1,5 @@
-use crate::components::{TransactionDirection, TransactionItem, TransactionItemKind};
-use crate::db_models::schema::on_chain_payments;
+use crate::db_models::transaction_item::{TransactionDirection, TransactionItem, TransactionItemKind};
+use crate::db_models::schema::on_chain_receives;
 use crate::db_models::PaymentStatus;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
@@ -9,13 +9,13 @@ use fedimint_core::core::OperationId;
 use std::str::FromStr;
 
 #[derive(QueryableByName, Queryable, Debug, Clone, PartialEq, Eq)]
-#[diesel(table_name = on_chain_payments)]
-pub struct OnChainPayment {
+#[diesel(table_name = on_chain_receives)]
+pub struct OnChainReceive {
     operation_id: String,
     fedimint_id: String,
     address: String,
-    pub amount_sats: i64,
-    pub fee_sats: i64,
+    pub amount_sats: Option<i64>,
+    pub fee_sats: Option<i64>,
     txid: Option<String>,
     status: i32,
     pub created_at: chrono::NaiveDateTime,
@@ -23,17 +23,15 @@ pub struct OnChainPayment {
 }
 
 #[derive(Insertable)]
-#[diesel(table_name = on_chain_payments)]
-struct NewOnChainPayment {
+#[diesel(table_name = on_chain_receives)]
+struct NewOnChainReceive {
     operation_id: String,
     fedimint_id: String,
     address: String,
-    amount_sats: i64,
-    fee_sats: i64,
     status: i32,
 }
 
-impl OnChainPayment {
+impl OnChainReceive {
     pub fn operation_id(&self) -> OperationId {
         OperationId::from_str(&self.operation_id).expect("invalid operation id")
     }
@@ -60,20 +58,16 @@ impl OnChainPayment {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address<NetworkUnchecked>,
-        amount_sats: u64,
-        fee_sats: u64,
+        address: Address,
     ) -> anyhow::Result<()> {
-        let new = NewOnChainPayment {
+        let new = NewOnChainReceive {
             operation_id: operation_id.fmt_full().to_string(),
             fedimint_id: fedimint_id.to_string(),
-            address: address.assume_checked().to_string(),
-            amount_sats: amount_sats as i64,
-            fee_sats: fee_sats as i64,
+            address: address.to_string(),
             status: PaymentStatus::Pending as i32,
         };
 
-        diesel::insert_into(on_chain_payments::table)
+        diesel::insert_into(on_chain_receives::table)
             .values(new)
             .execute(conn)?;
 
@@ -84,8 +78,8 @@ impl OnChainPayment {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
     ) -> anyhow::Result<Option<Self>> {
-        Ok(on_chain_payments::table
-            .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string()))
+        Ok(on_chain_receives::table
+            .filter(on_chain_receives::operation_id.eq(operation_id.fmt_full().to_string()))
             .first::<Self>(conn)
             .optional()?)
     }
@@ -94,16 +88,34 @@ impl OnChainPayment {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
         txid: Txid,
+        amount_sats: u64,
+        fee_sats: u64,
     ) -> anyhow::Result<()> {
         diesel::update(
-            on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
+            on_chain_receives::table
+                .filter(on_chain_receives::operation_id.eq(operation_id.fmt_full().to_string())),
         )
         .set((
-            on_chain_payments::txid.eq(Some(txid.to_string())),
-            // fedimint doesn't tell us when the tx is confirmed so just jump to success
-            on_chain_payments::status.eq(PaymentStatus::Success as i32),
+            on_chain_receives::txid.eq(Some(txid.to_string())),
+            on_chain_receives::amount_sats.eq(Some(amount_sats as i64)),
+            on_chain_receives::fee_sats.eq(Some(fee_sats as i64)),
+            on_chain_receives::status.eq(PaymentStatus::WaitingConfirmation as i32),
         ))
+        .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn mark_as_confirmed(
+        conn: &mut SqliteConnection,
+        operation_id: OperationId,
+    ) -> anyhow::Result<()> {
+        diesel::update(
+            on_chain_receives::table
+                .filter(on_chain_receives::operation_id.eq(operation_id.fmt_full().to_string()))
+                .filter(on_chain_receives::txid.is_not_null()), // make sure it has a txid
+        )
+        .set(on_chain_receives::status.eq(PaymentStatus::Success as i32))
         .execute(conn)?;
 
         Ok(())
@@ -114,28 +126,32 @@ impl OnChainPayment {
         operation_id: OperationId,
     ) -> anyhow::Result<()> {
         diesel::update(
-            on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
+            on_chain_receives::table
+                .filter(on_chain_receives::operation_id.eq(operation_id.fmt_full().to_string())),
         )
-        .set(on_chain_payments::status.eq(PaymentStatus::Failed as i32))
+        .set(on_chain_receives::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;
 
         Ok(())
     }
 
     pub fn get_history(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
-        Ok(on_chain_payments::table
-            .filter(on_chain_payments::status.eq(PaymentStatus::Success as i32))
+        Ok(on_chain_receives::table
+            .filter(
+                on_chain_receives::status
+                    .eq(PaymentStatus::Success as i32)
+                    .or(on_chain_receives::status.eq(PaymentStatus::WaitingConfirmation as i32)),
+            )
             .load::<Self>(conn)?)
     }
 }
 
-impl From<OnChainPayment> for TransactionItem {
-    fn from(payment: OnChainPayment) -> Self {
+impl From<OnChainReceive> for TransactionItem {
+    fn from(payment: OnChainReceive) -> Self {
         Self {
             kind: TransactionItemKind::Onchain,
-            amount: payment.amount_sats as u64,
-            direction: TransactionDirection::Outgoing,
+            amount: payment.amount_sats.unwrap_or(0) as u64, // todo handle this better
+            direction: TransactionDirection::Incoming,
             timestamp: payment.created_at.and_utc().timestamp() as u64,
         }
     }

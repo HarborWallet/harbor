@@ -1,22 +1,12 @@
-use fedimint_core::{config::FederationId, core::ModuleKind};
 use iced::{
     widget::{column, row, text},
     Alignment, Element,
 };
-
+use harbor_client::db_models::FederationItem;
 use crate::Message;
 
 use super::{bold_text, h_button, regular_text, subtitle, truncate_text};
 use super::{format_amount, map_icon, SvgIcon};
-
-#[derive(Debug, Clone)]
-pub struct FederationItem {
-    pub id: FederationId,
-    pub name: String,
-    pub balance: u64,
-    pub guardians: Option<Vec<String>>,
-    pub module_kinds: Option<Vec<ModuleKind>>,
-}
 
 pub fn h_federation_item(item: &FederationItem, show_button: bool) -> Element<Message> {
     let FederationItem {

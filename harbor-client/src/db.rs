@@ -1,4 +1,4 @@
-use crate::components::TransactionItem;
+use crate::db_models::transaction_item::TransactionItem;
 use crate::db_models::{
     Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
     OnChainReceive, Profile,
@@ -20,8 +20,7 @@ use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-#[allow(dead_code)]
-pub(crate) fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
+pub fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
     let conn = Connection::open_with_flags(
         url,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
@@ -46,7 +45,7 @@ pub(crate) fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
     }
 }
 
-pub(crate) fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection>> {
+pub fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection>> {
     let manager = ConnectionManager::<SqliteConnection>::new(url);
 
     let pool = Pool::builder()
@@ -148,7 +147,7 @@ pub trait DBConnection {
     fn get_transaction_history(&self) -> anyhow::Result<Vec<TransactionItem>>;
 }
 
-pub(crate) struct SQLConnection {
+pub struct SQLConnection {
     db: Pool<ConnectionManager<SqliteConnection>>,
 }
 

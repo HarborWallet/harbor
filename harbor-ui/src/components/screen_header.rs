@@ -2,9 +2,10 @@ use iced::{
     widget::{column, row, text},
     Alignment, Element, Length,
 };
+use harbor_client::db_models::FederationItem;
 use crate::{HarborWallet, Message};
 
-use super::{format_amount, hr, map_icon, vr, FederationItem, SvgIcon};
+use super::{format_amount, hr, map_icon, vr, SvgIcon};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.active_federation.as_ref() {

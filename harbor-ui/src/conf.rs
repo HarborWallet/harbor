@@ -1,12 +1,12 @@
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use bitcoin::Network;
+use harbor_client::db::DBConnection;
+use harbor_client::db_models::NewProfile;
 use log::{error, info};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-
-use crate::{db::DBConnection, db_models::NewProfile};
 
 /// The directory where all application data is stored
 /// Defaults to ~/.harbor, if we're on a test network
