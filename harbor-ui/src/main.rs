@@ -1,8 +1,6 @@
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::Address;
-use bridge::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
-use components::{FederationItem, Toast, ToastManager, ToastStatus, TransactionItem};
-use core::run_core;
+use components::{Toast, ToastManager, ToastStatus};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -21,16 +19,15 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
-
+use harbor_client::db_models::FederationItem;
+use harbor_client::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
+use harbor_client::db_models::transaction_item::TransactionItem;
+use crate::bridge::run_core;
 use crate::components::focus_input_id;
 
 pub mod bridge;
 pub mod components;
 pub mod conf;
-pub mod core;
-pub mod db;
-pub mod db_models;
-mod fedimint_client;
 pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.

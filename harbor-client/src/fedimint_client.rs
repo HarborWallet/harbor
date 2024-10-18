@@ -1,6 +1,5 @@
-use crate::bridge::{CoreUIMsg, ReceiveSuccessMsg, SendSuccessMsg};
-use crate::Message;
 use crate::{db::DBConnection, db_models::NewFedimint};
+use crate::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bip39::Mnemonic;
@@ -39,7 +38,7 @@ use uuid::Uuid;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub(crate) struct FedimintClient {
+pub struct FedimintClient {
     pub(crate) fedimint_client: ClientHandleArc,
     stop: Arc<AtomicBool>,
 }
@@ -60,7 +59,7 @@ impl FederationInviteOrId {
 }
 
 impl FedimintClient {
-    pub(crate) async fn new(
+    pub async fn new(
         storage: Arc<dyn DBConnection + Send + Sync>,
         invite_or_id: FederationInviteOrId,
         mnemonic: &Mnemonic,
@@ -191,6 +190,10 @@ impl FedimintClient {
             stop,
         })
     }
+
+    pub fn federation_id(&self) -> FederationId {
+        self.fedimint_client.federation_id()
+    }
 }
 
 pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<LightningGateway> {
@@ -237,21 +240,21 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
 async fn update_history(
     storage: Arc<dyn DBConnection + Send + Sync>,
     msg_id: Uuid,
-    sender: &mut Sender<Message>,
+    sender: &mut Sender<CoreUIMsgPacket>,
 ) {
     if let Ok(history) = storage.get_transaction_history() {
         sender
-            .send(Message::core_msg(
-                Some(msg_id),
-                CoreUIMsg::TransactionHistoryUpdated(history),
-            ))
+            .send(CoreUIMsgPacket {
+                id: Some(msg_id),
+                msg: CoreUIMsg::TransactionHistoryUpdated(history),
+            })
             .await
             .unwrap();
     }
 }
 
 pub(crate) async fn spawn_invoice_receive_subscription(
-    mut sender: Sender<Message>,
+    mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
@@ -265,10 +268,10 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 LnReceiveState::Canceled { reason } => {
                     error!("Payment canceled, reason: {:?}", reason);
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::ReceiveFailed(reason.to_string()),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveFailed(reason.to_string()),
+                        })
                         .await
                         .unwrap();
 
@@ -280,10 +283,10 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 LnReceiveState::Claimed => {
                     info!("Payment claimed");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::ReceiveSuccess(ReceiveSuccessMsg::Lightning),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveSuccess(ReceiveSuccessMsg::Lightning),
+                        })
                         .await
                         .unwrap();
 
@@ -293,13 +296,13 @@ pub(crate) async fn spawn_invoice_receive_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::FederationBalanceUpdated {
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
                                 id: client.federation_id(),
                                 balance: new_balance,
                             },
-                        ))
+                        })
                         .await
                         .unwrap();
 
@@ -314,7 +317,7 @@ pub(crate) async fn spawn_invoice_receive_subscription(
 }
 
 pub(crate) async fn spawn_invoice_payment_subscription(
-    mut sender: Sender<Message>,
+    mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
@@ -328,10 +331,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                 LnPayState::Canceled => {
                     error!("Payment canceled");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendFailure("Canceled".to_string()),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendFailure("Canceled".to_string()),
+                        })
                         .await
                         .unwrap();
 
@@ -343,10 +346,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                 LnPayState::UnexpectedError { error_message } => {
                     error!("Unexpected payment error: {:?}", error_message);
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendFailure(error_message),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendFailure(error_message),
+                        })
                         .await
                         .unwrap();
 
@@ -361,10 +364,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         FromHex::from_hex(&preimage).expect("Invalid preimage");
                     let params = SendSuccessMsg::Lightning { preimage };
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendSuccess(params),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendSuccess(params),
+                        })
                         .await
                         .unwrap();
 
@@ -374,13 +377,13 @@ pub(crate) async fn spawn_invoice_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::FederationBalanceUpdated {
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
                                 id: client.federation_id(),
                                 balance: new_balance,
                             },
-                        ))
+                        })
                         .await
                         .unwrap();
 
@@ -395,7 +398,7 @@ pub(crate) async fn spawn_invoice_payment_subscription(
 }
 
 pub(crate) async fn spawn_internal_payment_subscription(
-    mut sender: Sender<Message>,
+    mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
@@ -409,10 +412,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 InternalPayState::FundingFailed { error } => {
                     error!("Funding failed: {error:?}");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::ReceiveFailed(error.to_string()),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveFailed(error.to_string()),
+                        })
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
@@ -423,10 +426,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 InternalPayState::UnexpectedError(error_message) => {
                     error!("Unexpected payment error: {error_message:?}");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendFailure(error_message),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendFailure(error_message),
+                        })
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
@@ -440,10 +443,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         preimage: preimage.0,
                     };
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendSuccess(params),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendSuccess(params),
+                        })
                         .await
                         .unwrap();
 
@@ -454,13 +457,13 @@ pub(crate) async fn spawn_internal_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::FederationBalanceUpdated {
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
                                 id: client.federation_id(),
                                 balance: new_balance,
                             },
-                        ))
+                        })
                         .await
                         .unwrap();
 
@@ -475,7 +478,7 @@ pub(crate) async fn spawn_internal_payment_subscription(
 }
 
 pub(crate) async fn spawn_onchain_payment_subscription(
-    mut sender: Sender<Message>,
+    mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
@@ -490,10 +493,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                 WithdrawState::Failed(error) => {
                     error!("Onchain payment failed: {error:?}");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendFailure(error),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendFailure(error),
+                        })
                         .await
                         .unwrap();
                     if let Err(e) = storage.mark_onchain_payment_as_failed(operation_id) {
@@ -506,10 +509,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     info!("Onchain payment success: {txid}");
                     let params = SendSuccessMsg::Onchain { txid };
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::SendSuccess(params),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendSuccess(params),
+                        })
                         .await
                         .unwrap();
 
@@ -519,13 +522,13 @@ pub(crate) async fn spawn_onchain_payment_subscription(
 
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::FederationBalanceUpdated {
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
                                 id: client.federation_id(),
                                 balance: new_balance,
                             },
-                        ))
+                        })
                         .await
                         .unwrap();
 
@@ -539,7 +542,7 @@ pub(crate) async fn spawn_onchain_payment_subscription(
 }
 
 pub(crate) async fn spawn_onchain_receive_subscription(
-    mut sender: Sender<Message>,
+    mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
@@ -554,10 +557,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                 DepositStateV2::Failed(error) => {
                     error!("Onchain receive failed: {error:?}");
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::ReceiveFailed(error),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveFailed(error),
+                        })
                         .await
                         .unwrap();
 
@@ -575,10 +578,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     let txid = btc_out_point.txid;
                     let params = ReceiveSuccessMsg::Onchain { txid };
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::ReceiveSuccess(params),
-                        ))
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveSuccess(params),
+                        })
                         .await
                         .unwrap();
 
@@ -607,13 +610,13 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     info!("Onchain receive claimed: {btc_deposited} from {btc_out_point:?}");
                     let new_balance = client.get_balance().await;
                     sender
-                        .send(Message::core_msg(
-                            Some(msg_id),
-                            CoreUIMsg::FederationBalanceUpdated {
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
                                 id: client.federation_id(),
                                 balance: new_balance,
                             },
-                        ))
+                        })
                         .await
                         .unwrap();
 
