@@ -16,7 +16,21 @@ pub use onchain_payment::*;
 pub mod onchain_receive;
 pub use onchain_receive::*;
 
-pub mod schema;
+pub(crate) mod schema;
+
+pub mod transaction_item;
+
+use fedimint_core::config::FederationId;
+use fedimint_core::core::ModuleKind;
+
+#[derive(Debug, Clone)]
+pub struct FederationItem {
+    pub id: FederationId,
+    pub name: String,
+    pub balance: u64,
+    pub guardians: Option<Vec<String>>,
+    pub module_kinds: Option<Vec<ModuleKind>>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PaymentStatus {

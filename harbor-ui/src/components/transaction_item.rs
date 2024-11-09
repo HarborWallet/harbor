@@ -1,51 +1,13 @@
+use crate::Message;
+use harbor_client::db_models::transaction_item::{
+    TransactionDirection, TransactionItem, TransactionItemKind,
+};
 use iced::{
     widget::{column, row, svg, text},
     Element,
 };
 
-use crate::Message;
-
 use super::{format_amount, format_timestamp, map_icon, subtitle, MUTINY_GREEN, MUTINY_RED};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TransactionItemKind {
-    Lightning,
-    Onchain,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TransactionDirection {
-    Incoming,
-    Outgoing,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct TransactionItem {
-    pub kind: TransactionItemKind,
-    pub amount: u64,
-    pub direction: TransactionDirection,
-    pub timestamp: u64,
-}
-
-impl TransactionItem {
-    pub fn make_dummy() -> Self {
-        Self {
-            kind: TransactionItemKind::Lightning,
-            amount: 100,
-            direction: TransactionDirection::Incoming,
-            timestamp: 0,
-        }
-    }
-
-    pub fn make_dummy_onchain() -> Self {
-        Self {
-            kind: TransactionItemKind::Onchain,
-            amount: 100,
-            direction: TransactionDirection::Outgoing,
-            timestamp: 0,
-        }
-    }
-}
 
 pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
     let TransactionItem {
