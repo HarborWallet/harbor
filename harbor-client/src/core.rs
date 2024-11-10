@@ -14,7 +14,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 
-use iced::futures::{channel::mpsc::Sender, SinkExt};
+use futures::{channel::mpsc::Sender, SinkExt};
 use log::{error, trace};
 use tokio::sync::RwLock;
 use uuid::Uuid;
