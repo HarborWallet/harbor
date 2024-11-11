@@ -24,8 +24,8 @@ use fedimint_ln_client::{
 use fedimint_ln_common::LightningGateway;
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
-use iced::futures::channel::mpsc::Sender;
-use iced::futures::{SinkExt, StreamExt};
+use futures::channel::mpsc::Sender;
+use futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
 use std::fmt::Debug;
 use std::ops::Range;

@@ -18,6 +18,3 @@ release:
 
 clippy:
     cargo clippy --all-features --tests -- -D warnings
-
-reset-db:
-    cd harbor-client && diesel migration revert --all --database-url=harbor.sqlite && diesel migration run --database-url=harbor.sqlite
