@@ -1,8 +1,8 @@
 use iced::widget::{column, text};
-use iced::{Color, Element};
+use iced::Element;
 
 use crate::components::{basic_layout, h_button, h_federation_item, h_header, h_input, SvgIcon};
-use crate::{HarborWallet, Message};
+use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
 
@@ -47,51 +47,36 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
                 None,
             );
 
-            let peek_mint_button = h_button("Preview", SvgIcon::Eye, false)
+            let peek_mint_button = h_button("Preview", SvgIcon::Eye, harbor.peek_status == PeekStatus::Peeking)
                 .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
 
-            let column = column![header, mint_input, peek_mint_button].spacing(48);
-
-            let column = column.push_maybe(
-                harbor
-                    .peek_federation_failure_reason
-                    .as_ref()
-                    .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
-            );
-
-            column
+            column![header, mint_input, peek_mint_button].spacing(48)
         }
 
         Some(peek_federation_item) => {
             let federation_preview = h_federation_item(peek_federation_item, false);
 
-            let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
-                .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
+            let add_mint_button = h_button(
+                "Add Mint",
+                SvgIcon::Plus,
+                harbor.add_federation_status == AddFederationStatus::Adding
+            )
+            .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
 
             let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
                 .on_press(Message::CancelAddFederation);
 
-            let column = column![
+            column![
                 header,
                 federation_preview,
                 add_mint_button,
                 start_over_button
             ]
-            .spacing(48);
-
-            // TODO: better error styling
-            let column = column.push_maybe(
-                harbor
-                    .add_federation_failure_reason
-                    .as_ref()
-                    .map(|r| text(r).size(18).color(Color::from_rgb8(255, 0, 0))),
-            );
-
-            column
+            .spacing(48)
         }
     };
 
-    basic_layout(column.spacing(48))
+    basic_layout(column)
 }
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
