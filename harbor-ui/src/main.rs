@@ -87,6 +87,20 @@ pub enum ReceiveMethod {
     OnChain,
 }
 
+#[derive(Default, Debug, Clone, PartialEq)]
+pub enum PeekStatus {
+    #[default]
+    Idle,
+    Peeking,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub enum AddFederationStatus {
+    #[default]
+    Idle,
+    Adding,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Setup
@@ -167,10 +181,8 @@ pub struct HarborWallet {
     receive_qr_data: Option<Data>,
     receive_method: ReceiveMethod,
     // Mints
-    peek_federation_failure_reason: Option<String>,
     peek_federation_item: Option<FederationItem>,
     mint_invite_code_str: String,
-    add_federation_failure_reason: Option<String>,
     // Donate
     donate_amount_str: String,
     // Settings
@@ -178,6 +190,8 @@ pub struct HarborWallet {
     seed_words: Option<String>,
     current_send_id: Option<Uuid>,
     current_receive_id: Option<Uuid>,
+    peek_status: PeekStatus,
+    add_federation_status: AddFederationStatus,
 }
 
 impl HarborWallet {
@@ -297,10 +311,10 @@ impl HarborWallet {
     }
 
     fn clear_add_federation_state(&mut self) {
-        self.add_federation_failure_reason = None;
-        self.peek_federation_failure_reason = None;
         self.peek_federation_item = None;
         self.mint_invite_code_str = String::new();
+        self.peek_status = PeekStatus::Idle;
+        self.add_federation_status = AddFederationStatus::Idle;
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -561,27 +575,37 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     let id = Uuid::new_v4(); // todo use this id somewhere
-                    Task::perform(
-                        Self::async_add_federation(self.ui_handle.clone(), id, invite),
-                        |_| Message::Noop,
-                    )
+                        Task::perform(
+                            Self::async_add_federation(self.ui_handle.clone(), id, invite),
+                            |_| Message::Noop,
+                        )
                 } else {
-                    self.add_federation_failure_reason = Some("Invalid invite code".to_string());
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                    Message::AddToast(Toast {
+                        title: "Failed to join mint".to_string(),
+                            body: "Invalid invite code".to_string(),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
             }
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
-                    self.add_federation_failure_reason = None;
-                    let id = Uuid::new_v4(); // todo use this id somewhere
-                    Task::perform(
-                        Self::async_peek_federation(self.ui_handle.clone(), id, invite),
-                        |_| Message::Noop,
-                    )
-                } else {
-                    self.peek_federation_failure_reason = Some("Invalid invite code".to_string());
-                    Task::none()
+                        self.peek_status = PeekStatus::Peeking;
+                        let id = Uuid::new_v4();
+                        Task::perform(
+                            Self::async_peek_federation(self.ui_handle.clone(), id, invite),
+                            |_| Message::Noop,
+                        )
+                    } else {
+                        Task::perform(async {}, |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to preview mint".to_string(),
+                            body: "Invalid invite code".to_string(),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
             }
             Message::ChangeFederation(id) => {
@@ -681,9 +705,15 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::AddFederationFailed(reason) => {
-                    self.add_federation_failure_reason = Some(reason);
+                    let reason = reason.clone();
                     self.peek_federation_item = None;
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to join mint".to_string(),
+                            body: reason.clone(),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
                 CoreUIMsg::FederationInfo(config) => {
                     // todo update the UI with the new config
@@ -717,13 +747,14 @@ impl HarborWallet {
                     };
 
                     self.peek_federation_item = Some(item);
-
+                    self.peek_status = PeekStatus::Idle;
                     Task::none()
                 }
                 CoreUIMsg::AddFederationSuccess => {
                     self.mint_invite_code_str = String::new();
                     self.active_route = Route::Mints(routes::MintSubroute::List);
                     self.peek_federation_item = None;
+                    self.add_federation_status = AddFederationStatus::Idle;
                     Task::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
