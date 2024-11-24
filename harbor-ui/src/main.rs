@@ -467,8 +467,14 @@ impl HarborWallet {
                         let amount = if self.is_max {
                             None
                         } else {
-                            // TODO: error handling
-                            Some(self.send_amount_input_str.parse::<u64>().unwrap())
+                            match self.send_amount_input_str.parse::<u64>() {
+                                Ok(amount) => Some(amount),
+                                Err(e) => {
+                                    eprintln!("Error parsing amount: {e}");
+                                    self.send_failure_reason = Some(e.to_string());
+                                    return Task::none();
+                                }
+                            }
                         };
                         Task::perform(
                             Self::async_send_onchain(
@@ -572,7 +578,7 @@ impl HarborWallet {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     self.unlock_failure_reason = None;
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
                     Task::perform(
                         Self::async_unlock(self.ui_handle.clone(), id, password),
                         |_| Message::Noop,
@@ -583,7 +589,7 @@ impl HarborWallet {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     self.unlock_failure_reason = None;
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
                     Task::perform(
                         Self::async_init(self.ui_handle.clone(), id, password),
                         |_| Message::Noop,
@@ -593,7 +599,7 @@ impl HarborWallet {
             Message::AddFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
                         Task::perform(
                             Self::async_add_federation(self.ui_handle.clone(), id, invite),
                             |_| Message::Noop,
@@ -648,7 +654,7 @@ impl HarborWallet {
             ]),
             Message::ShowSeedWords(show) => {
                 if show {
-                    let id = Uuid::new_v4(); // todo use this id somewhere
+                    let id = Uuid::new_v4();
                     Task::perform(
                         Self::async_get_seed_words(self.ui_handle.clone(), id),
                         |_| Message::Noop,
@@ -735,7 +741,6 @@ impl HarborWallet {
                     })
                 }
                 CoreUIMsg::FederationInfo(config) => {
-                    // todo update the UI with the new config
                     let id = config.calculate_federation_id();
                     let name = config.meta::<String>("federation_name");
                     let guardians: Vec<String> = config
@@ -756,7 +761,6 @@ impl HarborWallet {
                         _ => "Unknown".to_string(),
                     };
 
-                    // TODO: what to do about balance in this case? Maybe it should be Option<u64>?
                     let item = FederationItem {
                         id,
                         name,

@@ -11,12 +11,14 @@ use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
 use fedimint_core::config::{ClientConfig, FederationId};
+use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use fedimint_wallet_client::WalletClientModule;
+use futures::future::join_all;
 use futures::{channel::mpsc::Sender, SinkExt};
 use log::{error, trace};
 use std::collections::HashMap;
@@ -172,7 +174,6 @@ impl HarborCore {
         }
         let amount = Amount::from_msats(invoice.amount_milli_satoshis().expect("must have amount"));
 
-        // todo go through all clients and select the first one that has enough balance
         let client = self.get_client(federation_id).await.fedimint_client;
         let lightning_module = client
             .get_first_module::<LightningClientModule>()
@@ -293,13 +294,11 @@ impl HarborCore {
         address: Address<NetworkUnchecked>,
         sats: Option<u64>,
     ) -> anyhow::Result<()> {
-        // todo go through all clients and select the first one that has enough balance
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
             .get_first_module::<WalletClientModule>()
             .expect("must have wallet module");
 
-        // todo add manual fee selection
         let (fees, amount) = match sats {
             Some(sats) => {
                 let amount = bitcoin::Amount::from_sat(sats);
@@ -433,20 +432,35 @@ impl HarborCore {
         let clients = self.clients.read().await;
 
         // Tell the UI about any clients we have
-        clients
-            .values()
-            .map(|c| FederationItem {
+        join_all(clients.values().map(|c| async {
+            let balance = c.fedimint_client.get_balance().await;
+            let config = c.fedimint_client.config().await;
+
+            let guardians: Vec<String> = config
+                .global
+                .api_endpoints
+                .values()
+                .map(|url| url.name.clone())
+                .collect();
+
+            let module_kinds = config
+                .modules
+                .into_values()
+                .map(|module_config| module_config.kind().to_owned())
+                .collect::<Vec<ModuleKind>>();
+
+            FederationItem {
                 id: c.fedimint_client.federation_id(),
                 name: c
                     .fedimint_client
                     .get_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
-                // TODO: get the balance per fedimint
-                balance: 420,
-                guardians: None,
-                module_kinds: None,
-            })
-            .collect::<Vec<FederationItem>>()
+                balance: balance.sats_round_down(),
+                guardians: Some(guardians),
+                module_kinds: Some(module_kinds),
+            }
+        }))
+        .await
     }
 
     pub async fn get_seed_words(&self) -> String {
