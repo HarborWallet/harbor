@@ -122,16 +122,14 @@ pub struct HarborCore {
 }
 
 impl HarborCore {
-    pub async fn msg(&self, id: Option<Uuid>, msg: CoreUIMsg) {
-        self.tx
-            .clone()
-            .send(CoreUIMsgPacket { id, msg })
-            .await
-            .unwrap();
+    pub async fn msg(&self, id: Option<Uuid>, msg: CoreUIMsg) -> anyhow::Result<()> {
+        self.tx.clone().send(CoreUIMsgPacket { id, msg }).await?;
+
+        Ok(())
     }
 
     // Sends updates to the UI to refelect the initial state
-    pub async fn init_ui_state(&self) {
+    pub async fn init_ui_state(&self) -> anyhow::Result<()> {
         for client in self.clients.read().await.values() {
             let fed_balance = client.fedimint_client.get_balance().await;
             self.msg(
@@ -141,16 +139,18 @@ impl HarborCore {
                     balance: fed_balance,
                 },
             )
-            .await;
+            .await?;
         }
 
-        let history = self.storage.get_transaction_history().unwrap();
+        let history = self.storage.get_transaction_history()?;
         self.msg(None, CoreUIMsg::TransactionHistoryUpdated(history))
-            .await;
+            .await?;
 
         let federation_items = self.get_federation_items().await;
         self.msg(None, CoreUIMsg::FederationListUpdated(federation_items))
-            .await;
+            .await?;
+
+        Ok(())
     }
 
     async fn get_client(&self, federation_id: FederationId) -> FedimintClient {
