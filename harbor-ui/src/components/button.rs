@@ -41,9 +41,15 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
                 Status::Pressed => darken(Color::BLACK, 0.1),
                 _ => theme.palette().background,
             };
+
+            let text_color = match status {
+                Status::Disabled => gray,
+                _ => Color::WHITE,
+            };
+
             button::Style {
                 background: Some(background.into()),
-                text_color: Color::WHITE,
+                text_color,
                 border,
                 shadow: Shadow::default(),
             }
@@ -67,6 +73,8 @@ pub fn sidebar_button(
 
     Button::new(content)
         .style(move |theme, status| {
+            let gray = lighten(theme.palette().background, 0.5);
+
             let border = Border {
                 color: Color::WHITE,
                 width: 0.,
@@ -85,9 +93,15 @@ pub fn sidebar_button(
                 (Status::Pressed, false) => darken(bg_color, 0.1),
                 _ => bg_color,
             };
+
+            let text_color = match status {
+                Status::Disabled => gray,
+                _ => Color::WHITE,
+            };
+
             button::Style {
                 background: Some(background.into()),
-                text_color: Color::WHITE,
+                text_color,
                 border,
                 shadow: Shadow::default(),
             }

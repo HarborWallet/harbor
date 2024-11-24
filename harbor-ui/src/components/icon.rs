@@ -9,6 +9,7 @@ pub enum SvgIcon {
     Heart,
     Home,
     LeftRight,
+    ArrowLeft,
     People,
     Settings,
     Squirrel,
@@ -21,6 +22,8 @@ pub enum SvgIcon {
     Bolt,
     Chain,
     Eye,
+    EyeClosed,
+    Clock,
 }
 
 macro_rules! icon_handle {
@@ -51,6 +54,9 @@ pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
         SvgIcon::Bolt => icon_handle!("bolt.svg"),
         SvgIcon::Chain => icon_handle!("chain.svg"),
         SvgIcon::Eye => icon_handle!("eye.svg"),
+        SvgIcon::EyeClosed => icon_handle!("eye_closed.svg"),
+        SvgIcon::Clock => icon_handle!("clock.svg"),
+        SvgIcon::ArrowLeft => icon_handle!("arrow_left.svg"),
     }
     .width(width)
     .height(height)

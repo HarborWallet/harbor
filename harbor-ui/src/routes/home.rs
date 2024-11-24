@@ -9,11 +9,24 @@ use super::Route;
 pub fn home(harbor: &HarborWallet) -> Element<Message> {
     let formatted_balance = format_amount(harbor.balance_sats());
     let balance = text(formatted_balance).size(64);
-    let send_button =
-        h_button("Send", SvgIcon::UpRight, false).on_press(Message::Navigate(Route::Send));
-    let receive_button =
-        h_button("Deposit", SvgIcon::DownLeft, false).on_press(Message::Navigate(Route::Receive));
-    let buttons = row![receive_button, send_button].spacing(32);
+    let send_disabled = harbor.balance_sats() == 0;
+    let receive_disabled = harbor.active_federation.is_none();
+    let send_button = h_button("Send", SvgIcon::UpRight, false);
+    let receive_button = h_button("Deposit", SvgIcon::DownLeft, false);
+
+    let buttons = row![
+        if !send_disabled {
+            send_button.on_press(Message::Navigate(Route::Send))
+        } else {
+            send_button
+        },
+        if !receive_disabled {
+            receive_button.on_press(Message::Navigate(Route::Receive))
+        } else {
+            receive_button
+        }
+    ]
+    .spacing(32);
 
     column![
         h_screen_header(harbor, false),

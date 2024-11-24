@@ -3,7 +3,8 @@ use iced::{
         column, row, text,
         text_input::{self, focus, Id},
         TextInput,
-    }, Background, Border, Color, Element, Task, Theme
+    },
+    Background, Border, Color, Element, Task, Theme,
 };
 
 use crate::Message;

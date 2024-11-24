@@ -1,3 +1,5 @@
+use crate::bridge::run_core;
+use crate::components::focus_input_id;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::Address;
 use components::{Toast, ToastManager, ToastStatus};
@@ -6,6 +8,9 @@ use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use harbor_client::db_models::transaction_item::TransactionItem;
+use harbor_client::db_models::FederationItem;
+use harbor_client::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
 use iced::widget::qr_code::Data;
 use iced::widget::row;
 use iced::Element;
@@ -19,11 +24,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
-use harbor_client::db_models::FederationItem;
-use harbor_client::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
-use harbor_client::db_models::transaction_item::TransactionItem;
-use crate::bridge::run_core;
-use crate::components::focus_input_id;
 
 pub mod bridge;
 pub mod components;
@@ -199,6 +199,8 @@ pub struct HarborWallet {
     current_receive_id: Option<Uuid>,
     peek_status: PeekStatus,
     add_federation_status: AddFederationStatus,
+    // Onboarding
+    show_add_a_mint_cta: bool,
 }
 
 impl HarborWallet {
@@ -351,7 +353,14 @@ impl HarborWallet {
                             self.active_route = route;
                         }
                     },
-                    _ => self.active_route = route,
+                    _ => match route {
+                        Route::Mints(_) => {
+                            // Hide the add a mint cta when navigating to mints
+                            self.show_add_a_mint_cta = false;
+                            self.active_route = route;
+                        }
+                        _ => self.active_route = route,
+                    },
                 }
                 Task::none()
             }
@@ -606,8 +615,8 @@ impl HarborWallet {
                         )
                 } else {
                     Task::perform(async {}, move |_| {
-                    Message::AddToast(Toast {
-                        title: "Failed to join mint".to_string(),
+                        Message::AddToast(Toast {
+                            title: "Failed to join mint".to_string(),
                             body: "Invalid invite code".to_string(),
                             status: ToastStatus::Bad,
                         })
@@ -617,14 +626,14 @@ impl HarborWallet {
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
-                        self.peek_status = PeekStatus::Peeking;
-                        let id = Uuid::new_v4();
-                        Task::perform(
-                            Self::async_peek_federation(self.ui_handle.clone(), id, invite),
-                            |_| Message::Noop,
-                        )
-                    } else {
-                        Task::perform(async {}, |_| {
+                    self.peek_status = PeekStatus::Peeking;
+                    let id = Uuid::new_v4();
+                    Task::perform(
+                        Self::async_peek_federation(self.ui_handle.clone(), id, invite),
+                        |_| Message::Noop,
+                    )
+                } else {
+                    Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Failed to preview mint".to_string(),
                             body: "Invalid invite code".to_string(),
@@ -834,6 +843,9 @@ impl HarborWallet {
                 CoreUIMsg::UnlockSuccess => {
                     self.unlock_status = UnlockStatus::Unlocked;
                     self.active_route = Route::Home;
+                    if self.federation_list.is_empty() {
+                        self.show_add_a_mint_cta = true;
+                    }
                     Task::none()
                 }
                 CoreUIMsg::UnlockFailed(reason) => {

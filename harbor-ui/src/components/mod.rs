@@ -51,3 +51,6 @@ pub use colors::*;
 
 mod styles;
 pub use styles::*;
+
+mod indicator;
+pub use indicator::*;
