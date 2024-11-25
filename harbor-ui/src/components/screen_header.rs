@@ -1,19 +1,15 @@
+use crate::{HarborWallet, Message};
+use harbor_client::db_models::FederationItem;
 use iced::{
     widget::{column, row, text},
     Alignment, Element, Length,
 };
-use harbor_client::db_models::FederationItem;
-use crate::{HarborWallet, Message};
 
 use super::{format_amount, hr, map_icon, vr, SvgIcon};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.active_federation.as_ref() {
-        let FederationItem {
-            name,
-            balance,
-            ..
-        } = item;
+        let FederationItem { name, balance, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
         let current_federation = row![people_icon, text(name).size(24)]
             .align_y(Alignment::Center)

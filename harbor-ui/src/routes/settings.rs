@@ -23,7 +23,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
 
     let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
         (true, Some(s)) => {
-            let button = h_button("Hide Seed Words", SvgIcon::Squirrel, false)
+            let button = h_button("Hide Seed Words", SvgIcon::EyeClosed, false)
                 .on_press(Message::ShowSeedWords(false));
 
             let words = text(s).size(24);
@@ -34,7 +34,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
             column![header, button, words, copy_button]
         }
         _ => {
-            let button = h_button("Show Seed Words", SvgIcon::Squirrel, false)
+            let button = h_button("Show Seed Words", SvgIcon::Eye, false)
                 .on_press(Message::ShowSeedWords(true));
 
             column![
