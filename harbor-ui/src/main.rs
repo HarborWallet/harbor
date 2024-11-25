@@ -201,6 +201,7 @@ pub struct HarborWallet {
     add_federation_status: AddFederationStatus,
     // Onboarding
     show_add_a_mint_cta: bool,
+    has_navigated_to_mints: bool,
 }
 
 impl HarborWallet {
@@ -357,6 +358,7 @@ impl HarborWallet {
                         Route::Mints(_) => {
                             // Hide the add a mint cta when navigating to mints
                             self.show_add_a_mint_cta = false;
+                            self.has_navigated_to_mints = true;
                             self.active_route = route;
                         }
                         _ => self.active_route = route,
@@ -795,6 +797,9 @@ impl HarborWallet {
                         self.active_federation = list.first().cloned();
                     }
 
+                    // Show the CTA if we have no federations and we haven't navigated to the mints page yet
+                    self.show_add_a_mint_cta = list.is_empty() && !self.has_navigated_to_mints;
+
                     self.federation_list = list;
                     Task::none()
                 }
@@ -843,9 +848,6 @@ impl HarborWallet {
                 CoreUIMsg::UnlockSuccess => {
                     self.unlock_status = UnlockStatus::Unlocked;
                     self.active_route = Route::Home;
-                    if self.federation_list.is_empty() {
-                        self.show_add_a_mint_cta = true;
-                    }
                     Task::none()
                 }
                 CoreUIMsg::UnlockFailed(reason) => {
