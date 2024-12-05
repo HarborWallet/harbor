@@ -28,7 +28,6 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-pub mod core;
 pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
@@ -59,6 +58,7 @@ pub enum UICoreMsg {
     },
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
+    RemoveFederation(FederationId),
     Unlock(String),
     Init {
         password: String,
@@ -99,8 +99,10 @@ pub enum CoreUIMsg {
     TransactionHistoryUpdated(Vec<TransactionItem>),
     FederationBalanceUpdated { id: FederationId, balance: Amount },
     AddFederationFailed(String),
+    RemoveFederationFailed(String),
     FederationInfo(ClientConfig),
     AddFederationSuccess,
+    RemoveFederationSuccess,
     FederationListUpdated(Vec<FederationItem>),
     NeedsInit,
     Initing,
@@ -424,6 +426,17 @@ impl HarborCore {
         .await?;
 
         clients.insert(client.fedimint_client.federation_id(), client);
+
+        Ok(())
+    }
+
+    pub async fn remove_federation(&self, id: FederationId) -> anyhow::Result<()> {
+        let mut clients = self.clients.write().await;
+        if clients.remove(&id).is_none() {
+            return Err(anyhow!("Federation doesn't exist"));
+        }
+
+        self.storage.remove_federation(id)?;
 
         Ok(())
     }
