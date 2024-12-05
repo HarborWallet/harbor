@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct Fedimint {
     pub id: String,
     pub value: Vec<u8>,
+    pub active: i32,
 }
 
 impl Fedimint {
@@ -20,8 +21,18 @@ impl Fedimint {
             .map(|v| v.value))
     }
 
+    pub fn remove_federation(conn: &mut SqliteConnection, id: String) -> anyhow::Result<()> {
+        diesel::update(fedimint::table)
+            .filter(fedimint::id.eq(&id))
+            .set(fedimint::active.eq(0))
+            .execute(conn)?;
+
+        Ok(())
+    }
+
     pub fn get_ids(conn: &mut SqliteConnection) -> anyhow::Result<Vec<String>> {
         Ok(fedimint::table
+            .filter(fedimint::active.eq(1))
             .load::<Self>(conn)?
             .into_iter()
             .map(|f| f.id)
@@ -31,7 +42,10 @@ impl Fedimint {
     pub fn update(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
         let _ = diesel::update(fedimint::table)
             .filter(fedimint::id.eq(&self.id))
-            .set(fedimint::value.eq(&self.value))
+            .set((
+                fedimint::value.eq(&self.value),
+                fedimint::active.eq(self.active),
+            ))
             .execute(conn)?;
 
         Ok(())
@@ -50,6 +64,7 @@ impl From<&NewFedimint> for Fedimint {
         Fedimint {
             id: new_fedimint.id.clone(),
             value: new_fedimint.value.clone(),
+            active: 1,
         }
     }
 }

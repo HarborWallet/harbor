@@ -4,6 +4,7 @@ diesel::table! {
     fedimint (id) {
         id -> Text,
         value -> Binary,
+        active -> Integer,
     }
 }
 

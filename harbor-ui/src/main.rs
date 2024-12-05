@@ -135,6 +135,7 @@ pub enum Message {
     Init(String), // TODO add seed option
     AddFederation(String),
     PeekFederation(String),
+    RemoveFederation(FederationId),
     ChangeFederation(FederationId),
     Donate,
     // Core messages we get from core
@@ -307,6 +308,18 @@ impl HarborWallet {
     ) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.peek_federation(id, invite).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_remove_federation(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
+        federation_id: FederationId,
+    ) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.remove_federation(id, federation_id).await;
         } else {
             panic!("UI handle is None");
         }
@@ -611,10 +624,10 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     let id = Uuid::new_v4();
-                        Task::perform(
-                            Self::async_add_federation(self.ui_handle.clone(), id, invite),
-                            |_| Message::Noop,
-                        )
+                    Task::perform(
+                        Self::async_add_federation(self.ui_handle.clone(), id, invite),
+                        |_| Message::Noop,
+                    )
                 } else {
                     Task::perform(async {}, move |_| {
                         Message::AddToast(Toast {
@@ -643,6 +656,14 @@ impl HarborWallet {
                         })
                     })
                 }
+            }
+            Message::RemoveFederation(federation_id) => {
+                self.peek_status = PeekStatus::Peeking;
+                let id = Uuid::new_v4();
+                Task::perform(
+                    Self::async_remove_federation(self.ui_handle.clone(), id, federation_id),
+                    |_| Message::Noop,
+                )
             }
             Message::ChangeFederation(id) => {
                 let federation = self
@@ -751,6 +772,17 @@ impl HarborWallet {
                         })
                     })
                 }
+                CoreUIMsg::RemoveFederationFailed(reason) => {
+                    let reason = reason.clone();
+                    self.peek_federation_item = None;
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to remove mint".to_string(),
+                            body: reason.clone(),
+                            status: ToastStatus::Bad,
+                        })
+                    })
+                }
                 CoreUIMsg::FederationInfo(config) => {
                     let id = config.calculate_federation_id();
                     let name = config.meta::<String>("federation_name");
@@ -789,6 +821,10 @@ impl HarborWallet {
                     self.active_route = Route::Mints(routes::MintSubroute::List);
                     self.peek_federation_item = None;
                     self.add_federation_status = AddFederationStatus::Idle;
+                    Task::none()
+                }
+                CoreUIMsg::RemoveFederationSuccess => {
+                    // todo
                     Task::none()
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
