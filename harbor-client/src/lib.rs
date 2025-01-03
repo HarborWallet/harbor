@@ -142,33 +142,36 @@ pub struct HarborCore {
 }
 
 impl HarborCore {
-    pub async fn msg(&self, id: Option<Uuid>, msg: CoreUIMsg) -> anyhow::Result<()> {
-        self.tx.clone().send(CoreUIMsgPacket { id, msg }).await?;
+    // Initial setup messages that don't have an id
+    // Panics if fails to send
+    async fn send_system_msg(&self, msg: CoreUIMsg) {
+        self.tx.clone().send(CoreUIMsgPacket { id: None, msg }).await.expect("Could not communicate with the UI");
+    }
 
-        Ok(())
+    // Standard core->ui communication with an id
+    // Panics if fails to send
+    pub async fn msg(&self, id: Uuid, msg: CoreUIMsg) {
+        self.tx.clone().send(CoreUIMsgPacket { id: Some(id), msg }).await.expect("Could not communicate with the UI");
     }
 
     // Sends updates to the UI to refelect the initial state
     pub async fn init_ui_state(&self) -> anyhow::Result<()> {
         for client in self.clients.read().await.values() {
             let fed_balance = client.fedimint_client.get_balance().await;
-            self.msg(
-                None,
-                CoreUIMsg::FederationBalanceUpdated {
-                    id: client.fedimint_client.federation_id(),
-                    balance: fed_balance,
-                },
-            )
-            .await?;
+            self.send_system_msg(CoreUIMsg::FederationBalanceUpdated {
+                id: client.fedimint_client.federation_id(),
+                balance: fed_balance,
+            })
+            .await;
         }
 
         let history = self.storage.get_transaction_history()?;
-        self.msg(None, CoreUIMsg::TransactionHistoryUpdated(history))
-            .await?;
+        self.send_system_msg(CoreUIMsg::TransactionHistoryUpdated(history))
+            .await;
 
         let federation_items = self.get_federation_items().await;
-        self.msg(None, CoreUIMsg::FederationListUpdated(federation_items))
-            .await?;
+        self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
+            .await;
 
         Ok(())
     }
