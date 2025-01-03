@@ -1,5 +1,5 @@
-use iced::widget::{column, row, text};
-use iced::{Element, Length};
+use iced::widget::{column, text};
+use iced::Element;
 
 use crate::components::{basic_layout, h_button, h_federation_item, h_header, h_input, SvgIcon};
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
@@ -21,11 +21,11 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
             .federation_list
             .iter()
             .fold(column![], |column, item| {
-                let fed_item = h_federation_item(item, item.id != active_federation.id);
-                let button = h_button("", SvgIcon::ChevronDown, false)
-                    .width(Length::Fixed(24.))
-                    .on_press(Message::RemoveFederation(item.id));
-                column.push(row![button, fed_item].spacing(16))
+                column.push(h_federation_item(
+                    item,
+                    item.id != active_federation.id,
+                    true,
+                ))
             })
             .spacing(48)
     };
@@ -65,7 +65,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
         }
 
         Some(peek_federation_item) => {
-            let federation_preview = h_federation_item(peek_federation_item, false);
+            let federation_preview = h_federation_item(peek_federation_item, false, false);
 
             let add_mint_button = h_button(
                 "Add Mint",

@@ -824,8 +824,14 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::RemoveFederationSuccess => {
-                    // todo
-                    Task::none()
+                    Task::perform(async {}, |_| {
+                        Message::AddToast(Toast {
+                            title: "Mint removed".to_string(),
+                            // TODO: maybe we should make body optional
+                            body: "...".to_string(),
+                            status: ToastStatus::Neutral,
+                        })
+                    })
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
                     // if we don't have an active federation, set it to the first one

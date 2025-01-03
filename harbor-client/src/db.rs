@@ -71,7 +71,7 @@ pub trait DBConnection {
     // Inserts a new federation into the DB
     fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint>;
 
-    // Inserts a new federation into the DB
+    // Removes a federation from the DB
     fn remove_federation(&self, f: FederationId) -> anyhow::Result<()>;
 
     // gets the federation data for a specific federation
