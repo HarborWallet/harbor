@@ -71,6 +71,9 @@ pub trait DBConnection {
     // Inserts a new federation into the DB
     fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint>;
 
+    // Removes a federation from the DB
+    fn remove_federation(&self, f: FederationId) -> anyhow::Result<()>;
+
     // gets the federation data for a specific federation
     fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>>;
 
@@ -182,7 +185,11 @@ impl DBConnection for SQLConnection {
 
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
-        let f = Fedimint { id, value };
+        let f = Fedimint {
+            id,
+            value,
+            active: 1,
+        };
         f.update(conn)
     }
 
@@ -381,6 +388,12 @@ impl DBConnection for SQLConnection {
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(items)
+    }
+
+    fn remove_federation(&self, f: FederationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        Fedimint::remove_federation(conn, f.to_string())?;
+        Ok(())
     }
 }
 

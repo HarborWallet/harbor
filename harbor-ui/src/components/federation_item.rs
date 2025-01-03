@@ -8,7 +8,7 @@ use iced::{
 use super::{bold_text, h_button, regular_text, subtitle, truncate_text};
 use super::{format_amount, map_icon, SvgIcon};
 
-pub fn h_federation_item(item: &FederationItem, show_button: bool) -> Element<Message> {
+pub fn h_federation_item(item: &FederationItem, show_button: bool, is_added: bool) -> Element<Message> {
     let FederationItem {
         id,
         name,
@@ -58,6 +58,12 @@ pub fn h_federation_item(item: &FederationItem, show_button: bool) -> Element<Me
         let button = h_button("Set as active Mint", SvgIcon::Squirrel, false)
             .on_press(Message::ChangeFederation(*id));
         column = column.push(button);
+    }
+
+    if is_added {
+        let remove_button = h_button("Remove Mint", SvgIcon::Trash, false)
+            .on_press(Message::RemoveFederation(*id));
+        column = column.push(remove_button);
     }
 
     column.into()

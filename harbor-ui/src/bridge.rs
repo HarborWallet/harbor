@@ -130,6 +130,14 @@ impl UIHandle {
         .await;
     }
 
+    pub async fn remove_federation(&self, id: Uuid, federation_id: FederationId) {
+        self.msg_send(UICoreMsgPacket {
+            msg: UICoreMsg::RemoveFederation(federation_id),
+            id,
+        })
+        .await;
+    }
+
     pub async fn get_seed_words(&self, id: Uuid) {
         self.msg_send(UICoreMsgPacket {
             msg: UICoreMsg::GetSeedWords,
@@ -479,6 +487,28 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 .expect("Could not send");
                         } else {
                             core.msg(Some(msg.id), CoreUIMsg::AddFederationSuccess)
+                                .await
+                                .expect("Could not send");
+                            let new_federation_list = core.get_federation_items().await;
+                            core.msg(
+                                Some(msg.id),
+                                CoreUIMsg::FederationListUpdated(new_federation_list),
+                            )
+                            .await
+                            .expect("Could not send");
+                        }
+                    }
+                    UICoreMsg::RemoveFederation(id) => {
+                        if let Err(e) = core.remove_federation(id).await {
+                            error!("Error removing federation: {e}");
+                            core.msg(
+                                Some(msg.id),
+                                CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                            )
+                            .await
+                            .expect("Could not send");
+                        } else {
+                            core.msg(Some(msg.id), CoreUIMsg::RemoveFederationSuccess)
                                 .await
                                 .expect("Could not send");
                             let new_federation_list = core.get_federation_items().await;

@@ -18,3 +18,6 @@ release:
 
 clippy:
     cargo clippy --all-features --tests -- -D warnings
+
+clear-signet:
+    rm -rf ~/.harbor/signet

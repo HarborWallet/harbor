@@ -21,7 +21,11 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
             .federation_list
             .iter()
             .fold(column![], |column, item| {
-                column.push(h_federation_item(item, item.id != active_federation.id))
+                column.push(h_federation_item(
+                    item,
+                    item.id != active_federation.id,
+                    true,
+                ))
             })
             .spacing(48)
     };
@@ -61,7 +65,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
         }
 
         Some(peek_federation_item) => {
-            let federation_preview = h_federation_item(peek_federation_item, false);
+            let federation_preview = h_federation_item(peek_federation_item, false, false);
 
             let add_mint_button = h_button(
                 "Add Mint",

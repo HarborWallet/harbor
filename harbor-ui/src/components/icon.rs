@@ -24,6 +24,7 @@ pub enum SvgIcon {
     Eye,
     EyeClosed,
     Clock,
+    Trash,
 }
 
 macro_rules! icon_handle {
@@ -57,6 +58,7 @@ pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
         SvgIcon::EyeClosed => icon_handle!("eye_closed.svg"),
         SvgIcon::Clock => icon_handle!("clock.svg"),
         SvgIcon::ArrowLeft => icon_handle!("arrow_left.svg"),
+        SvgIcon::Trash => icon_handle!("trash.svg"),
     }
     .width(width)
     .height(height)
