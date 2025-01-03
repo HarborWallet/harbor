@@ -3,8 +3,10 @@ use crate::db_models::{
     Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
     OnChainReceive, Profile,
 };
+use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
+use bip39::{Language, Mnemonic};
 use diesel::{
     connection::SimpleConnection,
     r2d2::{ConnectionManager, Pool},
@@ -15,8 +17,10 @@ use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use log::{error, info};
 use rusqlite::{Connection, OpenFlags};
 use std::{sync::Arc, time::Duration};
+use std::str::FromStr;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -37,9 +41,9 @@ pub fn check_password(url: &str, password: &str) -> anyhow::Result<()> {
         Ok(_) => Ok(()),
         Err(e) => {
             if e.to_string() == "file is not a database" {
-                Err(anyhow::anyhow!("Invalid password"))
+                Err(anyhow!("Invalid password"))
             } else {
-                Err(anyhow::anyhow!("Could not open database: {e}"))
+                Err(anyhow!("Could not open database: {e}"))
             }
         }
     }
@@ -67,6 +71,12 @@ pub trait DBConnection {
 
     // Inserts a new profile into the DB
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile>;
+
+    // Retrieves the mnemonic from the DB
+    fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic>;
+
+    // Generates a new mnemonic and stores it in the DB
+    fn generate_mnemonic(&self, words: Option<String>) -> anyhow::Result<Mnemonic>;
 
     // Inserts a new federation into the DB
     fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint>;
@@ -394,6 +404,33 @@ impl DBConnection for SQLConnection {
         let conn = &mut self.db.get()?;
         Fedimint::remove_federation(conn, f.to_string())?;
         Ok(())
+    }
+
+    fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic> {
+        match self.get_seed()? {
+            Some(m) => {
+                info!("retrieved existing seed");
+                Ok(Mnemonic::from_str(&m)?)
+            }
+            None => {
+                error!("Tried to retrieve seed but none was stored");
+                Err(anyhow!("No seed stored"))
+            }
+        }
+    }
+
+    fn generate_mnemonic(&self, words: Option<String>) -> anyhow::Result<Mnemonic> {
+        let mnemonic_words = words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
+
+        let new_profile = NewProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            seed_words: mnemonic_words,
+        };
+
+        let p = self.insert_new_profile(new_profile)?;
+
+        info!("creating new seed");
+        Ok(Mnemonic::from_str(&p.seed_words)?)
     }
 }
 

@@ -1,5 +1,4 @@
-use crate::conf::{generate_mnemonic, retrieve_mnemonic};
-use crate::{conf, Message};
+use crate::Message;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network};
 use fedimint_core::config::FederationId;
@@ -8,8 +7,7 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db::{check_password, setup_db, DBConnection};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
-use harbor_client::HarborCore;
-use harbor_client::{CoreUIMsg, CoreUIMsgPacket, UICoreMsg, UICoreMsgPacket};
+use harbor_client::{CoreUIMsg, CoreUIMsgPacket, UICoreMsg, UICoreMsgPacket, HarborCore, data_dir};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use log::{error, warn};
@@ -181,7 +179,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
         let network = Network::Signet;
 
         // Create the datadir if it doesn't exist
-        let path = PathBuf::from(&conf::data_dir(network));
+        let path = PathBuf::from(&data_dir(network));
         std::fs::create_dir_all(&path).expect("Could not create datadir");
         log::info!("Using datadir: {path:?}");
 
@@ -265,7 +263,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     }
                     let db = db.expect("no error");
 
-                    let mnemonic = retrieve_mnemonic(db.clone()).expect("should get seed");
+                    let mnemonic = db.retrieve_mnemonic().expect("should get seed");
 
                     let stop = Arc::new(AtomicBool::new(false));
 
@@ -357,8 +355,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     let core = HarborCore {
                         storage: db.clone(),
                         tx: core_tx,
-                        mnemonic: generate_mnemonic(db.clone(), seed)
-                            .expect("should generate words"),
+                        mnemonic: db.generate_mnemonic(seed).expect("should generate words"),
                         network,
                         clients: Arc::new(RwLock::new(HashMap::new())),
                         stop: Arc::new(AtomicBool::new(false)),
