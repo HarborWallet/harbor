@@ -27,7 +27,6 @@ use uuid::Uuid;
 
 pub mod bridge;
 pub mod components;
-pub mod conf;
 pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
