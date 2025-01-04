@@ -125,6 +125,7 @@ pub enum Message {
     SetTransferFrom(String),
     SetTransferTo(String),
     TransferAmountInputChanged(String),
+    UrlClicked(String),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -694,6 +695,15 @@ impl HarborWallet {
                     self.settings_show_seed_words = false;
                     Task::none()
                 }
+            }
+            // TODO: we might want an intermediate modal
+            // To warn people that this will open their browser
+            Message::UrlClicked(url) => {
+                log::info!("Url clicked: {}", url);
+                if let Err(e) = webbrowser::open(&url) {
+                    log::error!("Failed to open URL: {}", e);
+                }
+                Task::none()
             }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg.msg {
