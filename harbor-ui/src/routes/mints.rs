@@ -49,6 +49,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
                 label: "Mint Invite Code",
                 value: &harbor.mint_invite_code_str,
                 on_input: Message::MintInviteCodeInputChanged,
+                disabled: harbor.peek_status == PeekStatus::Peeking,
                 ..InputArgs::default()
             });
 
