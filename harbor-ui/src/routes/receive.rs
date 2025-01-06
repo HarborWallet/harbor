@@ -1,5 +1,6 @@
 use crate::components::{
-    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, mini_copy, SvgIcon,
+    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, mini_copy,
+    InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use harbor_client::ReceiveSuccessMsg;
@@ -63,16 +64,15 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             let method_choice_label = text("Method").size(24);
             let method_choice = column![method_choice_label, lightning, onchain].spacing(16);
 
-            let amount_input = h_input(
-                "Amount",
-                "420",
-                &harbor.receive_amount_str,
-                Message::ReceiveAmountChanged,
-                None,
-                false,
-                None,
-                Some("sats"),
-            );
+            let amount_input = h_input(InputArgs {
+                label: "Amount",
+                placeholder: "420",
+                value: &harbor.receive_amount_str,
+                on_input: Message::ReceiveAmountChanged,
+                numeric: true,
+                suffix: Some("sats"),
+                ..InputArgs::default()
+            });
 
             let generating = harbor.receive_status == ReceiveStatus::Generating;
 

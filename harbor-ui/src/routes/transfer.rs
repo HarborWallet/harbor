@@ -2,7 +2,7 @@ use iced::widget::{column, container, pick_list, scrollable, text, PickList};
 use iced::Element;
 use iced::{Length, Padding};
 
-use crate::components::{h_button, h_header, h_input, SvgIcon};
+use crate::components::{h_button, h_header, h_input, InputArgs, SvgIcon};
 use crate::{HarborWallet, Message};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
@@ -36,16 +36,15 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
 
     let destination = column![text("Destination").size(24), destination_list].spacing(16);
 
-    let amount_input = h_input(
-        "Amount",
-        "420",
-        &harbor.transfer_amount_input_str,
-        Message::TransferAmountInputChanged,
-        None,
-        false,
-        None,
-        Some("sats"),
-    );
+    let amount_input = h_input(InputArgs {
+        label: "Amount",
+        placeholder: "420",
+        value: &harbor.transfer_amount_input_str,
+        on_input: Message::TransferAmountInputChanged,
+        numeric: true,
+        suffix: Some("sats"),
+        ..InputArgs::default()
+    });
 
     // TODO: atually transfer
     let transfer_button = h_button("Transfer", SvgIcon::LeftRight, false).on_press(Message::Noop);
