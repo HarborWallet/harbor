@@ -15,6 +15,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         amount,
         direction,
         timestamp,
+        txid: _, // todo use me
     } = item;
     let kind_icon = match kind {
         TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),

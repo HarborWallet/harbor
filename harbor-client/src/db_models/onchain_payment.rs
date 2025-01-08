@@ -137,6 +137,7 @@ impl From<OnChainPayment> for TransactionItem {
         Self {
             kind: TransactionItemKind::Onchain,
             amount: payment.amount_sats as u64,
+            txid: payment.txid.map(|t| Txid::from_str(&t).expect("invalid txid")),
             direction: TransactionDirection::Outgoing,
             timestamp: payment.created_at.and_utc().timestamp() as u64,
         }
