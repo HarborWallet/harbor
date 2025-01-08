@@ -10,15 +10,12 @@ vendored = ["harbor-client/vendored"]
 [dependencies]
 harbor-client = { version = "0.1.0", path = "../harbor-client" }
 
-anyhow = "1.0.89"
 log = "0.4"
 pretty_env_logger = "0.5" # todo swap to a file logger
 iced = { version = "0.13.1", features = ["debug", "tokio", "svg", "qr_code", "advanced"] }
 lyon_algorithms = "1.0"
-once_cell = "1.0"
 tokio = { version = "1", features = ["full"] }
 palette = "0.7"
-home = "0.5.9"
 chrono = "0.4.38"
 uuid = { version = "1.8", features = ["v4"] }
 

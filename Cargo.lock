@@ -3253,6 +3253,7 @@ dependencies = [
  "fedimint-wallet-client",
  "futures",
  "hex",
+ "home",
  "log",
  "rusqlite",
  "serde",
@@ -3265,18 +3266,15 @@ dependencies = [
 name = "harbor-ui"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bip39",
  "bitcoin 0.30.2",
  "chrono",
  "fedimint-core",
  "fedimint-ln-common",
  "harbor-client",
- "home",
  "iced",
  "log",
  "lyon_algorithms",
- "once_cell",
  "palette",
  "pretty_env_logger",
  "tokio",
