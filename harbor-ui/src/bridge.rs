@@ -508,9 +508,6 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             .await
                             .expect("Could not send");
                         } else {
-                            core.msg(Some(msg.id), CoreUIMsg::RemoveFederationSuccess)
-                                .await
-                                .expect("Could not send");
                             let new_federation_list = core.get_federation_items().await;
                             core.msg(
                                 Some(msg.id),
@@ -518,6 +515,9 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             )
                             .await
                             .expect("Could not send");
+                            core.msg(Some(msg.id), CoreUIMsg::RemoveFederationSuccess)
+                                .await
+                                .expect("Could not send");
                         }
                     }
                     UICoreMsg::Unlock(_password) => {

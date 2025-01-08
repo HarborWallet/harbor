@@ -16,18 +16,50 @@ pub fn focus_input_id(id: &'static str) -> Task<Message> {
     focus(id)
 }
 
-// TODO: could maybe make a struct for the args here with some nice defaults
-#[allow(clippy::too_many_arguments)]
-pub fn h_input<'a>(
-    label: &'static str,
-    placeholder: &'static str,
-    value: &'a str,
-    on_input: impl Fn(String) -> Message + 'a,
-    on_submit: Option<Message>,
-    secure: bool,
-    id: Option<&'static str>,
-    suffix: Option<&'static str>,
-) -> Element<'a, Message, Theme> {
+pub struct InputArgs<'a> {
+    pub label: &'static str,
+    pub placeholder: &'static str,
+    pub value: &'a str,
+    pub on_input: fn(String) -> Message,
+    pub on_submit: Option<Message>,
+    pub disabled: bool,
+    pub secure: bool,
+    pub numeric: bool,
+    pub id: Option<&'static str>,
+    pub suffix: Option<&'static str>,
+}
+
+impl Default for InputArgs<'_> {
+    fn default() -> Self {
+        Self {
+            label: "",
+            placeholder: "",
+            value: "",
+            on_input: |_| Message::Noop,
+            on_submit: None,
+            disabled: false,
+            secure: false,
+            numeric: false,
+            id: None,
+            suffix: None,
+        }
+    }
+}
+
+pub fn h_input(args: InputArgs<'_>) -> Element<Message, Theme> {
+    let InputArgs {
+        label,
+        placeholder,
+        value,
+        on_input,
+        on_submit,
+        disabled,
+        secure,
+        numeric,
+        id,
+        suffix,
+    } = args;
+
     let on_submit = on_submit.unwrap_or(Message::Noop);
 
     let input = TextInput::new(placeholder, value)
@@ -56,9 +88,30 @@ pub fn h_input<'a>(
         })
         .size(24)
         .padding(8)
-        .secure(secure)
-        .on_input(on_input)
-        .on_submit(on_submit);
+        .secure(secure);
+
+    let input = if disabled {
+        input
+    } else {
+        // If the input isn't disable we can add the on_input and on_submit handlers
+        input
+            .on_input(move |text| {
+                let text = if numeric {
+                    let num = text.parse::<u64>().unwrap_or(0);
+                    // If the value is already 0, typing 1 turns it into 10
+                    // Which is annoying, so we'll just clear it
+                    if num == 0 {
+                        "".to_string()
+                    } else {
+                        num.to_string()
+                    }
+                } else {
+                    text
+                };
+                on_input(text)
+            })
+            .on_submit(on_submit)
+    };
 
     let label = text(label).size(24);
 

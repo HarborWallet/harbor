@@ -1,5 +1,5 @@
 use crate::{
-    components::{h_button, h_input, harbor_logo, SvgIcon},
+    components::{h_button, h_input, harbor_logo, InputArgs, SvgIcon},
     UnlockStatus,
 };
 use iced::{
@@ -25,16 +25,16 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
     .on_press_maybe(action.clone())
     .width(Length::Fill);
 
-    let password_input = h_input(
-        "Password",
-        "",
-        &harbor.password_input_str,
-        Message::PasswordInputChanged,
-        action,
-        true,
-        Some("password_unlock_input"),
-        None,
-    );
+    let password_input = h_input(InputArgs {
+        label: "Password",
+        value: &harbor.password_input_str,
+        on_input: Message::PasswordInputChanged,
+        on_submit: action,
+        disabled: harbor.unlock_status == UnlockStatus::Unlocking,
+        secure: true,
+        id: Some("password_unlock_input"),
+        ..InputArgs::default()
+    });
 
     let page_column = column![harbor_logo(), password_input, unlock_button,]
         .spacing(32)

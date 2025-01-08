@@ -1,5 +1,5 @@
 use crate::{
-    components::{h_button, h_input, harbor_logo, the_spinner, SvgIcon},
+    components::{h_button, h_input, harbor_logo, the_spinner, InputArgs, SvgIcon},
     UnlockStatus, WelcomeStatus,
 };
 use iced::{
@@ -37,16 +37,16 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
             .on_press_maybe(action.clone())
             .width(Length::Fill);
 
-            let password_input = h_input(
-                "Password",
-                "",
-                &harbor.password_input_str,
-                Message::PasswordInputChanged,
-                action.clone(),
-                true,
-                Some("password_init_input"),
-                None,
-            );
+            let password_input = h_input(InputArgs {
+                label: "Password",
+                value: &harbor.password_input_str,
+                on_input: Message::PasswordInputChanged,
+                on_submit: action.clone(),
+                disabled: harbor.unlock_status == UnlockStatus::Unlocking,
+                secure: true,
+                id: Some("password_init_input"),
+                ..InputArgs::default()
+            });
 
             let welcome_message = text("Welcome, we're glad you are here.").size(24);
 

@@ -1,7 +1,9 @@
 use iced::widget::{column, text};
 use iced::Element;
 
-use crate::components::{basic_layout, h_button, h_federation_item, h_header, h_input, SvgIcon};
+use crate::components::{
+    basic_layout, h_button, h_federation_item, h_header, h_input, InputArgs, SvgIcon,
+};
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
@@ -43,16 +45,13 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 
     let column = match &harbor.peek_federation_item {
         None => {
-            let mint_input = h_input(
-                "Mint Invite Code",
-                "",
-                &harbor.mint_invite_code_str,
-                Message::MintInviteCodeInputChanged,
-                None,
-                false,
-                None,
-                None,
-            );
+            let mint_input = h_input(InputArgs {
+                label: "Mint Invite Code",
+                value: &harbor.mint_invite_code_str,
+                on_input: Message::MintInviteCodeInputChanged,
+                disabled: harbor.peek_status == PeekStatus::Peeking,
+                ..InputArgs::default()
+            });
 
             let peek_mint_button = h_button(
                 "Preview",
