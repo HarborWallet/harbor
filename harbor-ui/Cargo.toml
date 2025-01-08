@@ -19,7 +19,7 @@ palette = "0.7"
 chrono = "0.4.38"
 uuid = { version = "1.8", features = ["v4"] }
 
-bitcoin = { version = "0.30.2", features = ["base64"] }
+bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
-fedimint-core = { git = "https://github.com/fedimint/fedimint/", rev = "54acaa63a45e6bd14e872cdaaf020e8c100d6b33" }
-fedimint-ln-common = { git = "https://github.com/fedimint/fedimint/", rev = "54acaa63a45e6bd14e872cdaaf020e8c100d6b33" }
+fedimint-core = "0.5.0"
+fedimint-ln-common = "0.5.0"
