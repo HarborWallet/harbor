@@ -392,33 +392,23 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         invoice,
                     } => {
                         log::info!("Got UICoreMsg::Send");
-                        core.msg(Some(msg.id), CoreUIMsg::Sending)
-                            .await
-                            .expect("Could not send");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
                         if let Err(e) = core.send_lightning(msg.id, federation_id, invoice).await {
                             error!("Error sending: {e}");
-                            core.msg(Some(msg.id), CoreUIMsg::SendFailure(e.to_string()))
-                                .await
-                                .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string())).await;
                         }
                     }
                     UICoreMsg::ReceiveLightning {
                         federation_id,
                         amount,
                     } => {
-                        core.msg(Some(msg.id), CoreUIMsg::ReceiveGenerating)
-                            .await
-                            .expect("Could not send");
+                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
                         match core.receive_lightning(msg.id, federation_id, amount).await {
                             Err(e) => {
-                                core.msg(Some(msg.id), CoreUIMsg::ReceiveFailed(e.to_string()))
-                                    .await
-                                    .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string())).await;
                             }
                             Ok(invoice) => {
-                                core.msg(Some(msg.id), CoreUIMsg::ReceiveInvoiceGenerated(invoice))
-                                    .await
-                                    .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::ReceiveInvoiceGenerated(invoice)).await;
                             }
                         }
                     }
@@ -428,33 +418,23 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         amount_sats,
                     } => {
                         log::info!("Got UICoreMsg::SendOnChain");
-                        core.msg(Some(msg.id), CoreUIMsg::Sending)
-                            .await
-                            .expect("Could not send");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
                         if let Err(e) = core
                             .send_onchain(msg.id, federation_id, address, amount_sats)
                             .await
                         {
                             error!("Error sending: {e}");
-                            core.msg(Some(msg.id), CoreUIMsg::SendFailure(e.to_string()))
-                                .await
-                                .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string())).await;
                         }
                     }
                     UICoreMsg::ReceiveOnChain { federation_id } => {
-                        core.msg(Some(msg.id), CoreUIMsg::ReceiveGenerating)
-                            .await
-                            .expect("Could not send");
+                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
                         match core.receive_onchain(msg.id, federation_id).await {
                             Err(e) => {
-                                core.msg(Some(msg.id), CoreUIMsg::ReceiveFailed(e.to_string()))
-                                    .await
-                                    .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string())).await;
                             }
                             Ok(address) => {
-                                core.msg(Some(msg.id), CoreUIMsg::ReceiveAddressGenerated(address))
-                                    .await
-                                    .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address)).await;
                             }
                         }
                     }
@@ -462,59 +442,31 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         match core.get_federation_info(invite_code).await {
                             Err(e) => {
                                 error!("Error getting federation info: {e}");
-                                core.msg(
-                                    Some(msg.id),
-                                    CoreUIMsg::AddFederationFailed(e.to_string()),
-                                )
-                                .await
-                                .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string())).await;
                             }
                             Ok(config) => {
-                                core.msg(Some(msg.id), CoreUIMsg::FederationInfo(config))
-                                    .await
-                                    .expect("Could not send");
+                                core.msg(msg.id, CoreUIMsg::FederationInfo(config)).await;
                             }
                         }
                     }
                     UICoreMsg::AddFederation(invite_code) => {
                         if let Err(e) = core.add_federation(invite_code).await {
                             error!("Error adding federation: {e}");
-                            core.msg(Some(msg.id), CoreUIMsg::AddFederationFailed(e.to_string()))
-                                .await
-                                .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string())).await;
                         } else {
-                            core.msg(Some(msg.id), CoreUIMsg::AddFederationSuccess)
-                                .await
-                                .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
                             let new_federation_list = core.get_federation_items().await;
-                            core.msg(
-                                Some(msg.id),
-                                CoreUIMsg::FederationListUpdated(new_federation_list),
-                            )
-                            .await
-                            .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::FederationListUpdated(new_federation_list)).await;
                         }
                     }
                     UICoreMsg::RemoveFederation(id) => {
                         if let Err(e) = core.remove_federation(id).await {
                             error!("Error removing federation: {e}");
-                            core.msg(
-                                Some(msg.id),
-                                CoreUIMsg::RemoveFederationFailed(e.to_string()),
-                            )
-                            .await
-                            .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string())).await;
                         } else {
                             let new_federation_list = core.get_federation_items().await;
-                            core.msg(
-                                Some(msg.id),
-                                CoreUIMsg::FederationListUpdated(new_federation_list),
-                            )
-                            .await
-                            .expect("Could not send");
-                            core.msg(Some(msg.id), CoreUIMsg::RemoveFederationSuccess)
-                                .await
-                                .expect("Could not send");
+                            core.msg(msg.id, CoreUIMsg::FederationListUpdated(new_federation_list)).await;
+                            core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
                         }
                     }
                     UICoreMsg::Unlock(_password) => {
@@ -525,9 +477,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     }
                     UICoreMsg::GetSeedWords => {
                         let seed_words = core.get_seed_words().await;
-                        core.msg(Some(msg.id), CoreUIMsg::SeedWords(seed_words))
-                            .await
-                            .expect("Could not send");
+                        core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                 }
             }
