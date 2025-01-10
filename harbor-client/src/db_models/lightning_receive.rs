@@ -158,6 +158,7 @@ impl From<LightningReceive> for TransactionItem {
         Self {
             kind: TransactionItemKind::Lightning,
             amount: payment.amount().sats_round_down(),
+            txid: None,
             direction: TransactionDirection::Incoming,
             timestamp: payment.created_at.and_utc().timestamp() as u64,
         }
