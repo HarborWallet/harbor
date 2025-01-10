@@ -623,6 +623,7 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     let id = Uuid::new_v4();
+                    self.add_federation_status = AddFederationStatus::Adding;
                     Task::perform(
                         Self::async_add_federation(self.ui_handle.clone(), id, invite),
                         |_| Message::Noop,
@@ -657,7 +658,6 @@ impl HarborWallet {
                 }
             }
             Message::RemoveFederation(federation_id) => {
-                self.peek_status = PeekStatus::Peeking;
                 let id = Uuid::new_v4();
                 Task::perform(
                     Self::async_remove_federation(self.ui_handle.clone(), id, federation_id),
@@ -762,7 +762,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::AddFederationFailed(reason) => {
                     let reason = reason.clone();
-                    self.peek_federation_item = None;
+                    self.clear_add_federation_state();
                     Task::perform(async {}, move |_| {
                         Message::AddToast(Toast {
                             title: "Failed to join mint".to_string(),
@@ -773,7 +773,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::RemoveFederationFailed(reason) => {
                     let reason = reason.clone();
-                    self.peek_federation_item = None;
+                    self.clear_add_federation_state();
                     Task::perform(async {}, move |_| {
                         Message::AddToast(Toast {
                             title: "Failed to remove mint".to_string(),
@@ -816,13 +816,22 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::AddFederationSuccess => {
-                    self.mint_invite_code_str = String::new();
+                    self.clear_add_federation_state();
+                    // Route to the mints list
                     self.active_route = Route::Mints(routes::MintSubroute::List);
-                    self.peek_federation_item = None;
-                    self.add_federation_status = AddFederationStatus::Idle;
-                    Task::none()
+                    Task::perform(async {}, |_| {
+                        Message::AddToast(Toast {
+                            title: "Mint added".to_string(),
+                            // TODO: maybe we should make body optional
+                            body: "...".to_string(),
+                            status: ToastStatus::Neutral,
+                        })
+                    })
                 }
                 CoreUIMsg::RemoveFederationSuccess => {
+                    self.clear_add_federation_state();
+                    // Route to the mints list
+                    self.active_route = Route::Mints(routes::MintSubroute::List);
                     Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Mint removed".to_string(),

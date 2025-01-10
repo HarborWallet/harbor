@@ -454,9 +454,9 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             error!("Error adding federation: {e}");
                             core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string())).await;
                         } else {
-                            core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
                             let new_federation_list = core.get_federation_items().await;
                             core.msg(msg.id, CoreUIMsg::FederationListUpdated(new_federation_list)).await;
+                            core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
                         }
                     }
                     UICoreMsg::RemoveFederation(id) => {
