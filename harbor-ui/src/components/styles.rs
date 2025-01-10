@@ -1,6 +1,10 @@
-use iced::{widget::text::Style, Color, Theme};
+use iced::{
+    overlay::menu,
+    widget::{pick_list, text::Style},
+    Border, Color, Theme,
+};
 
-use super::lighten;
+use super::{darken, lighten};
 
 use iced::{
     font,
@@ -42,4 +46,45 @@ pub fn regular_text(content: String, size: u16) -> Text<'static> {
 
 pub fn gray() -> Color {
     lighten(Color::from_rgb8(23, 23, 25), 0.5)
+}
+
+pub fn menu_style(theme: &Theme) -> menu::Style {
+    let border = Border {
+        color: Color::WHITE,
+        width: 1.,
+        radius: (8.).into(),
+    };
+
+    let background = theme.palette().background;
+    let selected_background = lighten(theme.palette().background, 0.1);
+
+    menu::Style {
+        background: background.into(),
+        border,
+        selected_background: selected_background.into(),
+        selected_text_color: Color::WHITE,
+        text_color: Color::WHITE,
+    }
+}
+
+pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
+    let border = Border {
+        color: Color::WHITE,
+        width: 2.,
+        radius: (8.).into(),
+    };
+
+    let background = match status {
+        pick_list::Status::Hovered => lighten(theme.palette().background, 0.1),
+        pick_list::Status::Opened => darken(Color::BLACK, 0.1),
+        _ => theme.palette().background,
+    };
+
+    pick_list::Style {
+        border,
+        background: background.into(),
+        text_color: Color::WHITE,
+        placeholder_color: Color::WHITE,
+        handle_color: Color::WHITE,
+    }
 }
