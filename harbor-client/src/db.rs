@@ -480,7 +480,6 @@ mod tests {
     };
     use bip39::{Language, Mnemonic};
     use bitcoin::hashes::Hash;
-    use bitcoin::secp256k1::ThirtyTwoByteHash;
     use bitcoin::{Address, Txid};
     use fedimint_core::config::FederationId;
     use fedimint_core::core::OperationId;
@@ -593,7 +592,7 @@ mod tests {
             payment.fedimint_id(),
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
-        assert_eq!(payment.payment_hash(), invoice.payment_hash().into_32());
+        assert_eq!(payment.payment_hash(), invoice.payment_hash().to_byte_array());
         assert_eq!(payment.bolt11(), invoice);
         assert_eq!(payment.amount(), Amount::from_sats(1_000));
         assert_eq!(payment.fee(), Amount::from_sats(1));
@@ -645,7 +644,7 @@ mod tests {
             receive.fedimint_id(),
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
-        assert_eq!(receive.payment_hash(), invoice.payment_hash().into_32());
+        assert_eq!(receive.payment_hash(), invoice.payment_hash().to_byte_array());
         assert_eq!(receive.bolt11(), invoice);
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));

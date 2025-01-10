@@ -83,7 +83,7 @@ impl FedimintClient {
         client_builder.with_module(MintClientInit);
         client_builder.with_module(LightningClientInit::default());
 
-        client_builder.with_primary_module(1);
+        client_builder.with_primary_module_kind(fedimint_mint_client::KIND);
 
         trace!("Building fedimint client db");
         let secret = Bip39RootSecretStrategy::<12>::to_root_secret(mnemonic);
