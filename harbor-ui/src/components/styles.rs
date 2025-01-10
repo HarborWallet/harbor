@@ -67,6 +67,26 @@ pub fn menu_style(theme: &Theme) -> menu::Style {
     }
 }
 
+pub fn borderless_pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
+    let background = match status {
+        pick_list::Status::Hovered => lighten(theme.palette().background, 0.1),
+        pick_list::Status::Opened => darken(Color::BLACK, 0.1),
+        _ => theme.palette().background,
+    };
+
+    pick_list::Style {
+        border: Border {
+            color: Color::WHITE,
+            width: 0.,
+            radius: (8.).into(),
+        },
+        background: background.into(),
+        text_color: Color::WHITE,
+        placeholder_color: Color::WHITE,
+        handle_color: Color::WHITE,
+    }
+}
+
 pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let border = Border {
         color: Color::WHITE,

@@ -1,17 +1,42 @@
 use crate::{HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use iced::{
-    widget::{column, row, text},
-    Alignment, Element, Length,
+    widget::{column, row, text, pick_list},
+    Alignment, Element, Length, Padding,
 };
 
-use super::{format_amount, hr, map_icon, vr, SvgIcon};
+use super::{format_amount, hr, map_icon, vr, SvgIcon, menu_style, borderless_pick_list_style};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.active_federation.as_ref() {
         let FederationItem { name, balance, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
-        let current_federation = row![people_icon, text(name).size(24)]
+
+        let federation_names: Vec<String> = harbor
+            .federation_list
+            .iter()
+            .map(|f| f.name.clone())
+            .collect();
+
+        let federation_list = pick_list(
+            federation_names,
+            Some(name.clone()),
+            |selected_name| {
+                if let Some(federation) = harbor.federation_list.iter().find(|f| f.name == selected_name) {
+                    Message::ChangeFederation(federation.id)
+                } else {
+                    Message::Noop
+                }
+            },
+        )
+        .style(borderless_pick_list_style)
+        .padding(Padding::from(16))
+        .handle(pick_list::Handle::Arrow {
+            size: Some(iced::Pixels(24.)),
+        })
+        .menu_style(menu_style);
+
+        let current_federation = row![people_icon, federation_list]
             .align_y(Alignment::Center)
             .spacing(16)
             .width(Length::Shrink)
