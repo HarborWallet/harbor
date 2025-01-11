@@ -1,13 +1,13 @@
 use crate::Message;
+use bitcoin::Network;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use iced::{
-    widget::{column, row, svg, text},
-    Element,
+    widget::{column, row, svg, text}, Element
 };
 
-use super::{format_amount, format_timestamp, map_icon, subtitle, MUTINY_GREEN, MUTINY_RED};
+use super::{format_amount, format_timestamp, link, map_icon, text_link, MUTINY_GREEN, MUTINY_RED};
 
 pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
     let TransactionItem {
@@ -15,7 +15,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         amount,
         direction,
         timestamp,
-        txid: _, // todo use me
+        txid
     } = item;
     let kind_icon = match kind {
         TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),
@@ -41,9 +41,23 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         .align_y(iced::Alignment::Center)
         .spacing(16);
 
-    let timestamp = text(format_timestamp(timestamp)).size(18).style(subtitle);
+    // todo: where do we get the network from?
+    let network = Network::Signet;
+    let base_url = match network {
+        Network::Signet => "https://mutinynet.com/tx/",
+        _ => panic!("Unsupported network"),
+    };
 
-    let col = column![row, timestamp].spacing(8);
+    let col = if let Some(txid) = txid {    
+        let url = format!("{}{}", base_url, txid);
+        let timestamp_text = format_timestamp(timestamp);
+        let timestamp = text_link(timestamp_text, url);
+        column![row, timestamp].spacing(8)
+    } else {
+        let timestamp_text = format_timestamp(timestamp);
+        let timestamp = text(timestamp_text).color(link());
+        column![row, timestamp].spacing(8)
+    };
 
     col.into()
 }

@@ -23,3 +23,4 @@ bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
 fedimint-core = "0.5.0"
 fedimint-ln-common = "0.5.0"
+webbrowser = "1.0.3"
