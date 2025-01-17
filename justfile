@@ -16,8 +16,19 @@ test:
 release:
     cargo run --release {{FEATURE_FLAG}}
 
+format-check:
+    cargo fmt --all -- --check
+
+format:
+    cargo fmt --all
+
 clippy:
     cargo clippy --all-features --tests -- -D warnings
+
+ci:
+    cargo fmt --all -- --check
+    cargo clippy --all-features --tests -- -D warnings
+    cargo test
 
 clear-signet:
     rm -rf ~/.harbor/signet

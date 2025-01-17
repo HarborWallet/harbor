@@ -4,7 +4,8 @@ use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use iced::{
-    widget::{column, row, svg, text}, Element
+    widget::{column, row, svg, text},
+    Element,
 };
 
 use super::{format_amount, format_timestamp, link, map_icon, text_link, MUTINY_GREEN, MUTINY_RED};
@@ -15,7 +16,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         amount,
         direction,
         timestamp,
-        txid
+        txid,
     } = item;
     let kind_icon = match kind {
         TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),
@@ -48,7 +49,7 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         _ => panic!("Unsupported network"),
     };
 
-    let col = if let Some(txid) = txid {    
+    let col = if let Some(txid) = txid {
         let url = format!("{}{}", base_url, txid);
         let timestamp_text = format_timestamp(timestamp);
         let timestamp = text_link(timestamp_text, url);

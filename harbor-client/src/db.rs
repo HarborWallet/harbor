@@ -4,9 +4,9 @@ use crate::db_models::{
     OnChainReceive, Profile,
 };
 use anyhow::anyhow;
+use bip39::{Language, Mnemonic};
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
-use bip39::{Language, Mnemonic};
 use diesel::{
     connection::SimpleConnection,
     r2d2::{ConnectionManager, Pool},
@@ -19,8 +19,8 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use log::{error, info};
 use rusqlite::{Connection, OpenFlags};
-use std::{sync::Arc, time::Duration};
 use std::str::FromStr;
+use std::{sync::Arc, time::Duration};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -420,7 +420,8 @@ impl DBConnection for SQLConnection {
     }
 
     fn generate_mnemonic(&self, words: Option<String>) -> anyhow::Result<Mnemonic> {
-        let mnemonic_words = words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
+        let mnemonic_words =
+            words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
 
         let new_profile = NewProfile {
             id: uuid::Uuid::new_v4().to_string(),
@@ -592,7 +593,10 @@ mod tests {
             payment.fedimint_id(),
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
-        assert_eq!(payment.payment_hash(), invoice.payment_hash().to_byte_array());
+        assert_eq!(
+            payment.payment_hash(),
+            invoice.payment_hash().to_byte_array()
+        );
         assert_eq!(payment.bolt11(), invoice);
         assert_eq!(payment.amount(), Amount::from_sats(1_000));
         assert_eq!(payment.fee(), Amount::from_sats(1));
@@ -644,7 +648,10 @@ mod tests {
             receive.fedimint_id(),
             FederationId::from_str(FEDERATION_ID).unwrap()
         );
-        assert_eq!(receive.payment_hash(), invoice.payment_hash().to_byte_array());
+        assert_eq!(
+            receive.payment_hash(),
+            invoice.payment_hash().to_byte_array()
+        );
         assert_eq!(receive.bolt11(), invoice);
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));

@@ -7,7 +7,7 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db::{check_password, setup_db, DBConnection};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
-use harbor_client::{CoreUIMsg, CoreUIMsgPacket, UICoreMsg, UICoreMsgPacket, HarborCore, data_dir};
+use harbor_client::{data_dir, CoreUIMsg, CoreUIMsgPacket, HarborCore, UICoreMsg, UICoreMsgPacket};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use log::{error, warn};
@@ -395,7 +395,8 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         core.msg(msg.id, CoreUIMsg::Sending).await;
                         if let Err(e) = core.send_lightning(msg.id, federation_id, invoice).await {
                             error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string())).await;
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::ReceiveLightning {
@@ -405,10 +406,12 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
                         match core.receive_lightning(msg.id, federation_id, amount).await {
                             Err(e) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                                    .await;
                             }
                             Ok(invoice) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveInvoiceGenerated(invoice)).await;
+                                core.msg(msg.id, CoreUIMsg::ReceiveInvoiceGenerated(invoice))
+                                    .await;
                             }
                         }
                     }
@@ -424,17 +427,20 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             .await
                         {
                             error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string())).await;
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::ReceiveOnChain { federation_id } => {
                         core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
                         match core.receive_onchain(msg.id, federation_id).await {
                             Err(e) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string())).await;
+                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                                    .await;
                             }
                             Ok(address) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address)).await;
+                                core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address))
+                                    .await;
                             }
                         }
                     }
@@ -442,7 +448,8 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         match core.get_federation_info(invite_code).await {
                             Err(e) => {
                                 error!("Error getting federation info: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string())).await;
+                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                    .await;
                             }
                             Ok(config) => {
                                 core.msg(msg.id, CoreUIMsg::FederationInfo(config)).await;
@@ -452,20 +459,30 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     UICoreMsg::AddFederation(invite_code) => {
                         if let Err(e) = core.add_federation(invite_code).await {
                             error!("Error adding federation: {e}");
-                            core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string())).await;
+                            core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                .await;
                         } else {
                             let new_federation_list = core.get_federation_items().await;
-                            core.msg(msg.id, CoreUIMsg::FederationListUpdated(new_federation_list)).await;
+                            core.msg(
+                                msg.id,
+                                CoreUIMsg::FederationListUpdated(new_federation_list),
+                            )
+                            .await;
                             core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
                         }
                     }
                     UICoreMsg::RemoveFederation(id) => {
                         if let Err(e) = core.remove_federation(id).await {
                             error!("Error removing federation: {e}");
-                            core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string())).await;
+                            core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string()))
+                                .await;
                         } else {
                             let new_federation_list = core.get_federation_items().await;
-                            core.msg(msg.id, CoreUIMsg::FederationListUpdated(new_federation_list)).await;
+                            core.msg(
+                                msg.id,
+                                CoreUIMsg::FederationListUpdated(new_federation_list),
+                            )
+                            .await;
                             core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
                         }
                     }
