@@ -22,12 +22,12 @@ use futures::future::join_all;
 use futures::{channel::mpsc::Sender, SinkExt};
 use log::{error, trace};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use std::path::PathBuf;
 
 /// The directory where all application data is stored
 /// Defaults to ~/.harbor, if we're on a test network
@@ -145,13 +145,21 @@ impl HarborCore {
     // Initial setup messages that don't have an id
     // Panics if fails to send
     async fn send_system_msg(&self, msg: CoreUIMsg) {
-        self.tx.clone().send(CoreUIMsgPacket { id: None, msg }).await.expect("Could not communicate with the UI");
+        self.tx
+            .clone()
+            .send(CoreUIMsgPacket { id: None, msg })
+            .await
+            .expect("Could not communicate with the UI");
     }
 
     // Standard core->ui communication with an id
     // Panics if fails to send
     pub async fn msg(&self, id: Uuid, msg: CoreUIMsg) {
-        self.tx.clone().send(CoreUIMsgPacket { id: Some(id), msg }).await.expect("Could not communicate with the UI");
+        self.tx
+            .clone()
+            .send(CoreUIMsgPacket { id: Some(id), msg })
+            .await
+            .expect("Could not communicate with the UI");
     }
 
     // Sends updates to the UI to refelect the initial state
