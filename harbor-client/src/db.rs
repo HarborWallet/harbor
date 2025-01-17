@@ -69,8 +69,14 @@ pub trait DBConnection {
     // Gets a seed from the first profile in the DB or returns None
     fn get_seed(&self) -> anyhow::Result<Option<String>>;
 
+    // Gets a seed from the first profile in the DB or returns None
+    fn get_profile(&self) -> anyhow::Result<Option<Profile>>;
+
     // Inserts a new profile into the DB
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile>;
+
+    // Sets the on-chain receive enabled flag
+    fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()>;
 
     // Retrieves the mnemonic from the DB
     fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic>;
@@ -166,9 +172,13 @@ pub struct SQLConnection {
 
 impl DBConnection for SQLConnection {
     fn get_seed(&self) -> anyhow::Result<Option<String>> {
+        self.get_profile().map(|p| p.map(|p| p.seed_words))
+    }
+
+    fn get_profile(&self) -> anyhow::Result<Option<Profile>> {
         let conn = &mut self.db.get()?;
         match Profile::get_first(conn)? {
-            Some(p) => Ok(Some(p.seed_words)),
+            Some(p) => Ok(Some(p)),
             None => Ok(None),
         }
     }
@@ -176,6 +186,12 @@ impl DBConnection for SQLConnection {
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile> {
         let conn = &mut self.db.get()?;
         new_profile.insert(conn)
+    }
+
+    fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        Profile::set_onchain_receive_enabled(conn, enabled)?;
+        Ok(())
     }
 
     fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>> {

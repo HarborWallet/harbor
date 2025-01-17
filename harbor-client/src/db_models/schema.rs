@@ -70,6 +70,7 @@ diesel::table! {
     profile (id) {
         id -> Text,
         seed_words -> Text,
+        onchain_receive_enabled -> Integer,
     }
 }
 

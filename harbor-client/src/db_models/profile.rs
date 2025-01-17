@@ -9,11 +9,24 @@ use serde::{Deserialize, Serialize};
 pub struct Profile {
     pub id: String,
     pub seed_words: String,
+    onchain_receive_enabled: i32,
 }
 
 impl Profile {
     pub fn get_first(conn: &mut SqliteConnection) -> anyhow::Result<Option<Profile>> {
         Ok(profile::table.first::<Profile>(conn).optional()?)
+    }
+
+    pub fn set_onchain_receive_enabled(conn: &mut SqliteConnection, enabled: bool) -> anyhow::Result<()> {
+        diesel::update(profile::table)
+            .set(profile::onchain_receive_enabled.eq(enabled as i32))
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn onchain_receive_enabled(&self) -> bool {
+        self.onchain_receive_enabled == 1
     }
 }
 
@@ -29,6 +42,7 @@ impl From<&NewProfile> for Profile {
         Profile {
             id: new_profile.id.clone(),
             seed_words: new_profile.seed_words.clone(),
+            onchain_receive_enabled: 0,
         }
     }
 }
