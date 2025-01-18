@@ -69,7 +69,7 @@ pub trait DBConnection {
     // Gets a seed from the first profile in the DB or returns None
     fn get_seed(&self) -> anyhow::Result<Option<String>>;
 
-    // Gets a seed from the first profile in the DB or returns None
+    // Gets the first profile from the DB or returns None if no profile exists
     fn get_profile(&self) -> anyhow::Result<Option<Profile>>;
 
     // Inserts a new profile into the DB

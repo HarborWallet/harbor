@@ -36,33 +36,11 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
     let column = match (&harbor.receive_success_msg, receive_string) {
         // Starting state
         (None, None) => {
-            let header = h_header("Deposit", "Receive on-chain or via lightning.");
-
-            let lightning_choice = radio(
-                "Lightning",
-                ReceiveMethod::Lightning,
-                Some(harbor.receive_method),
-                Message::ReceiveMethodChanged,
-            )
-            .text_size(18);
-            let lightning_caption =
-                h_caption_text("Good for small amounts. Instant settlement, low fees.");
-            let lightning = column![lightning_choice, lightning_caption,].spacing(8);
-
-            let onchain_choice = radio(
-                "On-chain",
-                ReceiveMethod::OnChain,
-                Some(harbor.receive_method),
-                Message::ReceiveMethodChanged,
-            )
-            .text_size(18);
-            let onchain_caption = h_caption_text(
-                "Good for large amounts. Requires on-chain fees and 10 block confirmations.",
-            );
-            let onchain = column![onchain_choice, onchain_caption,].spacing(8);
-
-            let method_choice_label = text("Method").size(24);
-            let method_choice = column![method_choice_label, lightning, onchain].spacing(16);
+            let header = if !harbor.onchain_receive_enabled {
+                h_header("Deposit", "Receive via lightning.")
+            } else {
+                h_header("Deposit", "Receive on-chain or via lightning.")
+            };
 
             let amount_input = h_input(InputArgs {
                 label: "Amount",
@@ -82,11 +60,43 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             let generate_address_button = h_button("Generate Address", SvgIcon::Qr, generating)
                 .on_press(Message::GenerateAddress);
 
-            match harbor.receive_method {
-                ReceiveMethod::Lightning => {
-                    column![header, method_choice, amount_input, generate_button]
+            if !harbor.onchain_receive_enabled {
+                column![header, amount_input, generate_button]
+            } else {
+                let lightning_choice = radio(
+                    "Lightning",
+                    ReceiveMethod::Lightning,
+                    Some(harbor.receive_method),
+                    Message::ReceiveMethodChanged,
+                )
+                .text_size(18);
+                let lightning_caption =
+                    h_caption_text("Good for small amounts. Instant settlement, low fees.");
+                let lightning = column![lightning_choice, lightning_caption,].spacing(8);
+
+                let onchain_choice = radio(
+                    "On-chain",
+                    ReceiveMethod::OnChain,
+                    Some(harbor.receive_method),
+                    Message::ReceiveMethodChanged,
+                )
+                .text_size(18);
+                let onchain_caption = h_caption_text(
+                    "Good for large amounts. Requires on-chain fees and 10 block confirmations.",
+                );
+                let onchain = column![onchain_choice, onchain_caption,].spacing(8);
+
+                let method_choice_label = text("Method").size(24);
+                let method_choice = column![method_choice_label, lightning, onchain].spacing(16);
+
+                match harbor.receive_method {
+                    ReceiveMethod::Lightning => {
+                        column![header, method_choice, amount_input, generate_button]
+                    }
+                    ReceiveMethod::OnChain => {
+                        column![header, method_choice, generate_address_button]
+                    }
                 }
-                ReceiveMethod::OnChain => column![header, method_choice, generate_address_button],
             }
         }
         // We've generated an invoice or address

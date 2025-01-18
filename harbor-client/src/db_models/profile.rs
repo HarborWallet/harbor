@@ -17,7 +17,10 @@ impl Profile {
         Ok(profile::table.first::<Profile>(conn).optional()?)
     }
 
-    pub fn set_onchain_receive_enabled(conn: &mut SqliteConnection, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_onchain_receive_enabled(
+        conn: &mut SqliteConnection,
+        enabled: bool,
+    ) -> anyhow::Result<()> {
         diesel::update(profile::table)
             .set(profile::onchain_receive_enabled.eq(enabled as i32))
             .execute(conn)?;

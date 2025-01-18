@@ -81,6 +81,7 @@ pub enum UICoreMsg {
         seed: Option<String>,
     },
     GetSeedWords,
+    SetOnchainReceiveEnabled(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,6 +130,7 @@ pub enum CoreUIMsg {
     UnlockSuccess,
     UnlockFailed(String),
     SeedWords(String),
+    OnchainReceiveEnabled(bool),
 }
 
 #[derive(Clone)]
@@ -180,6 +182,14 @@ impl HarborCore {
         let federation_items = self.get_federation_items().await;
         self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
             .await;
+
+        let profile = self.storage.get_profile()?;
+        if let Some(profile) = profile {
+            self.send_system_msg(CoreUIMsg::OnchainReceiveEnabled(
+                profile.onchain_receive_enabled(),
+            ))
+            .await;
+        }
 
         Ok(())
     }

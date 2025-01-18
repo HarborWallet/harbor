@@ -138,6 +138,7 @@ pub enum Message {
     RemoveFederation(FederationId),
     ChangeFederation(FederationId),
     Donate,
+    SetOnchainReceiveEnabled(bool),
     // Core messages we get from core
     CoreMessage(CoreUIMsgPacket),
 }
@@ -203,6 +204,7 @@ pub struct HarborWallet {
     // Onboarding
     show_add_a_mint_cta: bool,
     has_navigated_to_mints: bool,
+    onchain_receive_enabled: bool,
 }
 
 impl HarborWallet {
@@ -328,6 +330,18 @@ impl HarborWallet {
     async fn async_get_seed_words(ui_handle: Option<Arc<bridge::UIHandle>>, id: Uuid) {
         if let Some(ui_handle) = ui_handle {
             ui_handle.get_seed_words(id).await;
+        } else {
+            panic!("UI handle is None");
+        }
+    }
+
+    async fn async_set_onchain_receive_enabled(
+        ui_handle: Option<Arc<bridge::UIHandle>>,
+        id: Uuid,
+        enabled: bool,
+    ) {
+        if let Some(ui_handle) = ui_handle {
+            ui_handle.set_onchain_receive_enabled(id, enabled).await;
         } else {
             panic!("UI handle is None");
         }
@@ -705,6 +719,13 @@ impl HarborWallet {
                 }
                 Task::none()
             }
+            Message::SetOnchainReceiveEnabled(enabled) => {
+                let id = Uuid::new_v4();
+                Task::perform(
+                    Self::async_set_onchain_receive_enabled(self.ui_handle.clone(), id, enabled),
+                    |_| Message::Noop,
+                )
+            }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg.msg {
                 CoreUIMsg::Sending => {
@@ -918,6 +939,10 @@ impl HarborWallet {
                 CoreUIMsg::SeedWords(words) => {
                     self.seed_words = Some(words);
                     self.settings_show_seed_words = true;
+                    Task::none()
+                }
+                CoreUIMsg::OnchainReceiveEnabled(enabled) => {
+                    self.onchain_receive_enabled = enabled;
                     Task::none()
                 }
             },
