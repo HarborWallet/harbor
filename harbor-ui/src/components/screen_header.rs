@@ -52,6 +52,8 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         column![
             row.push_maybe(show_balance.then_some(vr()))
                 .push_maybe(show_balance.then_some(balance))
+                .push(vr())
+                .push(text("Connection Secured by Tor").size(12))
                 .align_y(Alignment::Center)
                 .height(Length::Shrink),
             hr()
