@@ -1,11 +1,13 @@
 use crate::{HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use iced::{
-    widget::{column, pick_list, row, text},
+    widget::{column, horizontal_space, pick_list, row, text},
     Alignment, Element, Length, Padding,
 };
 
-use super::{borderless_pick_list_style, format_amount, hr, map_icon, menu_style, vr, SvgIcon};
+use super::{
+    borderless_pick_list_style, format_amount, gray, hr, map_icon, menu_style, vr, SvgIcon,
+};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.active_federation.as_ref() {
@@ -40,7 +42,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             .align_y(Alignment::Center)
             .spacing(16)
             .width(Length::Shrink)
-            .padding(16);
+            .padding(Padding::new(0.).left(16));
         let formatted_balance = format_amount(*balance);
 
         let balance = row![text(formatted_balance).size(24)]
@@ -49,11 +51,21 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
 
         let row = row![current_federation].spacing(16);
 
+        let shield_icon = map_icon(SvgIcon::Shield, 16., 16.);
+        let secured = row![
+            text("Connection Secured by Tor").size(16).color(gray()),
+            shield_icon
+        ]
+        .align_y(Alignment::Center)
+        .spacing(16)
+        .padding(Padding::new(0.).right(16));
+
         column![
             row.push_maybe(show_balance.then_some(vr()))
                 .push_maybe(show_balance.then_some(balance))
+                .push(horizontal_space())
                 .push(vr())
-                .push(text("Connection Secured by Tor").size(12))
+                .push(secured)
                 .align_y(Alignment::Center)
                 .height(Length::Shrink),
             hr()

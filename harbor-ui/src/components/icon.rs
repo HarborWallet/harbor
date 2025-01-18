@@ -26,6 +26,7 @@ pub enum SvgIcon {
     Clock,
     Trash,
     ExternalLink,
+    Shield,
 }
 
 macro_rules! icon_handle {
@@ -61,6 +62,7 @@ pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
         SvgIcon::ArrowLeft => icon_handle!("arrow_left.svg"),
         SvgIcon::Trash => icon_handle!("trash.svg"),
         SvgIcon::ExternalLink => icon_handle!("external_link.svg"),
+        SvgIcon::Shield => icon_handle!("shield.svg"),
     }
     .width(width)
     .height(height)

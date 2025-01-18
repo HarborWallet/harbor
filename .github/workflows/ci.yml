@@ -1,10 +1,10 @@
-name: Format
+name: CI 
 
 on:
   pull_request:
 
 jobs:
-  format:
+  ci:
     runs-on: ubuntu-latest
     permissions:
       id-token: "write"
@@ -14,17 +14,13 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
-      - name: Cache Rust dependencies
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          # Add env vars that affect the build, including our feature flag
+          env-vars: CARGO USE_VENDOR_FEATURE
       - name: Run format check
         run: nix develop --command bash -c "just format-check"
       - name: Run clippy
         run: nix develop --command bash -c "just clippy"
+      - name: Run tests 
+        run: nix develop --command bash -c "just test"
