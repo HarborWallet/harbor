@@ -1,10 +1,10 @@
-name: Test
+name: CI 
 
 on:
   pull_request:
 
 jobs:
-  check:
+  ci:
     runs-on: ubuntu-latest
     permissions:
       id-token: "write"
@@ -14,5 +14,13 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
-      - name: Run `nix develop test`
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Add env vars that affect the build, including our feature flag
+          env-vars: CARGO USE_VENDOR_FEATURE
+      - name: Run format check
+        run: nix develop --command bash -c "just format-check"
+      - name: Run clippy
+        run: nix develop --command bash -c "just clippy"
+      - name: Run tests 
         run: nix develop --command bash -c "just test"

@@ -1,7 +1,7 @@
 use iced::widget::{column, text};
 use iced::Element;
 
-use crate::components::{basic_layout, h_header, h_screen_header, h_transaction_item, hr};
+use crate::components::{basic_layout, h_header, h_transaction_item, hr};
 use crate::{HarborWallet, Message};
 
 pub fn history(harbor: &HarborWallet) -> Element<Message> {
@@ -19,11 +19,5 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
             .spacing(16)
     };
 
-    let column = column![header, transactions].spacing(48);
-
-    column![
-        h_screen_header(harbor, true),
-        basic_layout(column.spacing(48)),
-    ]
-    .into()
+    basic_layout(column![header, transactions].spacing(48))
 }

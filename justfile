@@ -23,12 +23,12 @@ format:
     cargo fmt --all
 
 clippy:
-    cargo clippy --all-features --tests -- -D warnings
+    cargo clippy {{FEATURE_FLAG}} --tests -- -D warnings
 
 ci:
     cargo fmt --all -- --check
-    cargo clippy --all-features --tests -- -D warnings
-    cargo test
+    cargo clippy {{FEATURE_FLAG}} --tests -- -D warnings
+    cargo test {{FEATURE_FLAG}}
 
 clear-signet:
     rm -rf ~/.harbor/signet

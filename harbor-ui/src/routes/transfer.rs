@@ -1,8 +1,9 @@
 use iced::widget::{column, container, pick_list, scrollable, text, PickList};
-use iced::Element;
-use iced::{Length, Padding};
+use iced::{Element, Length, Padding};
 
-use crate::components::{h_button, h_header, h_input, InputArgs, SvgIcon};
+use crate::components::{
+    h_button, h_header, h_input, menu_style, pick_list_style, InputArgs, SvgIcon,
+};
 use crate::{HarborWallet, Message};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
@@ -17,10 +18,13 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
         harbor.transfer_from_federation_selection.as_deref(),
         |s| Message::SetTransferFrom(s.to_string()),
     )
+    .placeholder("Pick a source mint")
+    .style(pick_list_style)
     .padding(Padding::from(16))
     .handle(pick_list::Handle::Arrow {
         size: Some(iced::Pixels(24.)),
-    });
+    })
+    .menu_style(menu_style);
 
     let source = column![text("Source").size(24), source_list].spacing(16);
 
@@ -29,10 +33,13 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
         harbor.transfer_to_federation_selection.as_deref(),
         |s| Message::SetTransferTo(s.to_string()),
     )
+    .placeholder("Pick a destination mint")
+    .style(pick_list_style)
     .padding(Padding::from(16))
     .handle(pick_list::Handle::Arrow {
         size: Some(iced::Pixels(24.)),
-    });
+    })
+    .menu_style(menu_style);
 
     let destination = column![text("Destination").size(24), destination_list].spacing(16);
 
