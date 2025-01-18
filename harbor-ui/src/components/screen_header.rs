@@ -1,11 +1,11 @@
 use crate::{HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use iced::{
-    widget::{column, row, text, pick_list},
+    widget::{column, pick_list, row, text},
     Alignment, Element, Length, Padding,
 };
 
-use super::{format_amount, hr, map_icon, vr, SvgIcon, menu_style, borderless_pick_list_style};
+use super::{borderless_pick_list_style, format_amount, hr, map_icon, menu_style, vr, SvgIcon};
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
     if let Some(item) = harbor.active_federation.as_ref() {
@@ -18,17 +18,17 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             .map(|f| f.name.clone())
             .collect();
 
-        let federation_list = pick_list(
-            federation_names,
-            Some(name.clone()),
-            |selected_name| {
-                if let Some(federation) = harbor.federation_list.iter().find(|f| f.name == selected_name) {
-                    Message::ChangeFederation(federation.id)
-                } else {
-                    Message::Noop
-                }
-            },
-        )
+        let federation_list = pick_list(federation_names, Some(name.clone()), |selected_name| {
+            if let Some(federation) = harbor
+                .federation_list
+                .iter()
+                .find(|f| f.name == selected_name)
+            {
+                Message::ChangeFederation(federation.id)
+            } else {
+                Message::Noop
+            }
+        })
         .style(borderless_pick_list_style)
         .padding(Padding::from(16))
         .handle(pick_list::Handle::Arrow {
@@ -52,6 +52,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         column![
             row.push_maybe(show_balance.then_some(vr()))
                 .push_maybe(show_balance.then_some(balance))
+                .align_y(Alignment::Center)
                 .height(Length::Shrink),
             hr()
         ]
