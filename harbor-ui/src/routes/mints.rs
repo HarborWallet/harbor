@@ -1,4 +1,4 @@
-use iced::widget::{column, text};
+use iced::widget::column;
 use iced::Element;
 
 use crate::components::{
@@ -8,29 +8,26 @@ use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
 
+// Expects to always have at least one federation, otherwise we should be on the add mint screen
 fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Mints", "Manage your mints here.");
 
-    let list = if harbor.federation_list.is_empty() {
-        column![text("No federations added yet.").size(18)]
-    } else {
-        let active_federation = harbor
-            .active_federation
-            .as_ref()
-            .expect("No active federation");
+    let active_federation = harbor
+        .active_federation
+        .as_ref()
+        .expect("No active federation");
 
-        harbor
-            .federation_list
-            .iter()
-            .fold(column![], |column, item| {
-                column.push(h_federation_item(
-                    item,
-                    item.id != active_federation.id,
-                    true,
-                ))
-            })
-            .spacing(48)
-    };
+    let list = harbor
+        .federation_list
+        .iter()
+        .fold(column![], |column, item| {
+            column.push(h_federation_item(
+                item,
+                item.id != active_federation.id,
+                true,
+            ))
+        })
+        .spacing(48);
 
     let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
         .on_press(Message::Navigate(Route::Mints(MintSubroute::Add)));
@@ -90,8 +87,12 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 }
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
-    match harbor.active_route {
-        Route::Mints(MintSubroute::Add) => mints_add(harbor),
-        _ => mints_list(harbor),
+    if harbor.federation_list.is_empty() {
+        mints_add(harbor)
+    } else {
+        match harbor.active_route {
+            Route::Mints(MintSubroute::Add) => mints_add(harbor),
+            _ => mints_list(harbor),
+        }
     }
 }
