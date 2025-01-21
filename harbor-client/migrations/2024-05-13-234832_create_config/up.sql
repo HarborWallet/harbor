@@ -1,7 +1,8 @@
 CREATE TABLE profile
 (
-    id         TEXT PRIMARY KEY NOT NULL,
-    seed_words TEXT             NOT NULL
+    id                      TEXT PRIMARY KEY NOT NULL,
+    seed_words              TEXT             NOT NULL,
+    onchain_receive_enabled INTEGER          NOT NULL DEFAULT 0
 );
 
 CREATE TABLE fedimint
@@ -71,34 +72,34 @@ CREATE TRIGGER update_timestamp_lightning_payments
     ON lightning_payments
     FOR EACH ROW
 BEGIN
-    UPDATE lightning_payments
-    SET updated_at = CURRENT_TIMESTAMP
-    WHERE operation_id = OLD.operation_id;
+UPDATE lightning_payments
+SET updated_at = CURRENT_TIMESTAMP
+WHERE operation_id = OLD.operation_id;
 END;
 CREATE TRIGGER update_timestamp_lightning_receives
     AFTER UPDATE
     ON lightning_receives
     FOR EACH ROW
 BEGIN
-    UPDATE lightning_receives
-    SET updated_at = CURRENT_TIMESTAMP
-    WHERE operation_id = OLD.operation_id;
+UPDATE lightning_receives
+SET updated_at = CURRENT_TIMESTAMP
+WHERE operation_id = OLD.operation_id;
 END;
 CREATE TRIGGER update_timestamp_on_chain_payments
     AFTER UPDATE
     ON on_chain_payments
     FOR EACH ROW
 BEGIN
-    UPDATE on_chain_payments
-    SET updated_at = CURRENT_TIMESTAMP
-    WHERE operation_id = OLD.operation_id;
+UPDATE on_chain_payments
+SET updated_at = CURRENT_TIMESTAMP
+WHERE operation_id = OLD.operation_id;
 END;
 CREATE TRIGGER update_timestamp_on_chain_receives
     AFTER UPDATE
     ON on_chain_receives
     FOR EACH ROW
 BEGIN
-    UPDATE on_chain_receives
-    SET updated_at = CURRENT_TIMESTAMP
-    WHERE operation_id = OLD.operation_id;
+UPDATE on_chain_receives
+SET updated_at = CURRENT_TIMESTAMP
+WHERE operation_id = OLD.operation_id;
 END;

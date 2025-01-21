@@ -143,6 +143,14 @@ impl UIHandle {
         })
         .await;
     }
+
+    pub async fn set_onchain_receive_enabled(&self, id: Uuid, enabled: bool) {
+        self.msg_send(UICoreMsgPacket {
+            msg: UICoreMsg::SetOnchainReceiveEnabled(enabled),
+            id,
+        })
+        .await;
+    }
 }
 
 impl CoreHandle {
@@ -486,15 +494,23 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
                         }
                     }
+                    UICoreMsg::GetSeedWords => {
+                        let seed_words = core.get_seed_words().await;
+                        core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
+                    }
+                    UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
+                        if let Err(e) = core.set_onchain_receive_enabled(enabled).await {
+                            error!("Error setting onchain receive enabled: {e}");
+                        } else {
+                            core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
+                                .await;
+                        }
+                    }
                     UICoreMsg::Unlock(_password) => {
                         unreachable!("should already be unlocked")
                     }
                     UICoreMsg::Init { .. } => {
                         unreachable!("should already be inited")
-                    }
-                    UICoreMsg::GetSeedWords => {
-                        let seed_words = core.get_seed_words().await;
-                        core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                 }
             }

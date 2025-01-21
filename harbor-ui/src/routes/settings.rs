@@ -1,4 +1,4 @@
-use iced::widget::{column, text};
+use iced::widget::{column, text, Checkbox};
 use iced::Element;
 
 use crate::components::{basic_layout, h_button, h_header, SvgIcon, Toast, ToastStatus};
@@ -6,6 +6,10 @@ use crate::{HarborWallet, Message};
 
 pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Settings", "The fun stuff.");
+
+    let onchain_receive_checkbox =
+        Checkbox::new("Enable On-chain Receive", harbor.onchain_receive_enabled)
+            .on_toggle(Message::SetOnchainReceiveEnabled);
 
     let add_good_toast_button =
         h_button("Nice!", SvgIcon::Plus, false).on_press(Message::AddToast(Toast {
@@ -40,6 +44,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
             column![
                 header,
                 button,
+                onchain_receive_checkbox,
                 add_good_toast_button,
                 add_error_toast_button
             ]

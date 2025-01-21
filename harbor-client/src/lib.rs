@@ -81,6 +81,7 @@ pub enum UICoreMsg {
         seed: Option<String>,
     },
     GetSeedWords,
+    SetOnchainReceiveEnabled(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,6 +130,7 @@ pub enum CoreUIMsg {
     UnlockSuccess,
     UnlockFailed(String),
     SeedWords(String),
+    OnchainReceiveEnabled(bool),
 }
 
 #[derive(Clone)]
@@ -180,6 +182,14 @@ impl HarborCore {
         let federation_items = self.get_federation_items().await;
         self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
             .await;
+
+        let profile = self.storage.get_profile()?;
+        if let Some(profile) = profile {
+            self.send_system_msg(CoreUIMsg::OnchainReceiveEnabled(
+                profile.onchain_receive_enabled(),
+            ))
+            .await;
+        }
 
         Ok(())
     }
@@ -390,6 +400,12 @@ impl HarborCore {
         msg_id: Uuid,
         federation_id: FederationId,
     ) -> anyhow::Result<Address> {
+        // check if on-chain receive is enabled
+        let profile = self.storage.get_profile()?;
+        if profile.is_none() || !profile.unwrap().onchain_receive_enabled() {
+            return Err(anyhow!("on-chain receive is not enabled"));
+        }
+
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
             .get_first_module::<WalletClientModule>()
@@ -505,5 +521,10 @@ impl HarborCore {
 
     pub async fn get_seed_words(&self) -> String {
         self.mnemonic.to_string()
+    }
+
+    pub async fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        self.storage.set_onchain_receive_enabled(enabled)?;
+        Ok(())
     }
 }
