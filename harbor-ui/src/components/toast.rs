@@ -93,14 +93,10 @@ impl<'a> ToastManager<'a> {
                     .width(Length::Fixed(24.))
                     .height(Length::Fixed(24.));
 
-                let body = if let Some(body) = toast.body.clone() {
-                    Some(text(body))
-                } else {
-                    None
-                };
+                let body = toast.body.clone().map(text);
 
-                container(column![container(column![
-                    row![
+                container(column![container(
+                    column![row![
                         text(toast.title.as_str()).font(Font {
                             family: iced::font::Family::default(),
                             weight: iced::font::Weight::Bold,
@@ -110,10 +106,9 @@ impl<'a> ToastManager<'a> {
                         horizontal_space(),
                         close_button.on_press((on_close)(index))
                     ]
-                    .align_y(Alignment::Center),
-                ]
-                .push_maybe(body)
-            )
+                    .align_y(Alignment::Center),]
+                    .push_maybe(body)
+                )
                 .width(Length::Fill)
                 .padding(16)
                 .style(match toast.status {

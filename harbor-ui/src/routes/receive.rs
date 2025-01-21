@@ -1,6 +1,5 @@
 use crate::components::{
-    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header,
-    InputArgs, SvgIcon,
+    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use iced::widget::container::Style;
@@ -18,9 +17,8 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
     let reset_button =
         h_button("Start over", SvgIcon::Restart, false).on_press(Message::ReceiveStateReset);
 
-    let column = match (&harbor.receive_success_msg, receive_string) {
-        // Starting state
-        (None, None) => {
+    let column = match receive_string {
+        None => {
             let header = if !harbor.onchain_receive_enabled {
                 h_header("Deposit", "Receive via lightning.")
             } else {
@@ -85,7 +83,7 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             }
         }
         // We've generated an invoice or address
-        (None, Some(receive_string)) => {
+        Some(receive_string) => {
             let header = h_header("Receive", "Scan this QR or copy the string.");
 
             let data = harbor.receive_qr_data.as_ref().unwrap();
@@ -117,10 +115,6 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                     .on_press(Message::CopyToClipboard(receive_string)),
                 reset_button
             ]
-        }
-        // Success states aren't rendered here, we jump to the history screen
-        _ => {
-            panic!("Success states aren't rendered here, you should be on the history screen right now!")
         }
     };
 

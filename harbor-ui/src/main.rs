@@ -239,6 +239,28 @@ impl HarborWallet {
         self.add_federation_status = AddFederationStatus::Idle;
     }
 
+    fn clear_receive_state(&mut self) {
+        self.receive_failure_reason = None;
+        self.receive_status = ReceiveStatus::Idle;
+        self.receive_amount_str = String::new();
+        self.receive_invoice = None;
+        self.receive_address = None;
+        self.receive_qr_data = None;
+        self.receive_method = ReceiveMethod::Lightning;
+        // We dont' clear the success msg so the history screen can show the most recent
+        // transaction
+    }
+
+    fn clear_send_state(&mut self) {
+        self.send_failure_reason = None;
+        self.send_status = SendStatus::Idle;
+        self.send_dest_input_str = String::new();
+        self.send_amount_input_str = String::new();
+        self.is_max = false;
+        // We dont' clear the success msg so the history screen can show the most recent
+        // transaction
+    }
+
     fn send_from_ui(&self, msg: UICoreMsg) -> (Uuid, Task<Message>) {
         let id = Uuid::new_v4();
         let task = Task::perform(
@@ -322,22 +344,11 @@ impl HarborWallet {
                 Task::none()
             }
             Message::SendStateReset => {
-                self.send_failure_reason = None;
-                self.send_success_msg = None;
-                self.send_dest_input_str = String::new();
-                self.send_amount_input_str = String::new();
-                self.is_max = false;
-                self.send_status = SendStatus::Idle;
+                self.clear_send_state();
                 Task::none()
             }
             Message::ReceiveStateReset => {
-                self.receive_failure_reason = None;
-                self.receive_amount_str = String::new();
-                self.receive_invoice = None;
-                self.receive_success_msg = None;
-                self.receive_address = None;
-                self.receive_qr_data = None;
-                self.receive_status = ReceiveStatus::Idle;
+                self.clear_receive_state();
                 Task::none()
             }
             Message::ReceiveMethodChanged(method) => {
@@ -431,9 +442,8 @@ impl HarborWallet {
                     let federation_id = match self.active_federation.as_ref() {
                         Some(f) => f.id,
                         None => {
-                            // todo show error
-                            error!("No active federation");
-                            return Task::none();
+                            // This should be unreachable yeah?
+                            panic!("No active federation, but we're trying to generate an invoice");
                         }
                     };
                     match self.receive_amount_str.parse::<u64>() {
@@ -449,7 +459,13 @@ impl HarborWallet {
                         Err(e) => {
                             self.receive_amount_str = String::new();
                             eprintln!("Error parsing amount: {e}");
-                            Task::none()
+                            Task::perform(async {}, move |_| {
+                                Message::AddToast(Toast {
+                                    title: "Failed to generate invoice".to_string(),
+                                    body: Some(e.to_string()),
+                                    status: ToastStatus::Bad,
+                                })
+                            })
                         }
                     }
                 }
@@ -608,16 +624,33 @@ impl HarborWallet {
                     if self.current_send_id == msg.id {
                         self.send_success_msg = Some(params);
                         self.current_send_id = None;
+
+                        // Navigate to the history screen
+                        self.active_route = Route::History;
+                        self.clear_send_state();
                     }
-                    Task::none()
+                    // Toast success
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Payment sent".to_string(),
+                            body: None,
+                            status: ToastStatus::Good,
+                        })
+                    })
                 }
                 CoreUIMsg::SendFailure(reason) => {
                     if self.current_send_id == msg.id {
                         self.send_status = SendStatus::Idle;
-                        self.send_failure_reason = Some(reason);
                         self.current_send_id = None;
+                        // We don't clear the send state here because maybe they want to try again
                     }
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to send".to_string(),
+                            body: Some(reason.clone()),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
                 CoreUIMsg::ReceiveSuccess(params) => {
                     info!("Receive success: {params:?}");
@@ -627,24 +660,31 @@ impl HarborWallet {
 
                         // Navigate to the history screen
                         self.active_route = Route::History;
+                        self.clear_receive_state();
                     }
                     // Toast success
-                    // Task::perform(async {}, |_| {
-                    //     Message::AddToast(Toast {
-                    //         title: "Payment received".to_string(),
-                    //         body: None,
-                    //         status: ToastStatus::Good,
-                    //     })
-                    // })
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Payment received".to_string(),
+                            body: None,
+                            status: ToastStatus::Good,
+                        })
+                    })
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
                     if self.current_receive_id == msg.id {
                         self.receive_status = ReceiveStatus::Idle;
-                        self.receive_failure_reason = Some(reason);
+                        self.receive_failure_reason = Some(reason.clone());
                         self.current_receive_id = None;
+                        self.clear_receive_state();
                     }
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to receive".to_string(),
+                            body: Some(reason.clone()),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
                 CoreUIMsg::TransactionHistoryUpdated(history) => {
                     self.transaction_history = history;
