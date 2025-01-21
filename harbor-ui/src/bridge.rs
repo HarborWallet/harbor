@@ -1,10 +1,6 @@
 use crate::Message;
-use bitcoin::address::NetworkUnchecked;
-use bitcoin::{Address, Network};
+use bitcoin::Network;
 use fedimint_core::config::FederationId;
-use fedimint_core::invite_code::InviteCode;
-use fedimint_core::Amount;
-use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db::{check_password, setup_db, DBConnection};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
 use harbor_client::{data_dir, CoreUIMsg, CoreUIMsgPacket, HarborCore, UICoreMsg, UICoreMsgPacket};
@@ -35,133 +31,23 @@ pub enum BridgeError {
 }
 
 impl UIHandle {
-    pub async fn msg_send(&self, msg: UICoreMsgPacket) {
-        self.ui_to_core_tx.send(msg).await.unwrap();
-    }
-
-    pub async fn send_lightning(
-        &self,
-        id: Uuid,
-        federation_id: FederationId,
-        invoice: Bolt11Invoice,
-    ) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::SendLightning {
-                federation_id,
-                invoice,
-            },
-            id,
-        })
-        .await;
-    }
-
-    pub async fn send_onchain(
-        &self,
-        id: Uuid,
-        federation_id: FederationId,
-        address: Address<NetworkUnchecked>,
-        amount_sats: Option<u64>,
-    ) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::SendOnChain {
-                federation_id,
-                address,
-                amount_sats,
-            },
-            id,
-        })
-        .await;
-    }
-
-    pub async fn receive(&self, id: Uuid, federation_id: FederationId, amount: u64) {
-        let amount = Amount::from_sats(amount);
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::ReceiveLightning {
-                federation_id,
-                amount,
-            },
-            id,
-        })
-        .await;
-    }
-
-    pub async fn receive_onchain(&self, id: Uuid, federation_id: FederationId) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::ReceiveOnChain { federation_id },
-            id,
-        })
-        .await;
-    }
-
-    pub async fn unlock(&self, id: Uuid, password: String) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::Unlock(password),
-            id,
-        })
-        .await;
-    }
-
-    pub async fn init(&self, id: Uuid, password: String) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::Init {
-                password,
-                seed: None, // FIXME: Use this
-            },
-            id,
-        })
-        .await;
-    }
-
-    pub async fn add_federation(&self, id: Uuid, invite: InviteCode) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::AddFederation(invite),
-            id,
-        })
-        .await;
-    }
-
-    pub async fn peek_federation(&self, id: Uuid, invite: InviteCode) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::GetFederationInfo(invite),
-            id,
-        })
-        .await;
-    }
-
-    pub async fn remove_federation(&self, id: Uuid, federation_id: FederationId) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::RemoveFederation(federation_id),
-            id,
-        })
-        .await;
-    }
-
-    pub async fn get_seed_words(&self, id: Uuid) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::GetSeedWords,
-            id,
-        })
-        .await;
-    }
-
-    pub async fn set_onchain_receive_enabled(&self, id: Uuid, enabled: bool) {
-        self.msg_send(UICoreMsgPacket {
-            msg: UICoreMsg::SetOnchainReceiveEnabled(enabled),
-            id,
-        })
-        .await;
-    }
-}
-
-impl CoreHandle {
-    pub async fn recv(&mut self) -> Option<UICoreMsgPacket> {
-        self.core_from_ui_rx.recv().await
+    pub async fn send_msg(&self, id: Uuid, msg: UICoreMsg) {
+        self.ui_to_core_tx
+            .send(UICoreMsgPacket { msg, id })
+            .await
+            .unwrap();
     }
 }
 
 #[derive(Debug)]
 pub struct CoreHandle {
     core_from_ui_rx: mpsc::Receiver<UICoreMsgPacket>,
+}
+
+impl CoreHandle {
+    pub async fn recv(&mut self) -> Option<UICoreMsgPacket> {
+        self.core_from_ui_rx.recv().await
+    }
 }
 
 pub fn create_handles() -> (UIHandle, CoreHandle) {
