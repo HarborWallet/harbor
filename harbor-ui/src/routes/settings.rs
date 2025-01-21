@@ -14,14 +14,14 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     let add_good_toast_button =
         h_button("Nice!", SvgIcon::Plus, false).on_press(Message::AddToast(Toast {
             title: "Hello".to_string(),
-            body: "This is a toast".to_string(),
+            body: Some("This is a toast".to_string()),
             status: ToastStatus::Good,
         }));
 
     let add_error_toast_button =
         h_button("Error Toast", SvgIcon::Plus, false).on_press(Message::AddToast(Toast {
             title: "Error".to_string(),
-            body: "This is a toast".to_string(),
+            body: Some("This is a toast".to_string()),
             status: ToastStatus::Bad,
         }));
 

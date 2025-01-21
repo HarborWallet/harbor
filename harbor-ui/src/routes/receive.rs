@@ -1,11 +1,10 @@
 use crate::components::{
-    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, mini_copy,
+    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header,
     InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
-use harbor_client::ReceiveSuccessMsg;
 use iced::widget::container::Style;
-use iced::widget::{column, container, qr_code, radio, row, text};
+use iced::widget::{column, container, qr_code, radio, text};
 use iced::Color;
 use iced::{Border, Element, Font};
 
@@ -18,20 +17,6 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
     let reset_button =
         h_button("Start over", SvgIcon::Restart, false).on_press(Message::ReceiveStateReset);
-
-    let bold_font = Font {
-        family: iced::font::Family::Monospace,
-        weight: iced::font::Weight::Bold,
-        stretch: iced::font::Stretch::Normal,
-        style: iced::font::Style::Normal,
-    };
-
-    let mono_font = Font {
-        family: iced::font::Family::Monospace,
-        weight: iced::font::Weight::Normal,
-        stretch: iced::font::Stretch::Normal,
-        style: iced::font::Style::Normal,
-    };
 
     let column = match (&harbor.receive_success_msg, receive_string) {
         // Starting state
@@ -133,38 +118,9 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                 reset_button
             ]
         }
-        // Success states
-        (Some(ReceiveSuccessMsg::Lightning), _) => {
-            let header = h_header("Got it", "Payment received");
-
-            // TODO: should have some info here we can show like amount, fee, etc.
-
-            column![header, reset_button]
-        }
-        (Some(ReceiveSuccessMsg::Onchain { txid }), _) => {
-            let txid_str = txid.to_string();
-            let header = h_header("Got it", "Payment received");
-
-            let txid_str_shortened = if txid_str.len() > 20 {
-                // get the first 10 and last 10 chars
-                let txid_str_start = &txid_str[0..10];
-                let txid_str_end = &txid_str[txid_str.len() - 10..];
-
-                // add ellipsis
-                format!("{txid_str_start}...{txid_str_end}")
-            } else {
-                txid_str.clone()
-            };
-
-            let txid = row![
-                text("txid").font(bold_font),
-                text(txid_str_shortened).font(mono_font),
-                mini_copy(txid_str)
-            ]
-            .align_y(iced::Alignment::Center)
-            .spacing(8);
-
-            column![header, txid, reset_button]
+        // Success states aren't rendered here, we jump to the history screen
+        _ => {
+            panic!("Success states aren't rendered here, you should be on the history screen right now!")
         }
     };
 
