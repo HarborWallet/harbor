@@ -22,12 +22,13 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
     };
 
     Button::new(center(content))
-        .style(|theme, status| {
+        .style(move |theme, status| {
             let gray = lighten(theme.palette().background, 0.5);
 
-            let border_color = match status {
-                Status::Disabled => gray,
-                _ => Color::WHITE,
+            let border_color = if loading || matches!(status, Status::Disabled) {
+                gray
+            } else {
+                Color::WHITE
             };
 
             let border = Border {
@@ -36,16 +37,17 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
                 radius: (8.).into(),
             };
 
-            let background = match status {
-                Status::Hovered => lighten(theme.palette().background, 0.1),
-                Status::Pressed => darken(Color::BLACK, 0.1),
-                _ => theme.palette().background,
+            let background = if loading {
+                theme.palette().background
+            } else {
+                match status {
+                    Status::Hovered => lighten(theme.palette().background, 0.1),
+                    Status::Pressed => darken(Color::BLACK, 0.1),
+                    _ => theme.palette().background,
+                }
             };
 
-            let text_color = match status {
-                Status::Disabled => gray,
-                _ => Color::WHITE,
-            };
+            let text_color = if loading { gray } else { Color::WHITE };
 
             button::Style {
                 background: Some(background.into()),

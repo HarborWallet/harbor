@@ -46,7 +46,7 @@ impl fmt::Display for ToastStatus {
 #[derive(Debug, Clone, Default)]
 pub struct Toast {
     pub title: String,
-    pub body: String,
+    pub body: Option<String>,
     pub status: ToastStatus,
 }
 
@@ -93,10 +93,10 @@ impl<'a> ToastManager<'a> {
                     .width(Length::Fixed(24.))
                     .height(Length::Fixed(24.));
 
-                // close_button.on_press(on_close(index));
+                let body = toast.body.clone().map(text);
 
-                container(column![container(column![
-                    row![
+                container(column![container(
+                    column![row![
                         text(toast.title.as_str()).font(Font {
                             family: iced::font::Family::default(),
                             weight: iced::font::Weight::Bold,
@@ -106,9 +106,9 @@ impl<'a> ToastManager<'a> {
                         horizontal_space(),
                         close_button.on_press((on_close)(index))
                     ]
-                    .align_y(Alignment::Center),
-                    text(toast.body.as_str())
-                ])
+                    .align_y(Alignment::Center),]
+                    .push_maybe(body)
+                )
                 .width(Length::Fill)
                 .padding(16)
                 .style(match toast.status {
