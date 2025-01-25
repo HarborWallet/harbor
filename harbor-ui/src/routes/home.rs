@@ -7,18 +7,13 @@ use crate::{HarborWallet, Message};
 use super::Route;
 
 pub fn home(harbor: &HarborWallet) -> Element<Message> {
-    let formatted_balance = if let Some(federation) = &harbor.active_federation {
-        format_amount(federation.balance)
-    } else {
-        format_amount(0)
-    };
+    let formatted_balance = harbor
+        .active_federation()
+        .map_or_else(|| format_amount(0), |f| format_amount(f.balance));
 
     let balance = text(formatted_balance).size(64);
-    let send_disabled = harbor
-        .active_federation
-        .as_ref()
-        .map_or(true, |f| f.balance == 0);
-    let receive_disabled = harbor.active_federation.is_none();
+    let send_disabled = harbor.active_federation().map_or(true, |f| f.balance == 0);
+    let receive_disabled = harbor.active_federation().is_none();
     let send_button = h_button("Send", SvgIcon::UpRight, false);
     let receive_button = h_button("Deposit", SvgIcon::DownLeft, false);
 

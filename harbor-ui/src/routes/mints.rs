@@ -12,18 +12,13 @@ use super::{MintSubroute, Route};
 fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Mints", "Manage your mints here.");
 
-    let active_federation = harbor
-        .active_federation
-        .as_ref()
-        .expect("No active federation");
-
     let list = harbor
         .federation_list
         .iter()
         .fold(column![], |column, item| {
             column.push(h_federation_item(
                 item,
-                item.id != active_federation.id,
+                item.id != harbor.active_federation_id.expect("No active federation"),
                 true,
             ))
         })
