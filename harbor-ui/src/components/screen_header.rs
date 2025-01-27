@@ -10,8 +10,8 @@ use super::{
 };
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
-    if let Some(item) = harbor.active_federation.as_ref() {
-        let FederationItem { name, balance, .. } = item;
+    if let Some(item) = harbor.active_federation() {
+        let FederationItem { name, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
 
         let federation_names: Vec<String> = harbor
@@ -43,7 +43,7 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             .spacing(16)
             .width(Length::Shrink)
             .padding(Padding::new(0.).left(16));
-        let formatted_balance = format_amount(*balance);
+        let formatted_balance = format_amount(item.balance);
 
         let balance = row![text(formatted_balance).size(24)]
             .align_y(Alignment::Center)

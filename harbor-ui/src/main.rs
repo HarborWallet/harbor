@@ -19,7 +19,6 @@ use iced::Task;
 use iced::{clipboard, Color};
 use log::{error, info};
 use routes::Route;
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -156,10 +155,9 @@ pub struct HarborWallet {
     active_route: Route,
     toasts: Vec<Toast>,
     // Globals
-    federation_balances: HashMap<FederationId, Amount>,
     transaction_history: Vec<TransactionItem>,
     federation_list: Vec<FederationItem>,
-    active_federation: Option<FederationItem>,
+    active_federation_id: Option<FederationId>,
     // Welcome screen
     init_status: WelcomeStatus,
     seed_input_str: String,
@@ -207,12 +205,14 @@ pub struct HarborWallet {
 }
 
 impl HarborWallet {
-    fn balance_sats(&self) -> u64 {
-        let mut amount = Amount::ZERO;
-        for balance in self.federation_balances.values() {
-            amount += *balance;
-        }
-        amount.sats_round_down()
+    fn active_federation(&self) -> Option<&FederationItem> {
+        self.active_federation_id
+            .as_ref()
+            .and_then(|id| self.federation_list.iter().find(|f| f.id == *id))
+    }
+
+    fn total_balance_sats(&self) -> u64 {
+        self.federation_list.iter().map(|f| f.balance).sum()
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -387,8 +387,8 @@ impl HarborWallet {
                 SendStatus::Sending => Task::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    let federation_id = match self.active_federation.as_ref() {
-                        Some(f) => f.id,
+                    let federation_id = match self.active_federation_id {
+                        Some(f) => f,
                         None => {
                             // todo show error
                             error!("No active federation");
@@ -439,8 +439,8 @@ impl HarborWallet {
             Message::GenerateInvoice => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let federation_id = match self.active_federation.as_ref() {
-                        Some(f) => f.id,
+                    let federation_id = match self.active_federation_id {
+                        Some(f) => f,
                         None => {
                             // This should be unreachable yeah?
                             panic!("No active federation, but we're trying to generate an invoice");
@@ -473,8 +473,8 @@ impl HarborWallet {
             Message::GenerateAddress => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let federation_id = match self.active_federation.as_ref() {
-                        Some(f) => f.id,
+                    let federation_id = match self.active_federation_id {
+                        Some(f) => f,
                         None => {
                             // todo show error
                             error!("No active federation");
@@ -489,8 +489,8 @@ impl HarborWallet {
             },
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
                 Ok(amount) => {
-                    let federation_id = match self.active_federation.as_ref() {
-                        Some(f) => f.id,
+                    let federation_id = match self.active_federation_id {
+                        Some(f) => f,
                         None => {
                             // todo show error
                             error!("No active federation");
@@ -571,12 +571,7 @@ impl HarborWallet {
                 task
             }
             Message::ChangeFederation(id) => {
-                let federation = self
-                    .federation_list
-                    .iter()
-                    .find(|f| f.id == id)
-                    .expect("federation not found");
-                self.active_federation = Some(federation.clone());
+                self.active_federation_id = Some(id);
                 Task::none()
             }
             Message::CopyToClipboard(s) => Task::batch([
@@ -691,7 +686,16 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::FederationBalanceUpdated { id, balance } => {
-                    self.federation_balances.insert(id, balance);
+                    println!(
+                        "Balance update received - ID: {:?}, Balance: {:?}",
+                        id, balance
+                    );
+
+                    // Update the balance in the federation list
+                    if let Some(federation) = self.federation_list.iter_mut().find(|f| f.id == id) {
+                        federation.balance = balance.sats_round_down();
+                    }
+
                     Task::none()
                 }
                 CoreUIMsg::ReceiveGenerating => {
@@ -791,9 +795,11 @@ impl HarborWallet {
                     })
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
+                    println!("Updated federation list: {:#?}", list);
+
                     // if we don't have an active federation, set it to the first one
-                    if self.active_federation.is_none() {
-                        self.active_federation = list.first().cloned();
+                    if self.active_federation_id.is_none() {
+                        self.active_federation_id = list.first().map(|f| f.id);
                     }
 
                     // Show the CTA if we have no federations and we haven't navigated to the mints page yet
