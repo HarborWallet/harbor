@@ -43,8 +43,10 @@ pub use layout::*;
 mod mini_copy;
 pub use mini_copy::*;
 
-mod toast;
+pub mod toast;
 pub use toast::*;
+pub mod transaction_details;
+pub use transaction_details::*;
 
 mod colors;
 pub use colors::*;

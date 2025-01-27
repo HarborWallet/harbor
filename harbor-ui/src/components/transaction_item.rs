@@ -4,11 +4,14 @@ use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use iced::{
-    widget::{column, row, svg, text},
-    Element,
+    widget::{button, column, row, svg, text, Button},
+    Border, Color, Element,
 };
 
-use super::{format_amount, format_timestamp, link, map_icon, text_link, MUTINY_GREEN, MUTINY_RED};
+use super::{
+    darken, format_amount, format_timestamp, lighten, link, map_icon, text_link, MUTINY_GREEN,
+    MUTINY_RED,
+};
 
 pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
     let TransactionItem {
@@ -60,5 +63,27 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
         column![row, timestamp].spacing(8)
     };
 
-    col.into()
+    Button::new(col)
+        .on_press(Message::SelectTransaction(Some(*item)))
+        .style(move |theme, status| {
+            let background = match status {
+                button::Status::Hovered => lighten(theme.palette().background, 0.1),
+                button::Status::Pressed => darken(Color::BLACK, 0.1),
+                _ => theme.palette().background,
+            };
+
+            button::Style {
+                background: Some(background.into()),
+                text_color: Color::WHITE,
+                border: Border {
+                    color: Color::WHITE,
+                    width: 0.,
+                    radius: (8.).into(),
+                },
+                shadow: iced::Shadow::default(),
+            }
+        })
+        .width(iced::Length::Fill)
+        .padding(8)
+        .into()
 }
