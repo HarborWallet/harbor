@@ -4,8 +4,10 @@ set dotenv-load := true
 # Define a variable that holds the feature flag if USE_VENDOR_FEATURE is set
 FEATURE_FLAG := if env('USE_VENDOR_FEATURE', '0') == "1" { "--features vendored" } else { "" }
 
+DISABLE_TOR := if env('DISABLE_TOR', '0') == "1" { "--features disable-tor" } else { "" }
+
 run:
-    cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo run {{FEATURE_FLAG}}
+    cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo run {{FEATURE_FLAG}} {{DISABLE_TOR}}
     
 watch:
     cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo watch -x "run {{FEATURE_FLAG}}"

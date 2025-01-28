@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 vendored = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+disable-tor = []
 
 [dependencies]
 anyhow = "1.0.89"

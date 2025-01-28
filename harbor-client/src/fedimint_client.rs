@@ -77,6 +77,7 @@ impl FedimintClient {
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
         let mut client_builder = fedimint_client::Client::builder(db.into()).await?;
+        #[cfg(all(debug_assertions, not(feature = "disable-tor")))]
         client_builder.with_tor_connector();
 
         client_builder.with_module(WalletClientInit(None));
