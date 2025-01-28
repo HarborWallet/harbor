@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = []
 vendored = ["harbor-client/vendored"]
+disable-tor = ["harbor-client/disable-tor"]
 
 [dependencies]
 harbor-client = { version = "0.1.0", path = "../harbor-client" }
