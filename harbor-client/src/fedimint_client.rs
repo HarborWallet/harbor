@@ -101,13 +101,25 @@ impl FedimintClient {
             )
         } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
             let download = Instant::now();
-            let config = fedimint_api_client::api::net::Connector::Tor
-                .download_from_invite_code(&invite_code)
-                .await
-                .map_err(|e| {
-                    error!("Could not download federation info: {e}");
-                    e
-                })?;
+            let config = {
+                #[cfg(feature = "disable-tor")]
+                let config = fedimint_api_client::api::net::Connector::Tcp
+                    .download_from_invite_code(&invite_code)
+                    .await
+                    .map_err(|e| {
+                        error!("Could not download federation info: {e}");
+                        e
+                    })?;
+                #[cfg(not(feature = "disable-tor"))]
+                let config = fedimint_api_client::api::net::Connector::Tor
+                    .download_from_invite_code(&invite_code)
+                    .await
+                    .map_err(|e| {
+                        error!("Could not download federation info: {e}");
+                        e
+                    })?;
+                config
+            };
             trace!(
                 "Downloaded federation info in: {}ms",
                 download.elapsed().as_millis()

@@ -10,7 +10,7 @@ run:
     cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo run {{FEATURE_FLAG}} {{DISABLE_TOR}}
     
 watch:
-    cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo watch -x "run {{FEATURE_FLAG}}"
+    cd harbor-ui && RUST_LOG=harbor=debug,iced_wgpu=error,wgpu_core=error,info cargo watch -x "run {{FEATURE_FLAG}} {{DISABLE_TOR}}"
 
 test:
     cargo test {{FEATURE_FLAG}}
