@@ -201,7 +201,7 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for AbsoluteOverlay<'_,
 
         let translation = match self.position {
             OverlayPosition::TopRight => {
-                Vector::new(self.base_layout.width - node.size().width - 24.0, 24.0)
+                Vector::new(self.base_layout.width - node.size().width - 24.0, 48.0)
             }
             OverlayPosition::CenterRight => Vector::new(
                 self.base_layout.width - node.size().width - 24.0,
