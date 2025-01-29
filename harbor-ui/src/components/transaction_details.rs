@@ -1,20 +1,24 @@
+use super::{format_amount, format_timestamp, light_container_style, subtitle};
 use crate::components::{map_icon, text_link, SvgIcon};
 use crate::Message;
 use bitcoin::Network;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
+use harbor_client::db_models::FederationItem;
 use iced::widget::{column, container, row, text};
 use iced::{Alignment, Element, Length};
 
-use super::{format_amount, format_timestamp, light_container_style, subtitle};
-
-pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
+pub fn h_transaction_details<'a>(
+    item: &'a TransactionItem,
+    federation_list: &'a [FederationItem],
+) -> Element<'a, Message> {
     let TransactionItem {
         kind,
         amount,
         direction,
         timestamp,
+        federation_id,
         txid,
     } = item;
 
@@ -35,12 +39,17 @@ pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
         TransactionDirection::Outgoing => "From",
     };
 
-    // TODO: need mint info in the transaction item
+    let mint = federation_list
+        .iter()
+        .find(|f| f.id == *federation_id)
+        .cloned()
+        .unwrap_or(FederationItem::unknown(*federation_id));
+
     let mint_section = column![
         text(mint_label).size(16).style(subtitle),
         row![
             map_icon(SvgIcon::People, 24., 24.),
-            text("Mint 123").size(24)
+            text(mint.name.clone()).size(24)
         ]
         .align_y(Alignment::Center)
         .spacing(16)

@@ -19,6 +19,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         amount,
         direction,
         timestamp,
+        federation_id: _,
         txid,
     } = item;
     let kind_icon = match kind {

@@ -31,7 +31,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
     let content = basic_layout(left_column);
 
     if let Some(selected_tx) = &harbor.selected_transaction {
-        let details = h_transaction_details(selected_tx);
+        let details = h_transaction_details(selected_tx, &harbor.federation_list);
         Absolute::new(content, Some(details), OverlayPosition::CenterRight).into()
     } else {
         content
