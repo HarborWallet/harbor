@@ -1,12 +1,14 @@
-use iced::widget::{column, container, pick_list, scrollable, text, PickList};
-use iced::{Element, Length, Padding};
+use iced::widget::{column, container, pick_list, row, scrollable, text, PickList};
+use iced::{Alignment, Element, Length, Padding};
 
 use crate::components::{
-    h_button, h_header, h_input, menu_style, pick_list_style, InputArgs, SvgIcon,
+    h_balance_display, h_button, h_header, h_input, menu_style, pick_list_style, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
+    // We have to have at least 2 federations to be on this screen!
+    assert!(harbor.federation_list.len() >= 2);
     let federation_names: Vec<&str> = harbor
         .federation_list
         .iter()
@@ -28,6 +30,19 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
 
     let source = column![text("Source").size(24), source_list].spacing(16);
 
+    let mut source_row = row![source].spacing(16).align_y(Alignment::End);
+
+    // Show balance for source federation if selected
+    if let Some(source_fed) = harbor.transfer_from_federation_selection.as_ref() {
+        if let Some(federation) = harbor
+            .federation_list
+            .iter()
+            .find(|f| f.name == *source_fed)
+        {
+            source_row = source_row.push(h_balance_display(federation.balance));
+        }
+    }
+
     let destination_list: PickList<'_, &str, Vec<&str>, &str, Message> = pick_list(
         federation_names,
         harbor.transfer_to_federation_selection.as_deref(),
@@ -42,6 +57,15 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     .menu_style(menu_style);
 
     let destination = column![text("Destination").size(24), destination_list].spacing(16);
+
+    let mut destination_row = row![destination].spacing(16).align_y(Alignment::End);
+
+    // Show balance for destination federation if selected
+    if let Some(dest_fed) = harbor.transfer_to_federation_selection.as_ref() {
+        if let Some(federation) = harbor.federation_list.iter().find(|f| f.name == *dest_fed) {
+            destination_row = destination_row.push(h_balance_display(federation.balance));
+        }
+    }
 
     let amount_input = h_input(InputArgs {
         label: "Amount",
@@ -60,7 +84,7 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     )
     .on_press(Message::Transfer);
 
-    let list = column![source, destination, amount_input, transfer_button].spacing(48);
+    let list = column![source_row, destination_row, amount_input, transfer_button].spacing(48);
 
     container(scrollable(
         column![h_header("Transfer", "Rebalance your funds."), list]

@@ -5,8 +5,7 @@ use iced::{
     Alignment, Element,
 };
 
-use super::{format_amount, map_icon, SvgIcon};
-use super::{h_button, light_container_style, subtitle};
+use super::{h_balance_display, h_button, light_container_style, map_icon, subtitle, SvgIcon};
 
 pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> Element<Message> {
     let FederationItem {
@@ -42,10 +41,7 @@ pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> 
         }
         // Normal mode with balance and Remove button
         None => {
-            let balance_row = text(format_amount(*balance)).size(24);
-            let balance_subtitle = text("Your balance").size(18).style(subtitle);
-            let balance_col = column![balance_row, balance_subtitle].spacing(8);
-            column = column.push(balance_col);
+            column = column.push(h_balance_display(*balance));
 
             let remove_button = h_button("Remove Mint", SvgIcon::Trash, false)
                 .on_press(Message::RemoveFederation(*id));
