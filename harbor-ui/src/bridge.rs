@@ -8,7 +8,7 @@ use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream, StreamExt};
 use log::{error, warn};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -60,6 +60,95 @@ pub fn create_handles() -> (UIHandle, CoreHandle) {
     (ui_handle, core_handle)
 }
 
+/// Common setup function for creating a HarborCore instance
+async fn setup_harbor_core(
+    db_path: &str,
+    password: &str,
+    network: Network,
+    tx: &mut Sender<Message>,
+) -> Option<HarborCore> {
+    // Setup database
+    let db_path = db_path.to_string();
+    let password = password.to_string();
+    let db = spawn_blocking(move || setup_db(&db_path, password))
+        .await
+        .expect("Could not create join handle")
+        .ok()?;
+
+    // Retrieve mnemonic
+    let mnemonic = db.retrieve_mnemonic().expect("should get seed");
+
+    // Create stop signal
+    let stop = Arc::new(AtomicBool::new(false));
+
+    // Setup federation clients
+    let mut clients = HashMap::new();
+    let federation_ids = db
+        .list_federations()
+        .expect("should load initial fedimints");
+    for f in federation_ids {
+        let client = FedimintClient::new(
+            db.clone(),
+            FederationInviteOrId::Id(
+                FederationId::from_str(&f).expect("should parse federation id"),
+            ),
+            &mnemonic,
+            network,
+            stop.clone(),
+        )
+        .await
+        .expect("Could not create fedimint client");
+
+        clients.insert(client.federation_id(), client);
+    }
+
+    // Setup core message channel
+    let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
+    let mut tx_clone = tx.clone();
+    tokio::spawn(async move {
+        while let Some(rev) = core_rx.next().await {
+            tx_clone
+                .send(Message::CoreMessage(rev))
+                .await
+                .expect("should send");
+        }
+    });
+
+    // Create and return HarborCore
+    Some(HarborCore {
+        network,
+        mnemonic,
+        tx: core_tx,
+        clients: Arc::new(RwLock::new(clients)),
+        storage: db,
+        stop: stop.clone(),
+    })
+}
+
+/// Attempts to auto-unlock the wallet using a password from the environment.
+/// Returns Some(HarborCore) if successful, None if unsuccessful or no password found.
+async fn try_auto_unlock(
+    path: &Path,
+    network: Network,
+    tx: &mut Sender<Message>,
+) -> Option<HarborCore> {
+    let password = std::env::var("WALLET_PASSWORD").ok()?;
+    log::info!("Found password in environment, attempting auto-unlock");
+
+    let db_path = path.join(HARBOR_FILE_NAME);
+    let db_path = db_path.to_str().unwrap().to_string();
+
+    if check_password(&db_path, &password).is_err() {
+        return None;
+    }
+
+    let core = setup_harbor_core(&db_path, &password, network, tx).await?;
+    tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
+        .await
+        .expect("should send");
+    Some(core)
+}
+
 pub fn run_core() -> impl Stream<Item = Message> {
     iced::stream::channel(100, |mut tx: Sender<Message>| async move {
         // Setup UI Handle
@@ -82,6 +171,14 @@ pub fn run_core() -> impl Stream<Item = Message> {
 
         // Check if the database file exists already, if so tell UI to unlock
         if std::fs::metadata(path.join(HARBOR_FILE_NAME)).is_ok() {
+            // Try auto-unlock first, fall back to manual unlock if it fails
+            if let Some(core) = try_auto_unlock(&path, network, &mut tx).await {
+                let mut core_handle = core_handle;
+                tokio::spawn(async move {
+                    process_core(&mut core_handle, &core).await;
+                });
+                return;
+            }
             tx.send(Message::core_msg(None, CoreUIMsg::Locked))
                 .await
                 .expect("should send");
@@ -104,7 +201,6 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         .await
                         .expect("should send");
 
-                    // attempting to unlock
                     let db_path = path.join(HARBOR_FILE_NAME);
                     let db_path = db_path.to_str().unwrap().to_string();
 
@@ -138,77 +234,21 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         continue;
                     }
 
-                    log::info!("Correct password");
-
-                    let db = spawn_blocking(move || setup_db(&db_path, password))
-                        .await
-                        .expect("Could not create join handle");
-
-                    if let Err(e) = db {
-                        error!("error opening database: {e}");
-
+                    if let Some(core) =
+                        setup_harbor_core(&db_path, &password, network, &mut tx).await
+                    {
+                        tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
+                            .await
+                            .expect("should send");
+                        process_core(&mut core_handle, &core).await;
+                    } else {
                         tx.send(Message::core_msg(
                             id,
-                            CoreUIMsg::UnlockFailed(e.to_string()),
+                            CoreUIMsg::UnlockFailed("Failed to setup wallet".to_string()),
                         ))
                         .await
                         .expect("should send");
-                        continue;
                     }
-                    let db = db.expect("no error");
-
-                    let mnemonic = db.retrieve_mnemonic().expect("should get seed");
-
-                    let stop = Arc::new(AtomicBool::new(false));
-
-                    // check db for fedimints
-                    let mut clients = HashMap::new();
-                    let federation_ids = db
-                        .list_federations()
-                        .expect("should load initial fedimints");
-                    for f in federation_ids {
-                        let client = FedimintClient::new(
-                            db.clone(),
-                            FederationInviteOrId::Id(
-                                FederationId::from_str(&f).expect("should parse federation id"),
-                            ),
-                            &mnemonic,
-                            network,
-                            stop.clone(),
-                        )
-                        .await
-                        .expect("Could not create fedimint client");
-
-                        clients.insert(client.federation_id(), client);
-                    }
-
-                    let (core_tx, mut core_rx) =
-                        iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
-
-                    let mut tx_clone = tx.clone();
-                    tokio::spawn(async move {
-                        while let Some(rev) = core_rx.next().await {
-                            tx_clone
-                                .send(Message::CoreMessage(rev))
-                                .await
-                                .expect("should send");
-                        }
-                    });
-
-                    let core = HarborCore {
-                        storage: db.clone(),
-                        tx: core_tx,
-                        mnemonic,
-                        network,
-                        clients: Arc::new(RwLock::new(clients)),
-                        stop,
-                    };
-
-                    tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
-                        .await
-                        .expect("should send");
-
-                    process_core(&mut core_handle, &core).await;
                 }
                 Some(UICoreMsg::Init { password, seed }) => {
                     log::info!("Sending init message");
