@@ -609,7 +609,7 @@ impl HarborWallet {
                 } else {
                     Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
-                            title: "Failed to preview mint".to_string(),
+                            title: "Can't preview mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
