@@ -127,6 +127,7 @@ pub enum Message {
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
+    Transfer,
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
@@ -189,6 +190,7 @@ pub struct HarborWallet {
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
     transfer_amount_input_str: String,
+    transfer_status: SendStatus,
     // Donate
     donate_amount_str: String,
     // Settings
@@ -196,6 +198,7 @@ pub struct HarborWallet {
     seed_words: Option<String>,
     current_send_id: Option<Uuid>,
     current_receive_id: Option<Uuid>,
+    current_transfer_id: Option<Uuid>,
     peek_status: PeekStatus,
     add_federation_status: AddFederationStatus,
     // Onboarding
@@ -209,10 +212,6 @@ impl HarborWallet {
         self.active_federation_id
             .as_ref()
             .and_then(|id| self.federation_list.iter().find(|f| f.id == *id))
-    }
-
-    fn total_balance_sats(&self) -> u64 {
-        self.federation_list.iter().map(|f| f.balance).sum()
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -259,6 +258,13 @@ impl HarborWallet {
         self.is_max = false;
         // We dont' clear the success msg so the history screen can show the most recent
         // transaction
+    }
+
+    fn clear_transfer_state(&mut self) {
+        self.transfer_amount_input_str = String::new();
+        self.transfer_to_federation_selection = None;
+        self.transfer_from_federation_selection = None;
+        self.transfer_status = SendStatus::Idle;
     }
 
     fn send_from_ui(&self, msg: UICoreMsg) -> (Uuid, Task<Message>) {
@@ -436,6 +442,50 @@ impl HarborWallet {
                     }
                 }
             },
+            Message::Transfer => {
+                let from = if let Some(name) = &self.transfer_from_federation_selection {
+                    self.federation_list
+                        .iter()
+                        .find(|f| &f.name == name)
+                        .unwrap()
+                        .id
+                } else {
+                    error!("No source federation selected");
+                    return Task::none();
+                };
+                let to = if let Some(name) = &self.transfer_to_federation_selection {
+                    self.federation_list
+                        .iter()
+                        .find(|f| &f.name == name)
+                        .unwrap()
+                        .id
+                } else {
+                    error!("No destination federation selected");
+                    return Task::none();
+                };
+
+                if from == to {
+                    error!("Cannot transfer to same federation");
+                    return Task::none();
+                }
+
+                let amount = match self.transfer_amount_input_str.parse::<u64>() {
+                    Ok(a) => a,
+                    Err(_) => {
+                        error!("Invalid amount");
+                        return Task::none();
+                    }
+                };
+
+                let (id, task) = self.send_from_ui(UICoreMsg::Transfer {
+                    from,
+                    to,
+                    amount: Amount::from_sats(amount),
+                });
+                self.current_transfer_id = Some(id);
+                self.transfer_status = SendStatus::Sending;
+                task
+            }
             Message::GenerateInvoice => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
@@ -625,13 +675,17 @@ impl HarborWallet {
                         self.clear_send_state();
                     }
                     // Toast success
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Payment sent".to_string(),
-                            body: None,
-                            status: ToastStatus::Good,
+                    if params != SendSuccessMsg::Transfer {
+                        Task::perform(async {}, move |_| {
+                            Message::AddToast(Toast {
+                                title: "Payment sent".to_string(),
+                                body: None,
+                                status: ToastStatus::Good,
+                            })
                         })
-                    })
+                    } else {
+                        Task::none()
+                    }
                 }
                 CoreUIMsg::SendFailure(reason) => {
                     if self.current_send_id == msg.id {
@@ -656,15 +710,31 @@ impl HarborWallet {
                         // Navigate to the history screen
                         self.active_route = Route::History;
                         self.clear_receive_state();
+                    } else if self.current_transfer_id == msg.id && msg.id.is_some() {
+                        self.current_transfer_id = None;
+
+                        // Navigate to the history screen
+                        self.active_route = Route::History;
+                        self.clear_transfer_state();
                     }
-                    // Toast success
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Payment received".to_string(),
-                            body: None,
-                            status: ToastStatus::Good,
+                    if params != ReceiveSuccessMsg::Transfer {
+                        // Toast success
+                        Task::perform(async {}, move |_| {
+                            Message::AddToast(Toast {
+                                title: "Payment received".to_string(),
+                                body: None,
+                                status: ToastStatus::Good,
+                            })
                         })
-                    })
+                    } else {
+                        Task::perform(async {}, move |_| {
+                            Message::AddToast(Toast {
+                                title: "Transfer complete".to_string(),
+                                body: None,
+                                status: ToastStatus::Good,
+                            })
+                        })
+                    }
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
                     if self.current_receive_id == msg.id {
@@ -680,6 +750,13 @@ impl HarborWallet {
                             status: ToastStatus::Bad,
                         })
                     })
+                }
+                CoreUIMsg::TransferFailure(reason) => {
+                    if self.current_transfer_id == msg.id {
+                        self.transfer_status = SendStatus::Idle;
+                    }
+                    error!("Transfer failed: {reason}");
+                    Task::none()
                 }
                 CoreUIMsg::TransactionHistoryUpdated(history) => {
                     self.transaction_history = history;

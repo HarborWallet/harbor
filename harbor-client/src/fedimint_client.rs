@@ -260,6 +260,7 @@ pub(crate) async fn spawn_invoice_receive_subscription(
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
     msg_id: Uuid,
+    is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnReceiveState>,
 ) {
     spawn(async move {
@@ -283,10 +284,15 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 }
                 LnReceiveState::Claimed => {
                     info!("Payment claimed");
+                    let params = if is_transfer {
+                        ReceiveSuccessMsg::Transfer
+                    } else {
+                        ReceiveSuccessMsg::Lightning
+                    };
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveSuccess(ReceiveSuccessMsg::Lightning),
+                            msg: CoreUIMsg::ReceiveSuccess(params),
                         })
                         .await
                         .unwrap();
@@ -323,6 +329,7 @@ pub(crate) async fn spawn_invoice_payment_subscription(
     storage: Arc<dyn DBConnection + Send + Sync>,
     operation_id: OperationId,
     msg_id: Uuid,
+    is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnPayState>,
 ) {
     spawn(async move {
@@ -334,7 +341,11 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::SendFailure("Canceled".to_string()),
+                            msg: if is_transfer {
+                                CoreUIMsg::TransferFailure("Canceled".to_string())
+                            } else {
+                                CoreUIMsg::SendFailure("Canceled".to_string())
+                            },
                         })
                         .await
                         .unwrap();
@@ -349,7 +360,11 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::SendFailure(error_message),
+                            msg: if is_transfer {
+                                CoreUIMsg::TransferFailure(error_message)
+                            } else {
+                                CoreUIMsg::SendFailure(error_message)
+                            },
                         })
                         .await
                         .unwrap();
@@ -363,7 +378,11 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     info!("Payment success");
                     let preimage: [u8; 32] =
                         FromHex::from_hex(&preimage).expect("Invalid preimage");
-                    let params = SendSuccessMsg::Lightning { preimage };
+                    let params = if is_transfer {
+                        SendSuccessMsg::Transfer
+                    } else {
+                        SendSuccessMsg::Lightning { preimage }
+                    };
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),

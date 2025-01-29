@@ -287,7 +287,10 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     } => {
                         log::info!("Got UICoreMsg::Send");
                         core.msg(msg.id, CoreUIMsg::Sending).await;
-                        if let Err(e) = core.send_lightning(msg.id, federation_id, invoice).await {
+                        if let Err(e) = core
+                            .send_lightning(msg.id, federation_id, invoice, false)
+                            .await
+                        {
                             error!("Error sending: {e}");
                             core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
                                 .await;
@@ -298,7 +301,10 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         amount,
                     } => {
                         core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
-                        match core.receive_lightning(msg.id, federation_id, amount).await {
+                        match core
+                            .receive_lightning(msg.id, federation_id, amount, false)
+                            .await
+                        {
                             Err(e) => {
                                 core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
                                     .await;
@@ -336,6 +342,13 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address))
                                     .await;
                             }
+                        }
+                    }
+                    UICoreMsg::Transfer { to, from, amount } => {
+                        if let Err(e) = core.transfer(msg.id, to, from, amount).await {
+                            error!("Error transferring: {e}");
+                            core.msg(msg.id, CoreUIMsg::TransferFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::GetFederationInfo(invite_code) => {
