@@ -13,7 +13,7 @@ pub enum TransactionDirection {
     Outgoing,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TransactionItem {
     pub kind: TransactionItemKind,
     pub amount: u64,

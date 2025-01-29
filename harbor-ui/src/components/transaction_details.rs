@@ -4,10 +4,10 @@ use bitcoin::Network;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
-use iced::widget::{column, container, row, text};
-use iced::{Element, Length, Padding};
+use iced::widget::{button, column, container, row, text};
+use iced::{Border, Color, Element, Length, Theme};
 
-use super::{format_amount, format_timestamp, h_icon_button};
+use super::{darken, format_amount, format_timestamp, h_icon_button, light_container_style, lighten};
 
 pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
     let TransactionItem {
@@ -56,14 +56,16 @@ pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
         );
     }
 
-    let close_button =
-        h_icon_button(SvgIcon::ChevronRight).on_press(Message::SelectTransaction(None));
+    let close_button = h_icon_button(SvgIcon::ChevronRight).on_press(Message::SelectTransaction(None));
 
     container(row![
-        container(close_button).padding(8).height(Length::Fill),
+        container(close_button).padding(8),
         column![text("Transaction Details").size(24), details]
-            // Matches the padding of the content container
-            .padding(Padding::from([48., 8.])),
+            .padding(8),
     ])
+    .style(light_container_style)
+    .width(Length::Fixed(300.))
+    .height(Length::Shrink)
+    .padding(8)
     .into()
 }

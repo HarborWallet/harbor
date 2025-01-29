@@ -13,7 +13,7 @@ use super::{
     MUTINY_RED,
 };
 
-pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
+pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<Message> {
     let TransactionItem {
         kind,
         amount,
@@ -66,10 +66,14 @@ pub fn h_transaction_item(item: &TransactionItem) -> Element<Message> {
     Button::new(col)
         .on_press(Message::SelectTransaction(Some(*item)))
         .style(move |theme, status| {
-            let background = match status {
-                button::Status::Hovered => lighten(theme.palette().background, 0.1),
-                button::Status::Pressed => darken(Color::BLACK, 0.1),
-                _ => theme.palette().background,
+            let background = if is_selected {
+                lighten(theme.palette().background, 0.05)
+            } else {
+                match status {
+                    button::Status::Hovered => lighten(theme.palette().background, 0.1),
+                    button::Status::Pressed => darken(Color::BLACK, 0.1),
+                    _ => theme.palette().background,
+                }
             };
 
             button::Style {
