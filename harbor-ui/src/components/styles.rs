@@ -1,7 +1,5 @@
 use iced::{
-    overlay::menu,
-    widget::{pick_list, text::Style},
-    Border, Color, Theme,
+    overlay::menu, widget::{container::Style as ContainerStyle, pick_list, text::Style}, Border, Color, Shadow, Theme
 };
 
 use super::{darken, lighten};
@@ -106,5 +104,21 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
         text_color: Color::WHITE,
         placeholder_color: Color::WHITE,
         handle_color: Color::WHITE,
+    }
+}
+
+pub fn light_container_style(theme: &Theme) -> ContainerStyle {
+    let gray = lighten(theme.palette().background, 0.1);
+    let border = Border {
+        color: gray,
+        width: 0.,
+        radius: (8.).into(),
+    };
+
+    ContainerStyle {
+        text_color: None,
+        background: Some(gray.into()),
+        border,
+        shadow: Shadow::default(),
     }
 }
