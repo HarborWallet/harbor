@@ -5,14 +5,10 @@ use iced::{
     Alignment, Element,
 };
 
-use super::{bold_text, h_button, light_container_style, regular_text, subtitle, truncate_text};
 use super::{format_amount, map_icon, SvgIcon};
+use super::{h_button, light_container_style, subtitle};
 
-pub fn h_federation_item(
-    item: &FederationItem,
-    show_button: bool,
-    is_added: bool,
-) -> Element<Message> {
+pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> Element<Message> {
     let FederationItem {
         id,
         name,
@@ -37,23 +33,28 @@ pub fn h_federation_item(
         column = column.push(text(guardian_text).size(18).style(subtitle));
     }
 
-    let balance_row = text(format_amount(*balance)).size(24);
-    let balance_subtitle = text("Your balance").size(18).style(subtitle);
-    let balance_col = column![balance_row, balance_subtitle].spacing(8);
+    match invite_code {
+        // Preview mode with Add button
+        Some(code) => {
+            let add_mint_button =
+                h_button("Add Mint", SvgIcon::Plus, false).on_press(Message::AddFederation(code));
+            column = column.push(add_mint_button);
+        }
+        // Normal mode with balance and Remove button
+        None => {
+            let balance_row = text(format_amount(*balance)).size(24);
+            let balance_subtitle = text("Your balance").size(18).style(subtitle);
+            let balance_col = column![balance_row, balance_subtitle].spacing(8);
+            column = column.push(balance_col);
 
-    column = column.push(balance_col);
-
-    if show_button {
-        let button = h_button("Set as active Mint", SvgIcon::Squirrel, false)
-            .on_press(Message::ChangeFederation(*id));
-        column = column.push(button);
+            let remove_button = h_button("Remove Mint", SvgIcon::Trash, false)
+                .on_press(Message::RemoveFederation(*id));
+            column = column.push(remove_button);
+        }
     }
 
-    if is_added {
-        let remove_button =
-            h_button("Remove Mint", SvgIcon::Trash, false).on_press(Message::RemoveFederation(*id));
-        column = column.push(remove_button);
-    }
-
-    container(column).padding(16).style(light_container_style).into()
+    container(column)
+        .padding(16)
+        .style(light_container_style)
+        .into()
 }

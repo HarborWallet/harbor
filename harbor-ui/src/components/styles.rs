@@ -1,5 +1,7 @@
 use iced::{
-    overlay::menu, widget::{container::Style as ContainerStyle, pick_list, text::Style}, Border, Color, Shadow, Theme
+    overlay::menu,
+    widget::{container::Style as ContainerStyle, pick_list, text::Style},
+    Border, Color, Shadow, Theme,
 };
 
 use super::{darken, lighten};
