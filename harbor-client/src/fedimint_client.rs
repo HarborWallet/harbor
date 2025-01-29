@@ -77,7 +77,9 @@ impl FedimintClient {
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
         let mut client_builder = fedimint_client::Client::builder(db.into()).await?;
-        #[cfg(all(debug_assertions, not(feature = "disable-tor")))]
+
+        // Tor should be enabled unless we're in debug mode AND the "disable-tor" feature is enabled
+        #[cfg(not(all(debug_assertions, feature = "disable-tor")))]
         client_builder.with_tor_connector();
 
         client_builder.with_module(WalletClientInit(None));
@@ -102,7 +104,7 @@ impl FedimintClient {
         } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
             let download = Instant::now();
             let config = {
-                #[cfg(feature = "disable-tor")]
+                #[cfg(all(debug_assertions, feature = "disable-tor"))]
                 let config = fedimint_api_client::api::net::Connector::Tcp
                     .download_from_invite_code(&invite_code)
                     .await
@@ -110,7 +112,7 @@ impl FedimintClient {
                         error!("Could not download federation info: {e}");
                         e
                     })?;
-                #[cfg(not(feature = "disable-tor"))]
+                #[cfg(not(all(debug_assertions, feature = "disable-tor")))]
                 let config = fedimint_api_client::api::net::Connector::Tor
                     .download_from_invite_code(&invite_code)
                     .await

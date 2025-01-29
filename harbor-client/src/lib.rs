@@ -437,7 +437,7 @@ impl HarborCore {
     ) -> anyhow::Result<ClientConfig> {
         let download = Instant::now();
         let config = {
-            #[cfg(feature = "disable-tor")]
+            #[cfg(all(debug_assertions, feature = "disable-tor"))]
             let config = fedimint_api_client::api::net::Connector::Tcp
                 .download_from_invite_code(&invite_code)
                 .await
@@ -445,7 +445,7 @@ impl HarborCore {
                     error!("Could not download federation info: {e}");
                     e
                 })?;
-            #[cfg(not(feature = "disable-tor"))]
+            #[cfg(all(debug_assertions, not(feature = "disable-tor")))]
             let config = fedimint_api_client::api::net::Connector::Tor
                 .download_from_invite_code(&invite_code)
                 .await
