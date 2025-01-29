@@ -4,7 +4,7 @@ use iced::Element;
 use crate::components::{
     basic_layout, h_button, h_federation_item, h_header, h_input, InputArgs, SvgIcon,
 };
-use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
+use crate::{HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
 
@@ -16,18 +16,14 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
         .federation_list
         .iter()
         .fold(column![], |column, item| {
-            column.push(h_federation_item(
-                item,
-                item.id != harbor.active_federation_id.expect("No active federation"),
-                true,
-            ))
+            column.push(h_federation_item(item, None))
         })
         .spacing(48);
 
-    let add_mint_button = h_button("Add Mint", SvgIcon::Plus, false)
+    let add_another_mint_button = h_button("Add Another Mint", SvgIcon::Plus, false)
         .on_press(Message::Navigate(Route::Mints(MintSubroute::Add)));
 
-    let column = column![header, list, add_mint_button].spacing(48);
+    let column = column![header, list, add_another_mint_button].spacing(48);
 
     basic_layout(column)
 }
@@ -56,25 +52,15 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
         }
 
         Some(peek_federation_item) => {
-            let federation_preview = h_federation_item(peek_federation_item, false, false);
-
-            let add_mint_button = h_button(
-                "Add Mint",
-                SvgIcon::Plus,
-                harbor.add_federation_status == AddFederationStatus::Adding,
-            )
-            .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
+            let federation_preview = h_federation_item(
+                peek_federation_item,
+                Some(harbor.mint_invite_code_str.clone()),
+            );
 
             let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
                 .on_press(Message::CancelAddFederation);
 
-            column![
-                header,
-                federation_preview,
-                add_mint_button,
-                start_over_button
-            ]
-            .spacing(48)
+            column![header, federation_preview, start_over_button].spacing(48)
         }
     };
 
