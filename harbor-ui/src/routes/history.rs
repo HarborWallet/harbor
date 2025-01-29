@@ -1,10 +1,7 @@
 use iced::Element;
 
-use crate::components::{
-    basic_layout, h_header, h_transaction_details, h_transaction_item,
-    hr,
-};
-use crate::components::absolute_overlay::{Absolute, Position};
+use crate::components::absolute_overlay::{Absolute, OverlayPosition};
+use crate::components::{basic_layout, h_header, h_transaction_details, h_transaction_item, hr};
 use crate::{HarborWallet, Message};
 use iced::widget::{column, text};
 
@@ -23,7 +20,9 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
                     .as_ref()
                     .map(|selected| selected == item)
                     .unwrap_or(false);
-                column.push(h_transaction_item(item, is_selected)).push(hr())
+                column
+                    .push(h_transaction_item(item, is_selected))
+                    .push(hr())
             })
             .spacing(16)
     };
@@ -33,7 +32,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
 
     if let Some(selected_tx) = &harbor.selected_transaction {
         let details = h_transaction_details(selected_tx);
-        Absolute::new(content, Some(details), Position::TopRight).into()
+        Absolute::new(content, Some(details), OverlayPosition::CenterRight).into()
     } else {
         content
     }

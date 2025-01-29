@@ -4,25 +4,26 @@ use iced::advanced::renderer;
 use iced::advanced::widget::{self, Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget};
 use iced::event::{self, Event};
-use iced::{Border, Color, Element, Length, Point, Rectangle, Size, Theme, Vector, mouse, Renderer};
+use iced::{mouse, Element, Length, Point, Rectangle, Renderer, Size, Theme, Vector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Position {
+pub enum OverlayPosition {
     #[default]
     TopRight,
+    CenterRight,
 }
 
 pub struct Absolute<'a, Message: 'a> {
     content: Element<'a, Message>,
     overlay: Option<Element<'a, Message>>,
-    position: Position,
+    position: OverlayPosition,
 }
 
 impl<'a, Message: 'a> Absolute<'a, Message> {
     pub fn new(
         content: impl Into<Element<'a, Message>>,
         overlay: Option<Element<'a, Message>>,
-        position: Position,
+        position: OverlayPosition,
     ) -> Self {
         Self {
             content: content.into(),
@@ -156,10 +157,10 @@ impl<'a, Message: 'a> Widget<Message, Theme, Renderer> for Absolute<'a, Message>
         if let Some(overlay) = &mut self.overlay {
             let (first, second) = state.children.split_at_mut(1);
 
-            let base = self
-                .content
-                .as_widget_mut()
-                .overlay(&mut first[0], layout, renderer, translation);
+            let base =
+                self.content
+                    .as_widget_mut()
+                    .overlay(&mut first[0], layout, renderer, translation);
 
             let overlay = overlay::Element::new(Box::new(AbsoluteOverlay {
                 content: overlay,
@@ -182,7 +183,7 @@ impl<'a, Message: 'a> Widget<Message, Theme, Renderer> for Absolute<'a, Message>
 struct AbsoluteOverlay<'a, 'b, Message> {
     content: &'b mut Element<'a, Message>,
     tree: &'b mut Tree,
-    position: Position,
+    position: OverlayPosition,
     base_layout: Rectangle,
     base_position: Point,
 }
@@ -193,12 +194,18 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for AbsoluteOverlay<'_,
             .width(Length::Shrink)
             .height(Length::Shrink);
 
-        let mut node = self.content.as_widget().layout(self.tree, renderer, &limits);
+        let node = self
+            .content
+            .as_widget()
+            .layout(self.tree, renderer, &limits);
 
         let translation = match self.position {
-            Position::TopRight => Vector::new(
+            OverlayPosition::TopRight => {
+                Vector::new(self.base_layout.width - node.size().width - 24.0, 24.0)
+            }
+            OverlayPosition::CenterRight => Vector::new(
                 self.base_layout.width - node.size().width - 24.0,
-                24.0,
+                (self.base_layout.height - node.size().height) / 2.0,
             ),
         };
 
@@ -224,12 +231,7 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for AbsoluteOverlay<'_,
         );
     }
 
-    fn operate(
-        &mut self,
-        layout: Layout<'_>,
-        renderer: &Renderer,
-        operation: &mut dyn Operation,
-    ) {
+    fn operate(&mut self, layout: Layout<'_>, renderer: &Renderer, operation: &mut dyn Operation) {
         self.content
             .as_widget_mut()
             .operate(self.tree, layout, renderer, operation);
@@ -267,13 +269,9 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for AbsoluteOverlay<'_,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        self.content.as_widget().mouse_interaction(
-            self.tree,
-            layout,
-            cursor,
-            viewport,
-            renderer,
-        )
+        self.content
+            .as_widget()
+            .mouse_interaction(self.tree, layout, cursor, viewport, renderer)
     }
 
     fn overlay<'c>(
@@ -294,4 +292,4 @@ where
     fn from(absolute: Absolute<'a, Message>) -> Self {
         Element::new(absolute)
     }
-} 
+}

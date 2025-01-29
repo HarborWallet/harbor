@@ -1,13 +1,13 @@
-use crate::components::{text_link, SvgIcon};
+use crate::components::{map_icon, text_link, SvgIcon};
 use crate::Message;
 use bitcoin::Network;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
-use iced::widget::{button, column, container, row, text};
-use iced::{Border, Color, Element, Length, Theme};
+use iced::widget::{column, container, row, text};
+use iced::{Alignment, Element, Length};
 
-use super::{darken, format_amount, format_timestamp, h_icon_button, light_container_style, lighten};
+use super::{format_amount, format_timestamp, light_container_style, subtitle};
 
 pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
     let TransactionItem {
@@ -18,29 +18,56 @@ pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
         txid,
     } = item;
 
-    let kind_text = match kind {
-        TransactionItemKind::Lightning => "Lightning",
-        TransactionItemKind::Onchain => "On-chain",
-    };
-
-    let direction_text = match direction {
-        TransactionDirection::Incoming => "Received",
-        TransactionDirection::Outgoing => "Sent",
+    // Create title based on type and direction
+    let title = match (kind, direction) {
+        (TransactionItemKind::Lightning, TransactionDirection::Incoming) => "Lightning Receive",
+        (TransactionItemKind::Lightning, TransactionDirection::Outgoing) => "Lightning Send",
+        (TransactionItemKind::Onchain, TransactionDirection::Incoming) => "On-chain Receive",
+        (TransactionItemKind::Onchain, TransactionDirection::Outgoing) => "On-chain Send",
     };
 
     let formatted_amount = format_amount(*amount);
     let formatted_timestamp = format_timestamp(timestamp);
 
-    let mut details = column![
-        text(format!("Type: {}", kind_text)).size(16),
-        text(format!("Direction: {}", direction_text)).size(16),
-        text(format!("Amount: {}", formatted_amount)).size(16),
-        text(format!("Time: {}", formatted_timestamp)).size(16),
+    // Create the mint section with appropriate label
+    let mint_label = match direction {
+        TransactionDirection::Incoming => "To",
+        TransactionDirection::Outgoing => "From",
+    };
+
+    // TODO: need mint info in the transaction item
+    let mint_section = column![
+        text(mint_label).size(16).style(subtitle),
+        row![
+            map_icon(SvgIcon::People, 24., 24.),
+            text("Mint 123").size(24)
+        ]
+        .align_y(Alignment::Center)
+        .spacing(16)
     ]
     .spacing(8);
 
+    // Create the amount section
+    let amount_section = column![
+        text("Amount").size(16).style(subtitle),
+        text(formatted_amount).size(24)
+    ]
+    .spacing(8);
+
+    // Create the time section
+    let time_section = row![
+        text("Time").size(16).style(subtitle),
+        text(formatted_timestamp).size(16)
+    ]
+    .spacing(8);
+
+    let mut details = column![mint_section, amount_section, time_section].spacing(16);
+
+    // TODO: need preimages so we can do lightning too
+
+    // Add TXID if it exists
     if let Some(txid) = txid {
-        // todo: where do we get the network from?
+        // TODO: where do we get the network from?
         let network = Network::Signet;
         let base_url = match network {
             Network::Signet => "https://mutinynet.com/tx/",
@@ -49,23 +76,18 @@ pub fn h_transaction_details(item: &TransactionItem) -> Element<Message> {
         let url = format!("{}{}", base_url, txid);
         details = details.push(
             row![
-                text("Transaction ID: ").size(16),
+                text("TXID").size(16).style(subtitle),
                 text_link(txid.to_string(), url)
             ]
-            .spacing(4),
+            .spacing(8),
         );
     }
 
-    let close_button = h_icon_button(SvgIcon::ChevronRight).on_press(Message::SelectTransaction(None));
+    let title_row = row![text(title).size(24),].align_y(Alignment::Center);
 
-    container(row![
-        container(close_button).padding(8),
-        column![text("Transaction Details").size(24), details]
-            .padding(8),
-    ])
-    .style(light_container_style)
-    .width(Length::Fixed(300.))
-    .height(Length::Shrink)
-    .padding(8)
-    .into()
+    container(column![title_row, details].spacing(16).padding(16))
+        .style(light_container_style)
+        .width(Length::Fixed(300.))
+        .height(Length::Shrink)
+        .into()
 }

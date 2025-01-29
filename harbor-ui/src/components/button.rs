@@ -15,8 +15,6 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
     let svg = map_icon(icon, 24., 24.);
     let content = if loading {
         row![spinner].align_y(iced::Alignment::Center)
-    } else if text_str.is_empty() {
-        row![svg].align_y(iced::Alignment::Center)
     } else {
         row![svg, text(text_str).size(24.)]
             .align_y(iced::Alignment::Center)
@@ -60,37 +58,6 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
         })
         .width(Length::Fill)
         .height(Length::Fixed(64.))
-}
-
-pub fn h_icon_button(icon: SvgIcon) -> Button<'static, Message, Theme> {
-    let svg = map_icon(icon, 24., 24.);
-    let content = row![svg].align_y(iced::Alignment::Center);
-
-    Button::new(center(content))
-        .style(move |theme, status| {
-            let border = Border {
-                color: Color::WHITE,
-                width: 0.,
-                radius: (8.).into(),
-            };
-
-            let background = match status {
-                Status::Hovered => lighten(theme.palette().background, 0.1),
-                Status::Pressed => darken(Color::BLACK, 0.1),
-                _ => theme.palette().background,
-            };
-
-            let text_color = Color::WHITE;
-
-            button::Style {
-                background: Some(background.into()),
-                text_color,
-                border,
-                shadow: Shadow::default(),
-            }
-        })
-        .width(Length::Fixed(48.))
-        .height(Length::Fixed(48.))
 }
 
 pub fn sidebar_button(
