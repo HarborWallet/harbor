@@ -214,6 +214,19 @@ impl HarborWallet {
             .and_then(|id| self.federation_list.iter().find(|f| f.id == *id))
     }
 
+    fn next_federation(&self, name: &str) -> FederationItem {
+        let fed = self
+            .federation_list
+            .iter()
+            .find(|f| f.name == name)
+            .expect("Federation not found");
+        self.federation_list
+            .iter()
+            .find(|f| f.id != fed.id)
+            .expect("No next federation found")
+            .clone()
+    }
+
     fn subscription(&self) -> Subscription<Message> {
         Subscription::run(run_core)
     }
@@ -312,6 +325,32 @@ impl HarborWallet {
                             self.has_navigated_to_mints = true;
                             self.active_route = route;
                         }
+                        Route::Transfer => {
+                            // Set default federation selections if they're not already set
+                            if self.transfer_from_federation_selection.is_none()
+                                || self.transfer_to_federation_selection.is_none()
+                            {
+                                // Get first two federation names
+                                let fed_names: Vec<String> = self
+                                    .federation_list
+                                    .iter()
+                                    .map(|f| f.name.clone())
+                                    .collect();
+                                if fed_names.len() >= 2 {
+                                    // Only set source if it's not already set
+                                    if self.transfer_from_federation_selection.is_none() {
+                                        self.transfer_from_federation_selection =
+                                            Some(fed_names[0].clone());
+                                    }
+                                    // Only set destination if it's not already set
+                                    if self.transfer_to_federation_selection.is_none() {
+                                        self.transfer_to_federation_selection =
+                                            Some(fed_names[1].clone());
+                                    }
+                                }
+                            }
+                            self.active_route = route;
+                        }
                         _ => self.active_route = route,
                     },
                 }
@@ -376,11 +415,23 @@ impl HarborWallet {
                 Task::none()
             }
             Message::SetTransferFrom(s) => {
-                self.transfer_from_federation_selection = Some(s);
+                self.transfer_from_federation_selection = Some(s.clone());
+                // If the to_federation is the same as the from_federation, we need to change it
+                if self.transfer_to_federation_selection == self.transfer_from_federation_selection
+                {
+                    let fed = self.next_federation(&s);
+                    self.transfer_to_federation_selection = Some(fed.name.clone());
+                }
                 Task::none()
             }
             Message::SetTransferTo(s) => {
-                self.transfer_to_federation_selection = Some(s);
+                self.transfer_to_federation_selection = Some(s.clone());
+                // If the from_federation is the same as the to_federation, we need to change it
+                if self.transfer_from_federation_selection == self.transfer_to_federation_selection
+                {
+                    let fed = self.next_federation(&s);
+                    self.transfer_from_federation_selection = Some(fed.name.clone());
+                }
                 Task::none()
             }
             Message::TransferAmountInputChanged(input) => {
@@ -609,7 +660,7 @@ impl HarborWallet {
                 } else {
                     Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
-                            title: "Failed to preview mint".to_string(),
+                            title: "Can't preview mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })

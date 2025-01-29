@@ -54,3 +54,6 @@ pub use styles::*;
 
 mod indicator;
 pub use indicator::*;
+
+mod balance_display;
+pub use balance_display::*;
