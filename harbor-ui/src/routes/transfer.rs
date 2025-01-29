@@ -4,7 +4,7 @@ use iced::{Element, Length, Padding};
 use crate::components::{
     h_button, h_header, h_input, menu_style, pick_list_style, InputArgs, SvgIcon,
 };
-use crate::{HarborWallet, Message};
+use crate::{HarborWallet, Message, SendStatus};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     let federation_names: Vec<&str> = harbor
@@ -53,8 +53,12 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
         ..InputArgs::default()
     });
 
-    // TODO: atually transfer
-    let transfer_button = h_button("Transfer", SvgIcon::LeftRight, false).on_press(Message::Noop);
+    let transfer_button = h_button(
+        "Transfer",
+        SvgIcon::LeftRight,
+        harbor.transfer_status == SendStatus::Sending,
+    )
+    .on_press(Message::Transfer);
 
     let list = column![source, destination, amount_input, transfer_button].spacing(48);
 

@@ -72,6 +72,11 @@ pub enum UICoreMsg {
     ReceiveOnChain {
         federation_id: FederationId,
     },
+    Transfer {
+        to: FederationId,
+        from: FederationId,
+        amount: Amount,
+    },
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     RemoveFederation(FederationId),
@@ -84,16 +89,18 @@ pub enum UICoreMsg {
     SetOnchainReceiveEnabled(bool),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SendSuccessMsg {
     Lightning { preimage: [u8; 32] },
     Onchain { txid: Txid },
+    Transfer,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ReceiveSuccessMsg {
     Lightning,
     Onchain { txid: Txid },
+    Transfer,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +119,7 @@ pub enum CoreUIMsg {
     ReceiveAddressGenerated(Address),
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
+    TransferFailure(String),
     // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
     FederationBalanceUpdated { id: FederationId, balance: Amount },
@@ -207,6 +215,7 @@ impl HarborCore {
         msg_id: Uuid,
         federation_id: FederationId,
         invoice: Bolt11Invoice,
+        is_transfer: bool,
     ) -> anyhow::Result<()> {
         if invoice.amount_milli_satoshis().is_none() {
             return Err(anyhow!("Invoice must have an amount"));
@@ -259,6 +268,7 @@ impl HarborCore {
                     self.storage.clone(),
                     op_id,
                     msg_id,
+                    is_transfer,
                     sub,
                 )
                 .await;
@@ -275,6 +285,7 @@ impl HarborCore {
         msg_id: Uuid,
         federation_id: FederationId,
         amount: Amount,
+        is_transfer: bool,
     ) -> anyhow::Result<Bolt11Invoice> {
         let client = self.get_client(federation_id).await.fedimint_client;
         let lightning_module = client
@@ -315,6 +326,7 @@ impl HarborCore {
                 self.storage.clone(),
                 op_id,
                 msg_id,
+                is_transfer,
                 subscription,
             )
             .await;
@@ -323,6 +335,19 @@ impl HarborCore {
         }
 
         Ok(invoice)
+    }
+
+    pub async fn transfer(
+        &self,
+        msg_id: Uuid,
+        to: FederationId,
+        from: FederationId,
+        amount: Amount,
+    ) -> anyhow::Result<()> {
+        log::info!("Transferring {amount} from {from} to {to}");
+        let invoice = self.receive_lightning(msg_id, to, amount, true).await?;
+        self.send_lightning(msg_id, from, invoice, true).await?;
+        Ok(())
     }
 
     /// Sends a given amount of sats to a given address, if the amount is None, send all funds

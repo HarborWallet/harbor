@@ -11,7 +11,7 @@ use crate::{HarborWallet, Message, Route};
 use super::{harbor_logo, indicator, lighten, map_icon, sidebar_button};
 
 pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
-    let transfer_disabled = harbor.total_balance_sats() == 0 || harbor.federation_list.is_empty();
+    let transfer_disabled = harbor.federation_list.is_empty();
     let transfer_button = sidebar_button(
         "Transfer",
         SvgIcon::LeftRight,
