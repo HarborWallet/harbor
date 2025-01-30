@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>harbor</string>
+  <key>CFBundleIdentifier</key>
+  <string>cash.harbor.harbor</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Harbor</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleSupportedPlatforms</key>
+  <array>
+    <string>MacOSX</string>
+  </array>
+  <key>CFBundleVersion</key>
+  <string>8a1cd00-dirty</string>
+  <key>CFBundleIconFile</key>
+  <string>harbor.icns</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSMainNibFile</key>
+  <string></string>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <key>CFBundleDisplayName</key>
+  <string>Harbor</string>
+  <key>NSRequiresAquaSystemAppearance</key>
+  <string>NO</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Harbor</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>lightning</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
