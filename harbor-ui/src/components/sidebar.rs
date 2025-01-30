@@ -37,14 +37,18 @@ pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
         },
         ..Default::default()
     });
+
+    // on macos we add space because the titlebar is hidden
+    #[cfg(target_os = "macos")]
+    let space = vertical_space().height(iced::Length::Fixed(24.));
+
+    // on other platforms we just add a 0 height space
+    #[cfg(not(target_os = "macos"))]
+    let space = vertical_space().height(iced::Length::Fixed(0.));
+
     let sidebar = container(
         column![
-            // on macos we add space because the titlebar is hidden
-            #[cfg(target_os = "macos")]
-            {
-                use iced::Length;
-                vertical_space().height(Length::Fixed(24.))
-            },
+            space,
             harbor_logo(),
             sidebar_button("Home", SvgIcon::Home, Route::Home, harbor.active_route)
                 .on_press(Message::Navigate(Route::Home)),
