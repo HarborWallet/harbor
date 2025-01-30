@@ -1,7 +1,8 @@
 use iced::widget::{column, text, Checkbox};
 use iced::Element;
 
-use crate::components::{basic_layout, h_button, h_header, SvgIcon, Toast, ToastStatus};
+use crate::components::{basic_layout, h_button, h_header, SvgIcon};
+use crate::components::{Toast, ToastStatus};
 use crate::{HarborWallet, Message};
 
 pub fn settings(harbor: &HarborWallet) -> Element<Message> {

@@ -32,6 +32,18 @@ pub struct FederationItem {
     pub module_kinds: Option<Vec<ModuleKind>>,
 }
 
+impl FederationItem {
+    pub fn unknown(id: FederationId) -> Self {
+        Self {
+            id,
+            name: "Unknown".to_string(),
+            balance: 0,
+            guardians: None,
+            module_kinds: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PaymentStatus {
     /// Payment is in flight or has not been received yet

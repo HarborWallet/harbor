@@ -155,8 +155,10 @@ impl From<OnChainReceive> for TransactionItem {
             amount: payment.amount_sats.unwrap_or(0) as u64, // todo handle this better
             txid: payment
                 .txid
-                .map(|t| Txid::from_str(&t).expect("invalid txid")),
+                .as_ref()
+                .map(|t| Txid::from_str(t).expect("invalid txid")),
             direction: TransactionDirection::Incoming,
+            federation_id: payment.fedimint_id(),
             timestamp: payment.created_at.and_utc().timestamp() as u64,
         }
     }

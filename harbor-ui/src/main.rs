@@ -1,7 +1,7 @@
 use crate::bridge::run_core;
 use crate::components::focus_input_id;
+use crate::components::{Toast, ToastManager, ToastStatus};
 use bitcoin::Address;
-use components::{Toast, ToastManager, ToastStatus};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -124,6 +124,7 @@ pub enum Message {
     SetTransferTo(String),
     TransferAmountInputChanged(String),
     UrlClicked(String),
+    SelectTransaction(Option<TransactionItem>),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -157,6 +158,7 @@ pub struct HarborWallet {
     toasts: Vec<Toast>,
     // Globals
     transaction_history: Vec<TransactionItem>,
+    selected_transaction: Option<TransactionItem>,
     federation_list: Vec<FederationItem>,
     active_federation_id: Option<FederationId>,
     // Welcome screen
@@ -706,6 +708,10 @@ impl HarborWallet {
             Message::SetOnchainReceiveEnabled(enabled) => {
                 let (_, task) = self.send_from_ui(UICoreMsg::SetOnchainReceiveEnabled(enabled));
                 task
+            }
+            Message::SelectTransaction(transaction) => {
+                self.selected_transaction = transaction;
+                Task::none()
             }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg.msg {

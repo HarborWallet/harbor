@@ -5,6 +5,7 @@ use iced::{
 
 pub enum SvgIcon {
     ChevronDown,
+    ChevronRight,
     DownLeft,
     Heart,
     Home,
@@ -41,6 +42,7 @@ macro_rules! icon_handle {
 pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
     match icon {
         SvgIcon::ChevronDown => icon_handle!("chevron_down.svg"),
+        SvgIcon::ChevronRight => icon_handle!("chevron_right.svg"),
         SvgIcon::DownLeft => icon_handle!("down_left.svg"),
         SvgIcon::Heart => icon_handle!("heart.svg"),
         SvgIcon::Home => icon_handle!("home.svg"),

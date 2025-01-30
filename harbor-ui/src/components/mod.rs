@@ -43,8 +43,10 @@ pub use layout::*;
 mod mini_copy;
 pub use mini_copy::*;
 
-mod toast;
+pub mod toast;
 pub use toast::*;
+pub mod transaction_details;
+pub use transaction_details::*;
 
 mod colors;
 pub use colors::*;
@@ -57,3 +59,6 @@ pub use indicator::*;
 
 mod balance_display;
 pub use balance_display::*;
+
+pub mod absolute_overlay;
+pub use absolute_overlay::*;
