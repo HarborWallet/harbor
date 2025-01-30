@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use iced::Color;
 use palette::{rgb::Rgb, FromColor, Hsl};
 
@@ -35,7 +36,8 @@ fn from_hsl(hsl: Hsl) -> Color {
 
 pub fn format_timestamp(timestamp: &u64) -> String {
     let signed = timestamp.to_owned() as i64;
-    let date_time = chrono::DateTime::from_timestamp(signed, 0).unwrap();
+    let utc = DateTime::from_timestamp(signed, 0).unwrap();
+    let date_time: DateTime<Local> = DateTime::from(utc);
     format!("{}", date_time.format("%m/%d/%Y, %l:%M %P"))
 }
 
