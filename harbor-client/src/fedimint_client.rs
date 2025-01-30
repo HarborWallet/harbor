@@ -277,6 +277,10 @@ pub(crate) async fn spawn_invoice_receive_subscription(
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnReceiveState>,
 ) {
+    info!(
+        "Spawning lightning receive subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
@@ -346,6 +350,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnPayState>,
 ) {
+    info!(
+        "Spawning lightning payment subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
@@ -439,6 +447,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<InternalPayState>,
 ) {
+    info!(
+        "Spawning internal payment subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
@@ -519,6 +531,10 @@ pub(crate) async fn spawn_onchain_payment_subscription(
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<WithdrawState>,
 ) {
+    info!(
+        "Spawning onchain payment subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
@@ -583,6 +599,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<DepositStateV2>,
 ) {
+    info!(
+        "Spawning onchain receive subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
