@@ -12,11 +12,11 @@ use harbor_client::db_models::FederationItem;
 use harbor_client::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg};
 use iced::widget::qr_code::Data;
 use iced::widget::row;
-use iced::Element;
 use iced::Font;
 use iced::Subscription;
 use iced::Task;
 use iced::{clipboard, Color};
+use iced::{window, Element};
 use log::{error, info};
 use routes::Route;
 use std::str::FromStr;
@@ -31,10 +31,26 @@ pub mod routes;
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
     pretty_env_logger::init();
+
+    #[cfg(target_os = "macos")]
+    let window_settings = window::Settings {
+        platform_specific: window::settings::PlatformSpecific {
+            title_hidden: true,
+            titlebar_transparent: true,
+            fullsize_content_view: true,
+        },
+        ..Default::default()
+    };
+
+    // If not macos, use default window settings
+    #[cfg(not(target_os = "macos"))]
+    let window_settings = window::Settings::default();
+
     iced::application("Harbor", HarborWallet::update, HarborWallet::view)
         .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
         .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
         .theme(HarborWallet::theme)
+        .window(window_settings)
         .default_font(Font {
             family: iced::font::Family::Name("Inter-Regular.ttf"),
             weight: iced::font::Weight::Normal,
