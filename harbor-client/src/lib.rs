@@ -217,6 +217,7 @@ impl HarborCore {
         invoice: Bolt11Invoice,
         is_transfer: bool,
     ) -> anyhow::Result<()> {
+        log::info!("Paying lightning invoice: {invoice} from federation: {federation_id}");
         if invoice.amount_milli_satoshis().is_none() {
             return Err(anyhow!("Invoice must have an amount"));
         }
@@ -275,7 +276,7 @@ impl HarborCore {
             }
         }
 
-        log::info!("Invoice sent");
+        log::info!("Payment sent");
 
         Ok(())
     }
@@ -287,6 +288,7 @@ impl HarborCore {
         amount: Amount,
         is_transfer: bool,
     ) -> anyhow::Result<Bolt11Invoice> {
+        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}");
         let client = self.get_client(federation_id).await.fedimint_client;
         let lightning_module = client
             .get_first_module::<LightningClientModule>()
@@ -358,6 +360,10 @@ impl HarborCore {
         address: Address<NetworkUnchecked>,
         sats: Option<u64>,
     ) -> anyhow::Result<()> {
+        log::info!(
+            "Sending onchain payment to address: {} from federation: {federation_id}",
+            address.clone().assume_checked()
+        );
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
             .get_first_module::<WalletClientModule>()
@@ -431,6 +437,8 @@ impl HarborCore {
             return Err(anyhow!("on-chain receive is not enabled"));
         }
 
+        log::info!("Generating address for federation: {federation_id}");
+
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
             .get_first_module::<WalletClientModule>()
@@ -460,6 +468,7 @@ impl HarborCore {
         &self,
         invite_code: InviteCode,
     ) -> anyhow::Result<ClientConfig> {
+        log::info!("Getting federation info for invite code: {invite_code}");
         let download = Instant::now();
         let config = {
             #[cfg(all(debug_assertions, feature = "disable-tor"))]
@@ -489,6 +498,7 @@ impl HarborCore {
     }
 
     pub async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
+        log::info!("Adding federation with invite code: {invite_code}");
         let id = invite_code.federation_id();
 
         let mut clients = self.clients.write().await;
@@ -511,6 +521,7 @@ impl HarborCore {
     }
 
     pub async fn remove_federation(&self, id: FederationId) -> anyhow::Result<()> {
+        log::info!("Removing federation with id: {id}");
         let mut clients = self.clients.write().await;
         if clients.remove(&id).is_none() {
             return Err(anyhow!("Federation doesn't exist"));
