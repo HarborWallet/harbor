@@ -1,0 +1,89 @@
+name: "Release"
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Specify tag to create"
+        required: true
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      matrix:
+        target:
+          - target: macos
+            os: macos-latest
+            make: bash scripts/build-macos.sh
+            package: bash scripts/package-macos.sh
+    runs-on: ${{ matrix.target.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Build
+        run: ${{ matrix.target.make }}
+
+      - name: Package DMG
+        run: ${{ matrix.target.package }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target.target }}
+          path: target/release/macos/harbor.dmg
+
+  create-release:
+    needs: build
+    name: Create Release
+    outputs:
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          release_name: ${{ github.event.inputs.tag }}
+          draft: true
+          prerelease: false
+
+  add-assets:
+    needs: create-release
+    name: Add Assets
+
+    strategy:
+      matrix:
+        target:
+          - artifact: macos
+            asset_type: application/x-apple-diskimage
+
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.target.artifact }}
+          path: ${{ matrix.target.artifact }}
+
+      - name: Upload asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.target.artifact }}/harbor.dmg
+          asset_name: harbor.dmg
+          asset_content_type: ${{ matrix.target.asset_type }} 

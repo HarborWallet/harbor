@@ -65,6 +65,25 @@ just release
 ```
 **NOTE**: The first password you type in the box is saved as your password. There will be a proper onboarding workflow in the future.
 
+### Building for macOS
+
+To create a macOS app bundle:
+
+1. Make sure you're in the nix develop shell:
+```
+nix develop
+```
+
+2. Run the macOS build script:
+```
+chmod +x scripts/build-macos.sh
+./scripts/build-macos.sh
+```
+
+This will create a Harbor.app bundle in `target/release/macos/`. You can then move this app to your Applications folder or run it directly.
+
+Note: The build script will compile Harbor for Apple Silicon (M1/M2/M3) Macs. Intel Mac support can be added if needed.
+
 #### Database Changes
 Reset local DB (for init, schema generation, etc.)
 
