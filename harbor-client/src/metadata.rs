@@ -1,6 +1,7 @@
 use crate::http::make_get_request;
 use bitcoin::secp256k1::PublicKey;
 use fedimint_client::ClientHandleArc;
+use fedimint_core::config::ClientConfig;
 use fedimint_core::config::FederationId;
 use fedimint_core::module::serde_json;
 use log::error;
@@ -12,6 +13,27 @@ use tokio::sync::RwLock;
 /// Global cache of federation metadata
 pub(crate) static CACHE: Lazy<RwLock<HashMap<FederationId, FederationMeta>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+
+pub(crate) enum FederationData<'a> {
+    Client(&'a ClientHandleArc),
+    Config(&'a ClientConfig),
+}
+
+impl FederationData<'_> {
+    pub(crate) fn get_meta(&self, str: &str) -> Option<String> {
+        match self {
+            FederationData::Client(c) => c.get_meta(str),
+            FederationData::Config(c) => c.meta(str).ok().flatten(),
+        }
+    }
+
+    pub(crate) fn federation_id(&self) -> FederationId {
+        match self {
+            FederationData::Client(c) => c.federation_id(),
+            FederationData::Config(c) => c.global.calculate_federation_id(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct FederationMetaConfig {
@@ -50,14 +72,14 @@ impl FederationMeta {
     }
 }
 
-pub(crate) async fn get_federation_metadata(fedimint_client: &ClientHandleArc) -> FederationMeta {
-    let meta_external_url = fedimint_client.get_meta("meta_external_url");
+pub(crate) async fn get_federation_metadata(data: FederationData<'_>) -> FederationMeta {
+    let meta_external_url = data.get_meta("meta_external_url");
     let config: Option<FederationMeta> = match meta_external_url.as_ref() {
         None => None,
         Some(url) => match make_get_request::<FederationMetaConfig>(url).await {
             Ok(m) => m
                 .federations
-                .get(&fedimint_client.federation_id().to_string())
+                .get(&data.federation_id().to_string())
                 .cloned(),
             Err(e) => {
                 error!("Error fetching external metadata: {}", e);
@@ -69,35 +91,34 @@ pub(crate) async fn get_federation_metadata(fedimint_client: &ClientHandleArc) -
     FederationMeta {
         meta_external_url, // Already set...
         federation_name: merge_values(
-            fedimint_client.get_meta("federation_name").clone(),
+            data.get_meta("federation_name").clone(),
             config.as_ref().and_then(|c| c.federation_name.clone()),
         ),
         federation_expiry_timestamp: merge_values(
-            fedimint_client.get_meta("federation_expiry_timestamp"),
+            data.get_meta("federation_expiry_timestamp"),
             config
                 .as_ref()
                 .and_then(|c| c.federation_expiry_timestamp.clone()),
         ),
         welcome_message: merge_values(
-            fedimint_client.get_meta("welcome_message"),
+            data.get_meta("welcome_message"),
             config.as_ref().and_then(|c| c.welcome_message.clone()),
         ),
         vetted_gateways: config.as_ref().and_then(|c| c.vetted_gateways.clone()),
         federation_icon_url: merge_values(
-            fedimint_client.get_meta("federation_icon_url"),
+            data.get_meta("federation_icon_url"),
             config.as_ref().and_then(|c| c.federation_icon_url.clone()),
         ),
         preview_message: merge_values(
-            fedimint_client.get_meta("preview_message"),
+            data.get_meta("preview_message"),
             config.as_ref().and_then(|c| c.preview_message.clone()),
         ),
         popup_end_timestamp: merge_values(
-            fedimint_client.get_meta("popup_end_timestamp"),
+            data.get_meta("popup_end_timestamp"),
             config.as_ref().and_then(|c| c.popup_end_timestamp.clone()),
         ),
         popup_countdown_message: merge_values(
-            fedimint_client
-                .get_meta("popup_countdown_message")
+            data.get_meta("popup_countdown_message")
                 .map(|v| v.to_string()),
             config
                 .as_ref()

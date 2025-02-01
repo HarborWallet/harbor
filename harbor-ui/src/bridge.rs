@@ -398,8 +398,9 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
                                     .await;
                             }
-                            Ok(config) => {
-                                core.msg(msg.id, CoreUIMsg::FederationInfo(config)).await;
+                            Ok((config, metadata)) => {
+                                core.msg(msg.id, CoreUIMsg::FederationInfo { config, metadata })
+                                    .await;
                             }
                         }
                     }

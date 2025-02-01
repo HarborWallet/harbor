@@ -891,7 +891,7 @@ impl HarborWallet {
                     let (_, task) = self.send_from_ui(UICoreMsg::FederationListNeedsUpdate);
                     task
                 }
-                CoreUIMsg::FederationInfo(config) => {
+                CoreUIMsg::FederationInfo { config, metadata } => {
                     let id = config.calculate_federation_id();
                     let name = config.meta::<String>("federation_name");
                     let guardians: Vec<String> = config
@@ -918,7 +918,7 @@ impl HarborWallet {
                         balance: 0,
                         guardians: Some(guardians),
                         module_kinds: Some(module_kinds),
-                        metadata: Default::default(),
+                        metadata,
                     };
 
                     self.peek_federation_item = Some(item);

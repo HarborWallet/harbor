@@ -14,7 +14,7 @@ pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> 
         balance,
         guardians,
         module_kinds: _, // We don't care about module kinds
-        metadata: _,     // todo use
+        metadata,
     } = item;
 
     let name_row = row![map_icon(SvgIcon::People, 24., 24.), text(name).size(24)]
@@ -31,6 +31,10 @@ pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> 
             format!("{} guardians", count)
         };
         column = column.push(text(guardian_text).size(18).style(subtitle));
+    }
+
+    if let Some(welcome) = metadata.welcome_message.as_ref() {
+        column = column.push(text(welcome).size(18).style(subtitle));
     }
 
     match invite_code {

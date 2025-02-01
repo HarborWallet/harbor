@@ -6,7 +6,7 @@ use crate::fedimint_client::{
     spawn_invoice_receive_subscription, spawn_onchain_payment_subscription,
     spawn_onchain_receive_subscription, FederationInviteOrId, FedimintClient,
 };
-use crate::metadata::{get_federation_metadata, FederationMeta, CACHE};
+use crate::metadata::{get_federation_metadata, FederationData, FederationMeta, CACHE};
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
@@ -126,10 +126,16 @@ pub enum CoreUIMsg {
     TransferFailure(String),
     // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
-    FederationBalanceUpdated { id: FederationId, balance: Amount },
+    FederationBalanceUpdated {
+        id: FederationId,
+        balance: Amount,
+    },
     AddFederationFailed(String),
     RemoveFederationFailed(String),
-    FederationInfo(ClientConfig),
+    FederationInfo {
+        config: ClientConfig,
+        metadata: FederationMeta,
+    },
     AddFederationSuccess,
     RemoveFederationSuccess,
     FederationListNeedsUpdate,
@@ -472,7 +478,7 @@ impl HarborCore {
     pub async fn get_federation_info(
         &self,
         invite_code: InviteCode,
-    ) -> anyhow::Result<ClientConfig> {
+    ) -> anyhow::Result<(ClientConfig, FederationMeta)> {
         log::info!("Getting federation info for invite code: {invite_code}");
         let download = Instant::now();
         let config = {
@@ -499,7 +505,17 @@ impl HarborCore {
             download.elapsed().as_millis()
         );
 
-        Ok(config)
+        let mut cache = CACHE.write().await;
+        let metadata = match cache.get(&invite_code.federation_id()).cloned() {
+            None => {
+                let m = get_federation_metadata(FederationData::Config(&config)).await;
+                cache.insert(invite_code.federation_id(), m.clone());
+                m
+            }
+            Some(metadata) => metadata,
+        };
+
+        Ok((config, metadata))
     }
 
     pub async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
@@ -594,8 +610,9 @@ impl HarborCore {
             tokio::task::spawn(async move {
                 let mut w = CACHE.write().await;
                 for client in needs_metadata {
-                    let metadata = get_federation_metadata(&client).await;
-                    w.insert(client.federation_id(), metadata);
+                    let id = client.federation_id();
+                    let metadata = get_federation_metadata(FederationData::Client(&client)).await;
+                    w.insert(id, metadata);
                 }
                 drop(w);
 
