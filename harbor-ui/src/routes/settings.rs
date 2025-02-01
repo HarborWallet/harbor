@@ -26,7 +26,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
             Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
                 title: "Are you sure?".to_string(),
                 description: format!(
-                    "Changing network requires a restart, are you sure you want to change to {net}"
+                    "Changing network requires a restart, are you sure you want to change to {net}?"
                 ),
                 confirm_action: Box::new(Message::ChangeNetwork(net)),
                 cancel_action: Box::new(Message::SetConfirmModal(None)),

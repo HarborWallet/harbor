@@ -342,6 +342,18 @@ impl HarborWallet {
 
                 write_config(&new_config).expect("Failed to write config");
 
+                // Relaunch the app
+                use std::env;
+                use std::process::Command;
+
+                let args: Vec<String> = env::args().collect();
+                let executable = &args[0];
+
+                Command::new(executable)
+                    .args(&args[1..])
+                    .spawn()
+                    .expect("Failed to relaunch");
+
                 std::process::exit(0);
             }
             Message::Batch(messages) => {

@@ -19,7 +19,7 @@ impl Default for Config {
 
 pub fn read_config() -> anyhow::Result<Config> {
     // Create the datadir if it doesn't exist
-    let root = PathBuf::from(&data_dir(Network::Bitcoin));
+    let root = PathBuf::from(&data_dir(None));
     std::fs::create_dir_all(&root).expect("Could not create datadir");
 
     let config_path = root.join("harbor.config.json");
@@ -42,7 +42,7 @@ pub fn read_config() -> anyhow::Result<Config> {
 }
 
 pub fn write_config(config: &Config) -> anyhow::Result<()> {
-    let root = PathBuf::from(&data_dir(Network::Bitcoin));
+    let root = PathBuf::from(&data_dir(None));
     let config_path = root.join("harbor.config.json");
 
     std::fs::create_dir_all(&root).expect("Could not create datadir");
