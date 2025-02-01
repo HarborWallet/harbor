@@ -31,17 +31,22 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// The directory where all application data is stored
-/// Defaults to ~/.harbor, if we're on a test network
-/// Otherwise defaults to ~/.harbor/<network>
-pub fn data_dir(network: Network) -> PathBuf {
+/// Defaults to ~/.harbor as the root directory
+/// Network-specific data goes in ~/.harbor/<network>
+pub fn data_dir(network: Option<Network>) -> PathBuf {
     let home = home::home_dir().expect("Could not find home directory");
-    let default = home.join(".harbor");
-    match network {
-        Network::Bitcoin => default,
-        Network::Testnet => default.join("testnet3"),
-        Network::Regtest => default.join("regtest"),
-        Network::Signet => default.join("signet"),
-        _ => panic!("Invalid network"),
+    let root = home.join(".harbor");
+    if let Some(network) = network {
+        match network {
+            Network::Bitcoin => root.join("bitcoin"),
+            Network::Testnet => root.join("testnet3"),
+            Network::Testnet4 => root.join("testnet4"),
+            Network::Regtest => root.join("regtest"),
+            Network::Signet => root.join("signet"),
+            _ => panic!("Invalid network"),
+        }
+    } else {
+        root
     }
 }
 
@@ -304,11 +309,12 @@ impl HarborCore {
         let lightning_module = client
             .get_first_module::<LightningClientModule>()
             .expect("must have ln module");
+        log::info!("Lightning module: {:?}", lightning_module.id);
 
         let gateway = select_gateway(&client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
-
+        log::info!("Gateway: {gateway:?}");
         let desc = Description::new(String::new()).expect("empty string is valid");
         let (op_id, invoice, preimage) = lightning_module
             .create_bolt11_invoice(

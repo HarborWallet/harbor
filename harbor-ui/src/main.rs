@@ -1,7 +1,8 @@
 use crate::bridge::run_core;
 use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
-use bitcoin::Address;
+use crate::config::{write_config, Config};
+use bitcoin::{Address, Network};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -25,6 +26,7 @@ use uuid::Uuid;
 
 pub mod bridge;
 pub mod components;
+mod config;
 pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
@@ -118,6 +120,7 @@ pub enum AddFederationStatus {
 pub enum Message {
     // Setup
     UIHandlerLoaded(Arc<bridge::UIHandle>),
+    ConfigLoaded(Config),
     // Local state changes
     Navigate(Route),
     SetConfirmModal(Option<components::ConfirmModalState>),
@@ -144,6 +147,8 @@ pub enum Message {
     SelectTransaction(Option<TransactionItem>),
     // Batch multiple messages together
     Batch(Vec<Message>),
+    // Config commands
+    ChangeNetwork(Network),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -173,6 +178,7 @@ impl Message {
 #[derive(Default, Debug)]
 pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
+    config: Config,
     active_route: Route,
     toasts: Vec<Toast>,
     // Globals
@@ -321,6 +327,34 @@ impl HarborWallet {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
                 Task::none()
+            }
+            Message::ConfigLoaded(config) => {
+                self.config = config;
+                Task::none()
+            }
+            Message::ChangeNetwork(network) => {
+                if self.config.network == network {
+                    return Task::none();
+                }
+
+                let mut new_config = self.config.clone();
+                new_config.network = network;
+
+                write_config(&new_config).expect("Failed to write config");
+
+                // Relaunch the app
+                use std::env;
+                use std::process::Command;
+
+                let args: Vec<String> = env::args().collect();
+                let executable = &args[0];
+
+                Command::new(executable)
+                    .args(&args[1..])
+                    .spawn()
+                    .expect("Failed to relaunch");
+
+                std::process::exit(0);
             }
             Message::Batch(messages) => {
                 Task::batch(messages.into_iter().map(|msg| self.update(msg)))

@@ -21,7 +21,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
                     .map(|selected| selected == item)
                     .unwrap_or(false);
                 column
-                    .push(h_transaction_item(item, is_selected))
+                    .push(h_transaction_item(item, is_selected, harbor.config.network))
                     .push(hr())
             })
             .spacing(16)
@@ -31,7 +31,8 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
     let content = basic_layout(left_column);
 
     if let Some(selected_tx) = &harbor.selected_transaction {
-        let details = h_transaction_details(selected_tx, &harbor.federation_list);
+        let details =
+            h_transaction_details(selected_tx, &harbor.federation_list, harbor.config.network);
         Absolute::new(content, Some(details), OverlayPosition::TopRight).into()
     } else {
         content
