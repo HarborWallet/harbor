@@ -6,6 +6,7 @@ use crate::fedimint_client::{
     spawn_invoice_receive_subscription, spawn_onchain_payment_subscription,
     spawn_onchain_receive_subscription, FederationInviteOrId, FedimintClient,
 };
+use crate::metadata::{get_federation_metadata, FederationData, FederationMeta, CACHE};
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
@@ -47,6 +48,8 @@ pub fn data_dir(network: Network) -> PathBuf {
 pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
+mod http;
+pub mod metadata;
 
 #[derive(Debug, Clone)]
 pub struct UICoreMsgPacket {
@@ -80,6 +83,7 @@ pub enum UICoreMsg {
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     RemoveFederation(FederationId),
+    FederationListNeedsUpdate,
     Unlock(String),
     Init {
         password: String,
@@ -122,12 +126,19 @@ pub enum CoreUIMsg {
     TransferFailure(String),
     // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
-    FederationBalanceUpdated { id: FederationId, balance: Amount },
+    FederationBalanceUpdated {
+        id: FederationId,
+        balance: Amount,
+    },
     AddFederationFailed(String),
     RemoveFederationFailed(String),
-    FederationInfo(ClientConfig),
+    FederationInfo {
+        config: ClientConfig,
+        metadata: FederationMeta,
+    },
     AddFederationSuccess,
     RemoveFederationSuccess,
+    FederationListNeedsUpdate,
     FederationListUpdated(Vec<FederationItem>),
     NeedsInit,
     Initing,
@@ -467,7 +478,7 @@ impl HarborCore {
     pub async fn get_federation_info(
         &self,
         invite_code: InviteCode,
-    ) -> anyhow::Result<ClientConfig> {
+    ) -> anyhow::Result<(ClientConfig, FederationMeta)> {
         log::info!("Getting federation info for invite code: {invite_code}");
         let download = Instant::now();
         let config = {
@@ -494,7 +505,17 @@ impl HarborCore {
             download.elapsed().as_millis()
         );
 
-        Ok(config)
+        let mut cache = CACHE.write().await;
+        let metadata = match cache.get(&invite_code.federation_id()).cloned() {
+            None => {
+                let m = get_federation_metadata(FederationData::Config(&config)).await;
+                cache.insert(invite_code.federation_id(), m.clone());
+                m
+            }
+            Some(metadata) => metadata,
+        };
+
+        Ok((config, metadata))
     }
 
     pub async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
@@ -535,8 +556,10 @@ impl HarborCore {
     pub async fn get_federation_items(&self) -> Vec<FederationItem> {
         let clients = self.clients.read().await;
 
+        let metadata_cache = CACHE.read().await;
+
         // Tell the UI about any clients we have
-        join_all(clients.values().map(|c| async {
+        let res = join_all(clients.values().map(|c| async {
             let balance = c.fedimint_client.get_balance().await;
             let config = c.fedimint_client.config().await;
 
@@ -553,6 +576,11 @@ impl HarborCore {
                 .map(|module_config| module_config.kind().to_owned())
                 .collect::<Vec<ModuleKind>>();
 
+            // get metadata from in memory cache
+            let metadata = metadata_cache
+                .get(&c.fedimint_client.federation_id())
+                .cloned();
+
             FederationItem {
                 id: c.fedimint_client.federation_id(),
                 name: c
@@ -562,9 +590,43 @@ impl HarborCore {
                 balance: balance.sats_round_down(),
                 guardians: Some(guardians),
                 module_kinds: Some(module_kinds),
+                metadata: metadata.unwrap_or_default(),
             }
         }))
-        .await
+        .await;
+
+        drop(metadata_cache);
+
+        // go through federations metadata and start background task to fetch
+        let needs_metadata = res
+            .iter()
+            .filter(|f| f.metadata == FederationMeta::default())
+            .flat_map(|f| clients.get(&f.id).map(|c| c.fedimint_client.clone()))
+            .collect::<Vec<_>>();
+
+        // if we're missing metadata for federations, start background task to populate it
+        if !needs_metadata.is_empty() {
+            let mut tx = self.tx.clone();
+            tokio::task::spawn(async move {
+                let mut w = CACHE.write().await;
+                for client in needs_metadata {
+                    let id = client.federation_id();
+                    let metadata = get_federation_metadata(FederationData::Client(&client)).await;
+                    w.insert(id, metadata);
+                }
+                drop(w);
+
+                // update list in front end
+                tx.send(CoreUIMsgPacket {
+                    id: None,
+                    msg: CoreUIMsg::FederationListNeedsUpdate,
+                })
+                .await
+                .expect("federation list needs update");
+            });
+        }
+
+        res
     }
 
     pub async fn get_seed_words(&self) -> String {
