@@ -183,8 +183,12 @@ impl HarborCore {
             .expect("Could not communicate with the UI");
     }
 
-    // Sends updates to the UI to refelect the initial state
+    // Sends updates to the UI to reflect the initial state
     pub async fn init_ui_state(&self) -> anyhow::Result<()> {
+        let federation_items = self.get_federation_items().await;
+        self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
+            .await;
+
         for client in self.clients.read().await.values() {
             let fed_balance = client.fedimint_client.get_balance().await;
             self.send_system_msg(CoreUIMsg::FederationBalanceUpdated {
@@ -196,10 +200,6 @@ impl HarborCore {
 
         let history = self.storage.get_transaction_history()?;
         self.send_system_msg(CoreUIMsg::TransactionHistoryUpdated(history))
-            .await;
-
-        let federation_items = self.get_federation_items().await;
-        self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
             .await;
 
         let profile = self.storage.get_profile()?;
