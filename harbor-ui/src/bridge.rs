@@ -166,8 +166,8 @@ pub fn run_core() -> impl Stream<Item = Message> {
             .await
             .expect("should send");
 
-        // Create the datadir if it doesn't exist
-        let path = PathBuf::from(&data_dir(network));
+        // Create the network-specific datadir if it doesn't exist
+        let path = PathBuf::from(&data_dir(Some(network)));
         std::fs::create_dir_all(&path).expect("Could not create datadir");
         log::info!("Using datadir: {path:?}");
 
