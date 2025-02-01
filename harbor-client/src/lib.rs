@@ -6,6 +6,7 @@ use crate::fedimint_client::{
     spawn_invoice_receive_subscription, spawn_onchain_payment_subscription,
     spawn_onchain_receive_subscription, FederationInviteOrId, FedimintClient,
 };
+use crate::metadata::{get_federation_metadata, FederationMeta, CACHE};
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
@@ -47,6 +48,8 @@ pub fn data_dir(network: Network) -> PathBuf {
 pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
+mod http;
+pub mod metadata;
 
 #[derive(Debug, Clone)]
 pub struct UICoreMsgPacket {
@@ -80,6 +83,7 @@ pub enum UICoreMsg {
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     RemoveFederation(FederationId),
+    FederationListNeedsUpdate,
     Unlock(String),
     Init {
         password: String,
@@ -128,6 +132,7 @@ pub enum CoreUIMsg {
     FederationInfo(ClientConfig),
     AddFederationSuccess,
     RemoveFederationSuccess,
+    FederationListNeedsUpdate,
     FederationListUpdated(Vec<FederationItem>),
     NeedsInit,
     Initing,
@@ -535,8 +540,10 @@ impl HarborCore {
     pub async fn get_federation_items(&self) -> Vec<FederationItem> {
         let clients = self.clients.read().await;
 
+        let metadata_cache = CACHE.read().await;
+
         // Tell the UI about any clients we have
-        join_all(clients.values().map(|c| async {
+        let res = join_all(clients.values().map(|c| async {
             let balance = c.fedimint_client.get_balance().await;
             let config = c.fedimint_client.config().await;
 
@@ -553,6 +560,11 @@ impl HarborCore {
                 .map(|module_config| module_config.kind().to_owned())
                 .collect::<Vec<ModuleKind>>();
 
+            // get metadata from in memory cache
+            let metadata = metadata_cache
+                .get(&c.fedimint_client.federation_id())
+                .cloned();
+
             FederationItem {
                 id: c.fedimint_client.federation_id(),
                 name: c
@@ -562,9 +574,42 @@ impl HarborCore {
                 balance: balance.sats_round_down(),
                 guardians: Some(guardians),
                 module_kinds: Some(module_kinds),
+                metadata: metadata.unwrap_or_default(),
             }
         }))
-        .await
+        .await;
+
+        drop(metadata_cache);
+
+        // go through federations metadata and start background task to fetch
+        let needs_metadata = res
+            .iter()
+            .filter(|f| f.metadata == FederationMeta::default())
+            .flat_map(|f| clients.get(&f.id).map(|c| c.fedimint_client.clone()))
+            .collect::<Vec<_>>();
+
+        // if we're missing metadata for federations, start background task to populate it
+        if !needs_metadata.is_empty() {
+            let mut tx = self.tx.clone();
+            tokio::task::spawn(async move {
+                let mut w = CACHE.write().await;
+                for client in needs_metadata {
+                    let metadata = get_federation_metadata(&client).await;
+                    w.insert(client.federation_id(), metadata);
+                }
+                drop(w);
+
+                // update list in front end
+                tx.send(CoreUIMsgPacket {
+                    id: None,
+                    msg: CoreUIMsg::FederationListNeedsUpdate,
+                })
+                .await
+                .expect("federation list needs update");
+            });
+        }
+
+        res
     }
 
     pub async fn get_seed_words(&self) -> String {

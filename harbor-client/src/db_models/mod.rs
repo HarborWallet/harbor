@@ -20,6 +20,7 @@ pub(crate) mod schema;
 
 pub mod transaction_item;
 
+use crate::metadata::FederationMeta;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 
@@ -30,6 +31,7 @@ pub struct FederationItem {
     pub balance: u64,
     pub guardians: Option<Vec<String>>,
     pub module_kinds: Option<Vec<ModuleKind>>,
+    pub metadata: FederationMeta,
 }
 
 impl FederationItem {
@@ -40,6 +42,7 @@ impl FederationItem {
             balance: 0,
             guardians: None,
             module_kinds: None,
+            metadata: FederationMeta::default(),
         }
     }
 }

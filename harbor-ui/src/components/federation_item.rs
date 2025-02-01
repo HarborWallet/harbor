@@ -14,6 +14,7 @@ pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> 
         balance,
         guardians,
         module_kinds: _, // We don't care about module kinds
+        metadata: _,     // todo use
     } = item;
 
     let name_row = row![map_icon(SvgIcon::People, 24., 24.), text(name).size(24)]
