@@ -1,7 +1,8 @@
-use iced::widget::{column, text, Checkbox};
-use iced::Element;
+use bitcoin::Network;
+use iced::widget::{column, pick_list, text, Checkbox};
+use iced::{Element, Padding};
 
-use crate::components::{basic_layout, h_button, h_header, SvgIcon};
+use crate::components::{basic_layout, h_button, h_header, menu_style, pick_list_style, SvgIcon};
 use crate::components::{Toast, ToastStatus};
 use crate::{HarborWallet, Message};
 
@@ -11,6 +12,34 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     let onchain_receive_checkbox =
         Checkbox::new("Enable On-chain Receive", harbor.onchain_receive_enabled)
             .on_toggle(Message::SetOnchainReceiveEnabled);
+
+    let network_list = pick_list(
+        [
+            Network::Bitcoin,
+            Network::Testnet,
+            Network::Testnet4,
+            Network::Signet,
+            Network::Regtest,
+        ],
+        Some(harbor.config.network),
+        |net| {
+            Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
+                title: "Are you sure?".to_string(),
+                description: format!(
+                    "Changing network requires a restart, are you sure you want to change to {net}"
+                ),
+                confirm_action: Box::new(Message::ChangeNetwork(net)),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                confirm_button_text: "Confirm".to_string(),
+            }))
+        },
+    )
+    .style(pick_list_style)
+    .padding(Padding::from(16))
+    .handle(pick_list::Handle::Arrow {
+        size: Some(iced::Pixels(24.)),
+    })
+    .menu_style(menu_style);
 
     let add_good_toast_button =
         h_button("Nice!", SvgIcon::Plus, false).on_press(Message::AddToast(Toast {
@@ -66,6 +95,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
                 header,
                 button,
                 onchain_receive_checkbox,
+                network_list,
                 add_good_toast_button,
                 add_error_toast_button,
                 test_confirm_modal_button

@@ -25,3 +25,5 @@ bip39 = "2.0.0"
 fedimint-core = "0.5.0"
 fedimint-ln-common = "0.5.0"
 webbrowser = "1.0.3"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"

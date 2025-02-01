@@ -1,3 +1,4 @@
+use crate::config::read_config;
 use crate::Message;
 use bitcoin::Network;
 use fedimint_core::config::FederationId;
@@ -158,8 +159,12 @@ pub fn run_core() -> impl Stream<Item = Message> {
             .await
             .expect("should send");
 
-        // todo make configurable
-        let network = Network::Signet;
+        let config = read_config().expect("could not read config");
+        let network = config.network;
+
+        tx.send(Message::ConfigLoaded(config))
+            .await
+            .expect("should send");
 
         // Create the datadir if it doesn't exist
         let path = PathBuf::from(&data_dir(network));

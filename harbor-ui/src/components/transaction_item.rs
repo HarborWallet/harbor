@@ -13,7 +13,11 @@ use super::{
     MUTINY_RED,
 };
 
-pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<Message> {
+pub fn h_transaction_item(
+    item: &TransactionItem,
+    is_selected: bool,
+    network: Network,
+) -> Element<Message> {
     let TransactionItem {
         kind,
         amount,
@@ -47,8 +51,10 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         .spacing(16);
 
     // todo: where do we get the network from?
-    let network = Network::Signet;
     let base_url = match network {
+        Network::Bitcoin => "https://mempool.space/tx/",
+        Network::Testnet => "https://mempool.space/testnet3/tx/",
+        Network::Testnet4 => "https://mempool.space/testnet4/tx/",
         Network::Signet => "https://mutinynet.com/tx/",
         _ => panic!("Unsupported network"),
     };

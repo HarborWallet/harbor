@@ -3371,6 +3371,8 @@ dependencies = [
  "lyon_algorithms",
  "palette",
  "pretty_env_logger",
+ "serde",
+ "serde_json",
  "tokio",
  "uuid",
  "webbrowser",
