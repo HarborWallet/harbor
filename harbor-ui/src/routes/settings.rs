@@ -26,6 +26,26 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
             status: ToastStatus::Bad,
         }));
 
+    let test_confirm_modal_button = h_button("Test Confirm Modal", SvgIcon::Shield, false)
+        .on_press(Message::SetConfirmModal(Some(
+            crate::components::ConfirmModalState {
+                title: "Test Modal".to_string(),
+                description:
+                    "This is a test of the confirm modal. Are you sure you want to proceed?"
+                        .to_string(),
+                confirm_action: Box::new(Message::Batch(vec![
+                    Message::AddToast(Toast {
+                        title: "You confirmed!".to_string(),
+                        body: None,
+                        status: ToastStatus::Good,
+                    }),
+                    Message::SetConfirmModal(None),
+                ])),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                confirm_button_text: "Confirm".to_string(),
+            },
+        )));
+
     let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
         (true, Some(s)) => {
             let button = h_button("Hide Seed Words", SvgIcon::EyeClosed, false)
@@ -47,7 +67,8 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
                 button,
                 onchain_receive_checkbox,
                 add_good_toast_button,
-                add_error_toast_button
+                add_error_toast_button,
+                test_confirm_modal_button
             ]
         }
     };

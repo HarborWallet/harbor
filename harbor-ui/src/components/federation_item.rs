@@ -1,11 +1,14 @@
 use crate::Message;
 use harbor_client::db_models::FederationItem;
 use iced::{
-    widget::{column, container, row, text},
-    Alignment, Element,
+    widget::{column, container, horizontal_space, row, text},
+    Alignment, Element, Length,
 };
 
-use super::{h_balance_display, h_button, light_container_style, map_icon, subtitle, SvgIcon};
+use super::{
+    h_balance_display, h_button, h_small_button, light_container_style, map_icon, subtitle,
+    ConfirmModalState, SvgIcon,
+};
 
 pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> Element<Message> {
     let FederationItem {
@@ -43,9 +46,19 @@ pub fn h_federation_item(item: &FederationItem, invite_code: Option<String>) -> 
         None => {
             column = column.push(h_balance_display(*balance));
 
-            let remove_button = h_button("Remove Mint", SvgIcon::Trash, false)
-                .on_press(Message::RemoveFederation(*id));
-            column = column.push(remove_button);
+            let remove_button = h_small_button("", SvgIcon::Trash, false).on_press(
+                Message::SetConfirmModal(Some(ConfirmModalState {
+                    title: "Are you sure?".to_string(),
+                    description: format!("This will remove {} from your list of mints.", name),
+                    confirm_action: Box::new(Message::RemoveFederation(*id)),
+                    cancel_action: Box::new(Message::SetConfirmModal(None)),
+                    confirm_button_text: "Remove Mint".to_string(),
+                })),
+            );
+            column = column.push(row![
+                horizontal_space().width(Length::Fill),
+                remove_button.width(48)
+            ]);
         }
     }
 

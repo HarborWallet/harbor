@@ -62,3 +62,6 @@ pub use balance_display::*;
 
 pub mod absolute_overlay;
 pub use absolute_overlay::*;
+
+mod confirm_modal;
+pub use confirm_modal::*;
