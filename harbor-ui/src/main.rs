@@ -120,6 +120,7 @@ pub enum Message {
     UIHandlerLoaded(Arc<bridge::UIHandle>),
     // Local state changes
     Navigate(Route),
+    SetConfirmModal(Option<components::ConfirmModalState>),
     ReceiveAmountChanged(String),
     ReceiveStateReset,
     SendDestInputChanged(String),
@@ -141,6 +142,8 @@ pub enum Message {
     TransferAmountInputChanged(String),
     UrlClicked(String),
     SelectTransaction(Option<TransactionItem>),
+    // Batch multiple messages together
+    Batch(Vec<Message>),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -177,6 +180,8 @@ pub struct HarborWallet {
     selected_transaction: Option<TransactionItem>,
     federation_list: Vec<FederationItem>,
     active_federation_id: Option<FederationId>,
+    // Modal
+    confirm_modal: Option<components::ConfirmModalState>,
     // Welcome screen
     init_status: WelcomeStatus,
     seed_input_str: String,
@@ -316,6 +321,9 @@ impl HarborWallet {
                 self.ui_handle = Some(ui_handle);
                 println!("Core loaded");
                 Task::none()
+            }
+            Message::Batch(messages) => {
+                Task::batch(messages.into_iter().map(|msg| self.update(msg)))
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
@@ -729,6 +737,10 @@ impl HarborWallet {
                 self.selected_transaction = transaction;
                 Task::none()
             }
+            Message::SetConfirmModal(modal_state) => {
+                self.confirm_modal = modal_state;
+                Task::none()
+            }
             // Handle any messages we get from core
             Message::CoreMessage(msg) => match msg.msg {
                 CoreUIMsg::Sending => {
@@ -936,6 +948,8 @@ impl HarborWallet {
                     self.clear_add_federation_state();
                     // Route to the mints list
                     self.active_route = Route::Mints(routes::MintSubroute::List);
+                    // We probably got here because of a modal so we should close the modal
+                    self.confirm_modal = None;
                     Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Mint removed".to_string(),
@@ -1039,7 +1053,13 @@ impl HarborWallet {
             Route::Welcome => crate::routes::welcome(self),
         };
 
-        ToastManager::new(active_route, &self.toasts, Message::CloseToast).into()
+        let content = if let Some(modal_state) = &self.confirm_modal {
+            crate::components::confirm_modal(active_route, modal_state)
+        } else {
+            active_route
+        };
+
+        ToastManager::new(content, &self.toasts, Message::CloseToast).into()
     }
 
     fn theme(&self) -> iced::Theme {
