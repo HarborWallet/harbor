@@ -7,8 +7,11 @@ use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
 use harbor_client::{data_dir, CoreUIMsg, CoreUIMsgPacket, HarborCore, UICoreMsg, UICoreMsgPacket};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream, StreamExt};
-use log::{error, warn};
+use log::{error, warn, LevelFilter};
+use simplelog::WriteLogger;
+use simplelog::{CombinedLogger, TermLogger, TerminalMode};
 use std::collections::HashMap;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -19,6 +22,7 @@ use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
 pub const HARBOR_FILE_NAME: &str = "harbor.sqlite";
+pub const LOG_FILE_NAME: &str = "harbor.log";
 
 #[derive(Debug)]
 pub struct UIHandle {
@@ -152,6 +156,41 @@ async fn try_auto_unlock(
 
 pub fn run_core() -> impl Stream<Item = Message> {
     iced::stream::channel(100, |mut tx: Sender<Message>| async move {
+        let config = read_config().expect("could not read config");
+        let network = config.network;
+
+        // Create the network-specific datadir if it doesn't exist
+        let path = PathBuf::from(&data_dir(Some(network)));
+        std::fs::create_dir_all(&path).expect("Could not create datadir");
+        log::info!("Using datadir: {path:?}");
+
+        let log_file_path = path.join(LOG_FILE_NAME);
+        let log_file = if log_file_path.exists() {
+            File::open(log_file_path).expect("Could not open log file")
+        } else {
+            File::create(log_file_path).expect("Could not create log file")
+        };
+
+        let log_config = simplelog::ConfigBuilder::new()
+            // ignore spammy UI logs
+            .add_filter_ignore_str("wgpu_hal")
+            .add_filter_ignore_str("wgpu_core")
+            .add_filter_ignore_str("iced")
+            .add_filter_ignore_str("naga")
+            .add_filter_ignore_str("cosmic_text")
+            .add_filter_ignore_str("rustls")
+            .build();
+        CombinedLogger::init(vec![
+            TermLogger::new(
+                LevelFilter::Info,
+                log_config.clone(),
+                TerminalMode::Mixed,
+                simplelog::ColorChoice::Auto,
+            ),
+            WriteLogger::new(LevelFilter::Debug, log_config, log_file),
+        ])
+        .expect("Could not initialize logger");
+
         // Setup UI Handle
         let (ui_handle, mut core_handle) = create_handles();
         let arc_ui_handle = Arc::new(ui_handle);
@@ -159,17 +198,9 @@ pub fn run_core() -> impl Stream<Item = Message> {
             .await
             .expect("should send");
 
-        let config = read_config().expect("could not read config");
-        let network = config.network;
-
         tx.send(Message::ConfigLoaded(config))
             .await
             .expect("should send");
-
-        // Create the network-specific datadir if it doesn't exist
-        let path = PathBuf::from(&data_dir(Some(network)));
-        std::fs::create_dir_all(&path).expect("Could not create datadir");
-        log::info!("Using datadir: {path:?}");
 
         // FIXME: Artificial sleep because it loads too fast
         tokio::time::sleep(Duration::from_secs(1)).await;

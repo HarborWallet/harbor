@@ -12,7 +12,7 @@ disable-tor = ["harbor-client/disable-tor"]
 harbor-client = { version = "0.1.0", path = "../harbor-client" }
 
 log = "0.4"
-pretty_env_logger = "0.5" # todo swap to a file logger
+simplelog = "0.12"
 iced = { version = "0.13.1", features = ["debug", "tokio", "svg", "qr_code", "advanced"] }
 lyon_algorithms = "1.0"
 tokio = { version = "1", features = ["full"] }

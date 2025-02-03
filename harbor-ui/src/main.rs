@@ -18,7 +18,7 @@ use iced::Subscription;
 use iced::Task;
 use iced::{clipboard, Color};
 use iced::{window, Element};
-use log::{error, info};
+use log::{debug, error, info, trace};
 use routes::Route;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -32,8 +32,6 @@ pub mod routes;
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
-    pretty_env_logger::init();
-
     #[cfg(target_os = "macos")]
     let window_settings = window::Settings {
         platform_specific: window::settings::PlatformSpecific {
@@ -325,7 +323,6 @@ impl HarborWallet {
             // Setup
             Message::UIHandlerLoaded(ui_handle) => {
                 self.ui_handle = Some(ui_handle);
-                println!("Core loaded");
                 Task::none()
             }
             Message::ConfigLoaded(config) => {
@@ -527,7 +524,7 @@ impl HarborWallet {
                             match self.send_amount_input_str.parse::<u64>() {
                                 Ok(amount) => Some(amount),
                                 Err(e) => {
-                                    eprintln!("Error parsing amount: {e}");
+                                    error!("Error parsing amount: {e}");
                                     self.send_failure_reason = Some(e.to_string());
                                     return Task::none();
                                 }
@@ -619,7 +616,7 @@ impl HarborWallet {
                         }
                         Err(e) => {
                             self.receive_amount_str = String::new();
-                            eprintln!("Error parsing amount: {e}");
+                            error!("Error parsing amount: {e}");
                             Task::perform(async {}, move |_| {
                                 Message::AddToast(Toast {
                                     title: "Failed to generate invoice".to_string(),
@@ -672,7 +669,7 @@ impl HarborWallet {
                 }
                 Err(e) => {
                     self.receive_amount_str = String::new();
-                    eprintln!("Error parsing amount: {e}");
+                    error!("Error parsing amount: {e}");
                     Task::none()
                 }
             },
@@ -882,7 +879,7 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::FederationBalanceUpdated { id, balance } => {
-                    println!(
+                    debug!(
                         "Balance update received - ID: {:?}, Balance: {:?}",
                         id, balance
                     );
@@ -900,7 +897,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::ReceiveInvoiceGenerated(invoice) => {
                     self.receive_status = ReceiveStatus::WaitingToReceive;
-                    println!("Received invoice: {invoice}");
+                    debug!("Received invoice: {invoice}");
                     self.receive_qr_data = Some(
                         Data::with_error_correction(
                             format!("lightning:{invoice}"),
@@ -998,7 +995,7 @@ impl HarborWallet {
                     })
                 }
                 CoreUIMsg::FederationListUpdated(list) => {
-                    println!("Updated federation list: {:#?}", list);
+                    trace!("Updated federation list: {:#?}", list);
 
                     // if we don't have an active federation, set it to the first one
                     if self.active_federation_id.is_none() {
@@ -1013,7 +1010,7 @@ impl HarborWallet {
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {
                     self.receive_status = ReceiveStatus::WaitingToReceive;
-                    println!("Received address: {address}");
+                    debug!("Received address: {address}");
                     self.receive_qr_data = Some(
                         Data::with_error_correction(
                             format!("bitcoin:{address}"),
