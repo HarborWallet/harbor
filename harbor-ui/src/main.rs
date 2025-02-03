@@ -10,7 +10,9 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::db_models::FederationItem;
-use harbor_client::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg};
+use harbor_client::{
+    data_dir, CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
+};
 use iced::widget::qr_code::Data;
 use iced::widget::row;
 use iced::Font;
@@ -20,6 +22,7 @@ use iced::{clipboard, Color};
 use iced::{window, Element};
 use log::{debug, error, info, trace};
 use routes::Route;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -143,6 +146,7 @@ pub enum Message {
     TransferAmountInputChanged(String),
     UrlClicked(String),
     SelectTransaction(Option<TransactionItem>),
+    OpenDataDirectory,
     // Batch multiple messages together
     Batch(Vec<Message>),
     // Config commands
@@ -493,6 +497,12 @@ impl HarborWallet {
             }
             Message::TransferAmountInputChanged(input) => {
                 self.transfer_amount_input_str = input;
+                Task::none()
+            }
+            Message::OpenDataDirectory => {
+                let network = self.config.network;
+                let dir = PathBuf::from(&data_dir(Some(network)));
+                opener::reveal(&dir).expect("Failed to open data directory");
                 Task::none()
             }
             // Async commands we fire from the UI to core
