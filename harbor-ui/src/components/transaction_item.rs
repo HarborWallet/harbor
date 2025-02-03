@@ -1,5 +1,4 @@
 use crate::Message;
-use bitcoin::Network;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
@@ -9,22 +8,17 @@ use iced::{
 };
 
 use super::{
-    darken, format_amount, format_timestamp, lighten, link, map_icon, text_link, MUTINY_GREEN,
-    MUTINY_RED,
+    darken, format_amount, format_timestamp, lighten, link, map_icon, MUTINY_GREEN, MUTINY_RED,
 };
 
-pub fn h_transaction_item(
-    item: &TransactionItem,
-    is_selected: bool,
-    network: Network,
-) -> Element<Message> {
+pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<Message> {
     let TransactionItem {
         kind,
         amount,
         direction,
         timestamp,
         federation_id: _,
-        txid,
+        txid: _,
     } = item;
     let kind_icon = match kind {
         TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),
@@ -50,25 +44,9 @@ pub fn h_transaction_item(
         .align_y(iced::Alignment::Center)
         .spacing(16);
 
-    // todo: where do we get the network from?
-    let base_url = match network {
-        Network::Bitcoin => "https://mempool.space/tx/",
-        Network::Testnet => "https://mempool.space/testnet3/tx/",
-        Network::Testnet4 => "https://mempool.space/testnet4/tx/",
-        Network::Signet => "https://mutinynet.com/tx/",
-        _ => panic!("Unsupported network"),
-    };
-
-    let col = if let Some(txid) = txid {
-        let url = format!("{}{}", base_url, txid);
-        let timestamp_text = format_timestamp(timestamp);
-        let timestamp = text_link(timestamp_text, url);
-        column![row, timestamp].spacing(8)
-    } else {
-        let timestamp_text = format_timestamp(timestamp);
-        let timestamp = text(timestamp_text).color(link());
-        column![row, timestamp].spacing(8)
-    };
+    let timestamp_text = format_timestamp(timestamp);
+    let timestamp = text(timestamp_text).color(link());
+    let col = column![row, timestamp].spacing(8);
 
     Button::new(col)
         .on_press(Message::SelectTransaction(Some(*item)))

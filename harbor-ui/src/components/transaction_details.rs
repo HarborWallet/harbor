@@ -86,7 +86,7 @@ pub fn h_transaction_details<'a>(
         };
         let url = format!("{}{}", base_url, txid);
         details = details.push(
-            row![
+            column![
                 text("TXID").size(16).style(subtitle),
                 text_link(txid.to_string(), url)
             ]

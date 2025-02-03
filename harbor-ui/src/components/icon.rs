@@ -29,6 +29,7 @@ pub enum SvgIcon {
     Trash,
     ExternalLink,
     Shield,
+    FolderLock,
 }
 
 macro_rules! icon_handle {
@@ -67,6 +68,7 @@ pub fn map_icon<'a>(icon: SvgIcon, width: f32, height: f32) -> Svg<'a, Theme> {
         SvgIcon::Trash => icon_handle!("trash.svg"),
         SvgIcon::ExternalLink => icon_handle!("external_link.svg"),
         SvgIcon::Shield => icon_handle!("shield.svg"),
+        SvgIcon::FolderLock => icon_handle!("folder_lock.svg"),
     }
     .width(width)
     .height(height)
