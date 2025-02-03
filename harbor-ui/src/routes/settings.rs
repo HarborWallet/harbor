@@ -45,6 +45,9 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     let open_data_dir_button = h_button("Open Data Directory", SvgIcon::FolderLock, false)
         .on_press(Message::OpenDataDirectory);
 
+    let tor_enabled_checkbox =
+        Checkbox::new("Enable Tor", harbor.tor_enabled).on_toggle(Message::SetTorEnabled);
+
     let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
         (true, Some(s)) => {
             let button = h_button("Hide Seed Words", SvgIcon::EyeClosed, false)
@@ -71,6 +74,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
                 header,
                 button,
                 onchain_receive_checkbox,
+                tor_enabled_checkbox,
                 network_list,
                 open_data_dir_button,
             ]

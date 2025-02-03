@@ -48,6 +48,14 @@ pub fn gray() -> Color {
     lighten(Color::from_rgb8(23, 23, 25), 0.5)
 }
 
+pub fn green() -> Color {
+    Color::from_rgb8(40, 164, 127)
+}
+
+pub fn red() -> Color {
+    Color::from_rgb8(250, 0, 80)
+}
+
 pub fn menu_style(theme: &Theme) -> menu::Style {
     let border = Border {
         color: Color::WHITE,

@@ -152,6 +152,7 @@ pub enum Message {
     Batch(Vec<Message>),
     // Config commands
     ChangeNetwork(Network),
+    SetTorEnabled(bool),
     // Async commands we fire from the UI to core
     Noop,
     Send(String),
@@ -233,6 +234,7 @@ pub struct HarborWallet {
     // Settings
     settings_show_seed_words: bool,
     seed_words: Option<String>,
+    tor_enabled: bool,
     // Onboarding
     show_add_a_mint_cta: bool,
     has_navigated_to_mints: bool,
@@ -790,6 +792,10 @@ impl HarborWallet {
             }
             Message::SetConfirmModal(modal_state) => {
                 self.confirm_modal = modal_state;
+                Task::none()
+            }
+            Message::SetTorEnabled(enabled) => {
+                self.tor_enabled = enabled;
                 Task::none()
             }
             // Handle any messages we get from core
