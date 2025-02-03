@@ -21,7 +21,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
                     .map(|selected| selected == item)
                     .unwrap_or(false);
                 column
-                    .push(h_transaction_item(item, is_selected, harbor.config.network))
+                    .push(h_transaction_item(item, is_selected))
                     .push(hr())
             })
             .spacing(16)

@@ -755,7 +755,7 @@ impl HarborWallet {
             // To warn people that this will open their browser
             Message::UrlClicked(url) => {
                 log::info!("Url clicked: {}", url);
-                if let Err(e) = webbrowser::open(&url) {
+                if let Err(e) = opener::open(&url) {
                     log::error!("Failed to open URL: {}", e);
                 }
                 Task::none()
