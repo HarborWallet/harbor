@@ -250,6 +250,16 @@ impl HarborCore {
 
         let fees = gateway.fees.to_amount(&amount);
 
+        let total = fees + amount;
+        let balance = client.get_balance().await;
+        if total > balance {
+            return Err(anyhow!(
+                "Insufficient balance: Cannot pay {} sats, current balance is only {} sats",
+                total.sats_round_down(),
+                balance.sats_round_down()
+            ));
+        }
+
         log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
 
         let outgoing = lightning_module
@@ -417,6 +427,16 @@ impl HarborCore {
                 (fees, bitcoin::Amount::from_sat(amount.sats_round_down()))
             }
         };
+
+        let total = fees.amount() + amount;
+        let balance = client.get_balance().await;
+        if total > bitcoin::Amount::from_sat(balance.sats_round_down()) {
+            return Err(anyhow!(
+                "Insufficient balance: Cannot pay {} sats, current balance is only {} sats",
+                total.to_sat(),
+                balance.sats_round_down()
+            ));
+        }
 
         let op_id = onchain.withdraw(address.clone(), amount, fees, ()).await?;
 
