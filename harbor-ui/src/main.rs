@@ -206,6 +206,9 @@ pub struct HarborWallet {
     send_dest_input_str: String,
     send_amount_input_str: String,
     is_max: bool,
+    current_send_id: Option<Uuid>,
+    current_receive_id: Option<Uuid>,
+    current_transfer_id: Option<Uuid>,
     // Receive
     receive_failure_reason: Option<String>,
     receive_success_msg: Option<ReceiveSuccessMsg>,
@@ -218,6 +221,8 @@ pub struct HarborWallet {
     // Mints
     peek_federation_item: Option<FederationItem>,
     mint_invite_code_str: String,
+    peek_status: PeekStatus,
+    add_federation_status: AddFederationStatus,
     // Transfer
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
@@ -228,11 +233,6 @@ pub struct HarborWallet {
     // Settings
     settings_show_seed_words: bool,
     seed_words: Option<String>,
-    current_send_id: Option<Uuid>,
-    current_receive_id: Option<Uuid>,
-    current_transfer_id: Option<Uuid>,
-    peek_status: PeekStatus,
-    add_federation_status: AddFederationStatus,
     // Onboarding
     show_add_a_mint_cta: bool,
     has_navigated_to_mints: bool,
