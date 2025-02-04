@@ -145,6 +145,7 @@ pub enum Message {
     SetTransferTo(String),
     TransferAmountInputChanged(String),
     UrlClicked(String),
+    OpenUrl(String),
     SelectTransaction(Option<TransactionItem>),
     OpenDataDirectory,
     // Batch multiple messages together
@@ -761,13 +762,22 @@ impl HarborWallet {
                     Task::none()
                 }
             }
-            // TODO: we might want an intermediate modal
-            // To warn people that this will open their browser
             Message::UrlClicked(url) => {
                 log::info!("Url clicked: {}", url);
+                self.confirm_modal = Some(components::ConfirmModalState {
+                    title: "Open External Link?".to_string(),
+                    description: format!("This will open {} in your default browser.", url),
+                    confirm_action: Box::new(Message::OpenUrl(url)),
+                    cancel_action: Box::new(Message::SetConfirmModal(None)),
+                    confirm_button_text: "Open Link".to_string(),
+                });
+                Task::none()
+            }
+            Message::OpenUrl(url) => {
                 if let Err(e) = opener::open(&url) {
                     log::error!("Failed to open URL: {}", e);
                 }
+                self.confirm_modal = None;
                 Task::none()
             }
             Message::SetOnchainReceiveEnabled(enabled) => {
@@ -1099,11 +1109,7 @@ impl HarborWallet {
             Route::Welcome => crate::routes::welcome(self),
         };
 
-        let content = if let Some(modal_state) = &self.confirm_modal {
-            crate::components::confirm_modal(active_route, modal_state)
-        } else {
-            active_route
-        };
+        let content = crate::components::confirm_modal(active_route, self.confirm_modal.as_ref());
 
         ToastManager::new(content, &self.toasts, Message::CloseToast).into()
     }

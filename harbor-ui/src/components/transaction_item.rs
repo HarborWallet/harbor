@@ -56,7 +56,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
             } else {
                 match status {
                     button::Status::Hovered => lighten(theme.palette().background, 0.1),
-                    button::Status::Pressed => darken(Color::BLACK, 0.1),
+                    button::Status::Pressed => darken(theme.palette().background, 0.05),
                     _ => theme.palette().background,
                 }
             };
@@ -73,6 +73,6 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
             }
         })
         .width(iced::Length::Fill)
-        .padding(8)
+        .padding([8, 16])
         .into()
 }

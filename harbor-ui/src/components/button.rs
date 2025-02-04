@@ -42,7 +42,7 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
             } else {
                 match status {
                     Status::Hovered => lighten(theme.palette().background, 0.1),
-                    Status::Pressed => darken(Color::BLACK, 0.1),
+                    Status::Pressed => darken(theme.palette().background, 0.05),
                     _ => theme.palette().background,
                 }
             };
@@ -94,7 +94,7 @@ pub fn h_small_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_
             } else {
                 match status {
                     Status::Hovered => lighten(theme.palette().background, 0.1),
-                    Status::Pressed => darken(Color::BLACK, 0.1),
+                    Status::Pressed => darken(theme.palette().background, 0.05),
                     _ => theme.palette().background,
                 }
             };
@@ -144,7 +144,7 @@ pub fn sidebar_button(
             let background = match (status, is_active) {
                 (_, true) => bg_color,
                 (Status::Hovered, false) => lighten(bg_color, 0.05),
-                (Status::Pressed, false) => darken(bg_color, 0.1),
+                (Status::Pressed, false) => darken(bg_color, 0.05),
                 _ => bg_color,
             };
 

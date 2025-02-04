@@ -1,4 +1,4 @@
-use super::{format_amount, format_timestamp, light_container_style, subtitle};
+use super::{format_amount, format_timestamp, side_panel_style, subtitle};
 use crate::components::{map_icon, text_link, SvgIcon};
 use crate::Message;
 use bitcoin::Network;
@@ -6,7 +6,7 @@ use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use harbor_client::db_models::FederationItem;
-use iced::widget::{column, container, row, text};
+use iced::widget::{column, container, row, text, vertical_space};
 use iced::{Alignment, Element, Length};
 
 pub fn h_transaction_details<'a>(
@@ -96,9 +96,17 @@ pub fn h_transaction_details<'a>(
 
     let title_row = row![text(title).size(24),].align_y(Alignment::Center);
 
-    container(column![title_row, details].spacing(16).padding(16))
-        .style(light_container_style)
-        .width(Length::Fixed(300.))
-        .height(Length::Shrink)
-        .into()
+    container(
+        column![
+            vertical_space().height(Length::Fixed(16.)),
+            title_row,
+            details
+        ]
+        .spacing(16)
+        .padding(16),
+    )
+    .style(side_panel_style)
+    .width(Length::Fixed(300.))
+    .height(Length::Fill)
+    .into()
 }

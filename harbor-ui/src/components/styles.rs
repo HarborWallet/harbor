@@ -56,7 +56,7 @@ pub fn menu_style(theme: &Theme) -> menu::Style {
     };
 
     let background = theme.palette().background;
-    let selected_background = lighten(theme.palette().background, 0.1);
+    let selected_background = lighten(theme.palette().background, 0.05);
 
     menu::Style {
         background: background.into(),
@@ -69,7 +69,7 @@ pub fn menu_style(theme: &Theme) -> menu::Style {
 
 pub fn borderless_pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let background = match status {
-        pick_list::Status::Hovered => lighten(theme.palette().background, 0.1),
+        pick_list::Status::Hovered => lighten(theme.palette().background, 0.05),
         pick_list::Status::Opened => darken(Color::BLACK, 0.1),
         _ => theme.palette().background,
     };
@@ -95,7 +95,7 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
     };
 
     let background = match status {
-        pick_list::Status::Hovered => lighten(theme.palette().background, 0.1),
+        pick_list::Status::Hovered => lighten(theme.palette().background, 0.05),
         pick_list::Status::Opened => darken(Color::BLACK, 0.1),
         _ => theme.palette().background,
     };
@@ -110,11 +110,27 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
 }
 
 pub fn light_container_style(theme: &Theme) -> ContainerStyle {
-    let gray = lighten(theme.palette().background, 0.1);
+    let gray = lighten(theme.palette().background, 0.05);
     let border = Border {
         color: gray,
         width: 0.,
         radius: (8.).into(),
+    };
+
+    ContainerStyle {
+        text_color: None,
+        background: Some(gray.into()),
+        border,
+        shadow: Shadow::default(),
+    }
+}
+
+pub fn side_panel_style(theme: &Theme) -> ContainerStyle {
+    let gray = lighten(theme.palette().background, 0.05);
+    let border = Border {
+        color: gray,
+        width: 0.,
+        radius: (0.).into(),
     };
 
     ContainerStyle {
