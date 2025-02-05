@@ -1,4 +1,4 @@
-use crate::http::make_get_request;
+use crate::http::{make_get_request_direct, make_get_request_tor};
 use bitcoin::secp256k1::PublicKey;
 use fedimint_client::ClientHandleArc;
 use fedimint_core::config::ClientConfig;
@@ -72,20 +72,30 @@ impl FederationMeta {
     }
 }
 
-pub(crate) async fn get_federation_metadata(data: FederationData<'_>) -> FederationMeta {
+pub(crate) async fn get_federation_metadata(
+    data: FederationData<'_>,
+    tor_enabled: bool,
+) -> FederationMeta {
     let meta_external_url = data.get_meta("meta_external_url");
     let config: Option<FederationMeta> = match meta_external_url.as_ref() {
         None => None,
-        Some(url) => match make_get_request::<FederationMetaConfig>(url).await {
-            Ok(m) => m
-                .federations
-                .get(&data.federation_id().to_string())
-                .cloned(),
-            Err(e) => {
-                error!("Error fetching external metadata: {}", e);
-                None
+        Some(url) => {
+            let result = if tor_enabled {
+                make_get_request_tor::<FederationMetaConfig>(url).await
+            } else {
+                make_get_request_direct::<FederationMetaConfig>(url).await
+            };
+            match result {
+                Ok(m) => m
+                    .federations
+                    .get(&data.federation_id().to_string())
+                    .cloned(),
+                Err(e) => {
+                    error!("Error fetching external metadata: {}", e);
+                    None
+                }
             }
-        },
+        }
     };
 
     FederationMeta {

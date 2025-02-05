@@ -122,6 +122,7 @@ pub enum Message {
     // Setup
     UIHandlerLoaded(Arc<bridge::UIHandle>),
     ConfigLoaded(Config),
+    InitError(String),
     // Local state changes
     Navigate(Route),
     SetConfirmModal(Option<components::ConfirmModalState>),
@@ -334,6 +335,10 @@ impl HarborWallet {
             }
             Message::ConfigLoaded(config) => {
                 self.config = config;
+                Task::none()
+            }
+            Message::InitError(error) => {
+                self.init_failure_reason = Some(error);
                 Task::none()
             }
             Message::ChangeNetwork(network) => {
@@ -786,16 +791,17 @@ impl HarborWallet {
                 let (_, task) = self.send_from_ui(UICoreMsg::SetOnchainReceiveEnabled(enabled));
                 task
             }
+            Message::SetTorEnabled(enabled) => {
+                // Just send the request to update Tor setting
+                let (_, task) = self.send_from_ui(UICoreMsg::SetTorEnabled(enabled));
+                task
+            }
             Message::SelectTransaction(transaction) => {
                 self.selected_transaction = transaction;
                 Task::none()
             }
             Message::SetConfirmModal(modal_state) => {
                 self.confirm_modal = modal_state;
-                Task::none()
-            }
-            Message::SetTorEnabled(enabled) => {
-                self.tor_enabled = enabled;
                 Task::none()
             }
             // Handle any messages we get from core
@@ -1093,6 +1099,35 @@ impl HarborWallet {
                 }
                 CoreUIMsg::OnchainReceiveEnabled(enabled) => {
                     self.onchain_receive_enabled = enabled;
+                    Task::perform(async {}, |_| Message::Noop)
+                }
+                CoreUIMsg::TorEnabled(enabled) => {
+                    self.tor_enabled = enabled;
+
+                    // After getting confirmation of the Tor setting change, restart the app
+                    Task::perform(async {}, move |_| {
+                        use std::env;
+                        use std::process::Command;
+
+                        let args: Vec<String> = env::args().collect();
+                        let executable = &args[0];
+
+                        Command::new(executable)
+                            .args(&args[1..])
+                            .spawn()
+                            .expect("Failed to relaunch");
+
+                        std::process::exit(0);
+                    })
+                }
+                CoreUIMsg::InitialProfile {
+                    seed_words,
+                    onchain_receive_enabled,
+                    tor_enabled,
+                } => {
+                    self.seed_words = Some(seed_words);
+                    self.onchain_receive_enabled = onchain_receive_enabled;
+                    self.tor_enabled = tor_enabled;
                     Task::none()
                 }
             },

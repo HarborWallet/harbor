@@ -46,7 +46,18 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
         .on_press(Message::OpenDataDirectory);
 
     let tor_enabled_checkbox =
-        Checkbox::new("Enable Tor", harbor.tor_enabled).on_toggle(Message::SetTorEnabled);
+        Checkbox::new("Enable Tor", harbor.tor_enabled).on_toggle(|enabled| {
+            Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
+                title: "Are you sure?".to_string(),
+                description: format!(
+                    "Changing Tor settings requires a restart, are you sure you want to {} Tor?",
+                    if enabled { "enable" } else { "disable" }
+                ),
+                confirm_action: Box::new(Message::SetTorEnabled(enabled)),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                confirm_button_text: "Confirm".to_string(),
+            }))
+        });
 
     let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
         (true, Some(s)) => {

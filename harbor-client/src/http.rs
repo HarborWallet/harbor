@@ -1,23 +1,14 @@
-#[cfg(not(feature = "disable-tor"))]
 use arti_client::{TorAddr, TorClient, TorClientConfig};
-#[cfg(not(feature = "disable-tor"))]
 use fedimint_core::util::SafeUrl;
-#[cfg(not(feature = "disable-tor"))]
 use http_body_util::{BodyExt, Empty};
-#[cfg(not(feature = "disable-tor"))]
 use hyper::body::Bytes;
-#[cfg(not(feature = "disable-tor"))]
 use hyper::Request;
-#[cfg(not(feature = "disable-tor"))]
 use hyper_util::rt::TokioIo;
 use serde::de::DeserializeOwned;
-#[cfg(not(feature = "disable-tor"))]
 use tokio::io::{AsyncRead, AsyncWrite};
-#[cfg(not(feature = "disable-tor"))]
 use tokio_native_tls::native_tls::TlsConnector;
 
-#[cfg(not(feature = "disable-tor"))]
-pub(crate) async fn make_get_request<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
+pub(crate) async fn make_get_request_tor<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
     let tor_config = TorClientConfig::default();
     let tor_client = TorClient::create_bootstrapped(tor_config)
         .await?
@@ -68,7 +59,6 @@ pub(crate) async fn make_get_request<T: DeserializeOwned>(url: &str) -> anyhow::
     Ok(res)
 }
 
-#[cfg(not(feature = "disable-tor"))]
 async fn make_request<T: DeserializeOwned>(
     url: &SafeUrl,
     stream: impl AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -108,8 +98,7 @@ async fn make_request<T: DeserializeOwned>(
     Ok(serde_json::from_slice::<T>(&buf)?)
 }
 
-#[cfg(feature = "disable-tor")]
-pub(crate) async fn make_get_request<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
+pub(crate) async fn make_get_request_direct<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
     reqwest::get(url)
         .await?
         .json()
@@ -125,7 +114,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_metadata() {
         let res =
-            make_get_request::<FederationMetaConfig>("https://meta.dev.fedibtc.com/meta.json")
+            make_get_request_tor::<FederationMetaConfig>("https://meta.dev.fedibtc.com/meta.json")
                 .await
                 .unwrap();
 

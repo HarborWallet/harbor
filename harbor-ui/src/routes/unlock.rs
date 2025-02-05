@@ -47,5 +47,11 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
             .color(Color::from_rgb8(250, 0, 80))
     }));
 
+    let page_column = page_column.push_maybe(harbor.init_failure_reason.as_ref().map(|r| {
+        text(format!("Init Error: {:?}", r))
+            .size(24)
+            .color(Color::from_rgb8(250, 0, 80))
+    }));
+
     container(center(page_column)).into()
 }

@@ -2,7 +2,8 @@ CREATE TABLE profile
 (
     id                      TEXT PRIMARY KEY NOT NULL,
     seed_words              TEXT             NOT NULL,
-    onchain_receive_enabled INTEGER          NOT NULL DEFAULT 0
+    onchain_receive_enabled INTEGER          NOT NULL DEFAULT 0,
+    tor_enabled             INTEGER          NOT NULL DEFAULT 1
 );
 
 CREATE TABLE fedimint

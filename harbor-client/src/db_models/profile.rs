@@ -10,6 +10,7 @@ pub struct Profile {
     pub id: String,
     pub seed_words: String,
     onchain_receive_enabled: i32,
+    tor_enabled: i32,
 }
 
 impl Profile {
@@ -21,15 +22,32 @@ impl Profile {
         conn: &mut SqliteConnection,
         enabled: bool,
     ) -> anyhow::Result<()> {
+        log::debug!(
+            "Updating on-chain receive enabled setting in database to: {}",
+            enabled
+        );
         diesel::update(profile::table)
             .set(profile::onchain_receive_enabled.eq(enabled as i32))
             .execute(conn)?;
-
+        log::debug!("Successfully updated on-chain receive enabled setting in database");
         Ok(())
     }
 
     pub fn onchain_receive_enabled(&self) -> bool {
         self.onchain_receive_enabled == 1
+    }
+
+    pub fn set_tor_enabled(conn: &mut SqliteConnection, enabled: bool) -> anyhow::Result<()> {
+        log::debug!("Updating Tor enabled setting in database to: {}", enabled);
+        diesel::update(profile::table)
+            .set(profile::tor_enabled.eq(enabled as i32))
+            .execute(conn)?;
+        log::debug!("Successfully updated Tor enabled setting in database");
+        Ok(())
+    }
+
+    pub fn tor_enabled(&self) -> bool {
+        self.tor_enabled == 1
     }
 }
 
@@ -46,6 +64,7 @@ impl From<&NewProfile> for Profile {
             id: new_profile.id.clone(),
             seed_words: new_profile.seed_words.clone(),
             onchain_receive_enabled: 0,
+            tor_enabled: 1,
         }
     }
 }

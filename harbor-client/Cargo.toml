@@ -6,7 +6,6 @@ edition = "2021"
 [features]
 default = []
 vendored = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
-disable-tor = ["reqwest"]
 
 [dependencies]
 anyhow = "1.0.89"
@@ -45,7 +44,7 @@ hyper = { version = "1", features = ["http1", "client"] }
 hyper-util = { version = "0.1.1", features = ["tokio"] }
 tokio-native-tls = "0.3.1"
 
-reqwest = { version = "0.12.12", features = ["json"], optional = true}
+reqwest = { version = "0.12.12", features = ["json"] }
 
 [dev-dependencies]
 tempdir = "0.3.7"
