@@ -403,6 +403,22 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
+                    UICoreMsg::SendLnurlPay {
+                        federation_id,
+                        lnurl,
+                        amount_sats,
+                    } => {
+                        log::info!("Got UICoreMsg::SendLnurlPay");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
+                        if let Err(e) = core
+                            .send_lnurl_pay(msg.id, federation_id, lnurl, amount_sats)
+                            .await
+                        {
+                            error!("Error sending: {e}");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
+                        }
+                    }
                     UICoreMsg::SendOnChain {
                         federation_id,
                         address,

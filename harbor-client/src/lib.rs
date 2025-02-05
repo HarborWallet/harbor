@@ -21,9 +21,12 @@ use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescript
 use fedimint_wallet_client::WalletClientModule;
 use futures::future::join_all;
 use futures::{channel::mpsc::Sender, SinkExt};
+use lightning_address::make_lnurl_request;
+use lnurl::lnurl::LnUrl;
 use log::{error, trace};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Instant;
@@ -54,6 +57,7 @@ pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
 mod http;
+pub mod lightning_address;
 pub mod metadata;
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,11 @@ pub enum UICoreMsg {
     SendLightning {
         federation_id: FederationId,
         invoice: Bolt11Invoice,
+    },
+    SendLnurlPay {
+        federation_id: FederationId,
+        lnurl: LnUrl,
+        amount_sats: u64,
     },
     ReceiveLightning {
         federation_id: FederationId,
@@ -312,6 +321,39 @@ impl HarborCore {
         }
 
         log::info!("Payment sent");
+
+        Ok(())
+    }
+
+    pub async fn send_lnurl_pay(
+        &self,
+        msg_id: Uuid,
+        federation_id: FederationId,
+        lnurl: LnUrl,
+        amount_sats: u64,
+    ) -> anyhow::Result<()> {
+        log::info!("Sending lnurl pay: {lnurl} from federation: {federation_id}");
+
+        let profile = self.storage.get_profile()?;
+        if let Some(profile) = profile {
+            let tor_enabled = profile.tor_enabled();
+            let pay_response = make_lnurl_request(&lnurl, tor_enabled).await?;
+            log::info!("Pay response: {pay_response:?}");
+
+            let amount_msats = amount_sats * 1000;
+            let invoice_response =
+                lightning_address::get_invoice(&pay_response, amount_msats, tor_enabled).await?;
+            log::info!("Invoice response: {invoice_response:?}");
+
+            let invoice = fedimint_ln_common::lightning_invoice::Bolt11Invoice::from_str(
+                &invoice_response.pr,
+            )?;
+            self.send_lightning(msg_id, federation_id, invoice, false)
+                .await?;
+        } else {
+            log::error!("No profile found");
+            return Err(anyhow::anyhow!("No profile found"));
+        }
 
         Ok(())
     }

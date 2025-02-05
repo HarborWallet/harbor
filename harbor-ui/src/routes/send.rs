@@ -17,6 +17,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         on_input: Message::SendAmountInputChanged,
         numeric: true,
         suffix: Some("sats"),
+        disabled: harbor.is_max,
         ..InputArgs::default()
     });
 

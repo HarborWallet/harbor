@@ -38,6 +38,8 @@ fedimint-bip39 = "0.5.0"
 fedimint-ln-common = "0.5.0"
 # update this when updating fedimint if we need too
 arti-client = { version = "0.20.0", default-features = false, package = "fedimint-arti-client" }
+# keep in sync with fedimint's version also
+lnurl-rs = { version = "0.8.0", default-features = false }
 
 http-body-util = "0.1.0"
 hyper = { version = "1", features = ["http1", "client"] }

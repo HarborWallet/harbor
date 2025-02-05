@@ -10,6 +10,7 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::db_models::FederationItem;
+use harbor_client::lightning_address::parse_lightning_address;
 use harbor_client::{
     data_dir, CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
 };
@@ -532,6 +533,33 @@ impl HarborWallet {
                         let (id, task) = self.send_from_ui(UICoreMsg::SendLightning {
                             federation_id,
                             invoice,
+                        });
+                        self.current_send_id = Some(id);
+                        task
+                    } else if let Ok(ln_address) = parse_lightning_address(&invoice_str) {
+                        // TODO: can we handle is_max somehow?
+                        let amount = if self.is_max {
+                            return Task::perform(async {}, |_| {
+                                Message::AddToast(Toast {
+                                    title: "Cannot send max with Lightning Address".to_string(),
+                                    body: Some("Please enter a specific amount".to_string()),
+                                    status: ToastStatus::Bad,
+                                })
+                            });
+                        } else {
+                            match self.send_amount_input_str.parse::<u64>() {
+                                Ok(amount) => amount,
+                                Err(e) => {
+                                    error!("Error parsing amount: {e}");
+                                    self.send_failure_reason = Some(e.to_string());
+                                    return Task::none();
+                                }
+                            }
+                        };
+                        let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
+                            federation_id,
+                            lnurl: ln_address.lnurl(),
+                            amount_sats: amount,
                         });
                         self.current_send_id = Some(id);
                         task

@@ -8,16 +8,22 @@ use serde::de::DeserializeOwned;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_native_tls::native_tls::TlsConnector;
 
-pub(crate) async fn make_get_request_tor<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
+pub(crate) async fn make_get_request_tor<T>(url: &str) -> anyhow::Result<T>
+where
+    T: DeserializeOwned,
+{
+    log::debug!("Making get request to tor: {}", url);
     let tor_config = TorClientConfig::default();
     let tor_client = TorClient::create_bootstrapped(tor_config)
         .await?
         .isolated_client();
 
+    log::debug!("Successfully created and bootstrapped the `TorClient`, for given `TorConfig`.");
+
     let safe_url = SafeUrl::parse(url)?;
     let https = safe_url.scheme() == "https";
 
-    log::debug!("Successfully created and bootstrapped the `TorClient`, for given `TorConfig`.");
+    log::debug!("Successfully parsed the URL into a `SafeUrl`.");
 
     let host = safe_url
         .host_str()
@@ -59,10 +65,13 @@ pub(crate) async fn make_get_request_tor<T: DeserializeOwned>(url: &str) -> anyh
     Ok(res)
 }
 
-async fn make_request<T: DeserializeOwned>(
+async fn make_request<T>(
     url: &SafeUrl,
     stream: impl AsyncRead + AsyncWrite + Unpin + Send + 'static,
-) -> anyhow::Result<T> {
+) -> anyhow::Result<T>
+where
+    T: DeserializeOwned,
+{
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(TokioIo::new(stream)).await?;
 
@@ -75,6 +84,8 @@ async fn make_request<T: DeserializeOwned>(
         .header("Host", url.host_str().expect("already checked for host"))
         .body(Empty::<Bytes>::new())?;
     let mut resp = request_sender.send_request(req).await?;
+
+    log::debug!("Successfully sent the request.");
 
     let len: usize = resp
         .headers()
@@ -95,15 +106,29 @@ async fn make_request<T: DeserializeOwned>(
         buf.extend_from_slice(&bytes);
     }
 
-    Ok(serde_json::from_slice::<T>(&buf)?)
+    log::debug!("Successfully received the response body.");
+
+    let text = String::from_utf8(buf)?;
+    serde_json::from_str(&text).map_err(anyhow::Error::from)
 }
 
-pub(crate) async fn make_get_request_direct<T: DeserializeOwned>(url: &str) -> anyhow::Result<T> {
-    reqwest::get(url)
-        .await?
-        .json()
-        .await
-        .map_err(anyhow::Error::from)
+pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
+where
+    T: DeserializeOwned,
+{
+    let response = reqwest::get(url).await?;
+    let status = response.status();
+    let text = response.text().await?;
+
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Request failed with status {}: {}",
+            status,
+            text
+        ));
+    }
+
+    serde_json::from_str(&text).map_err(anyhow::Error::from)
 }
 
 #[cfg(test)]
