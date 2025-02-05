@@ -156,7 +156,19 @@ async fn try_auto_unlock(
 
 pub fn run_core() -> impl Stream<Item = Message> {
     iced::stream::channel(100, |mut tx: Sender<Message>| async move {
-        let config = read_config().expect("could not read config");
+        let config = match read_config() {
+            Ok(config) => config,
+            Err(e) => {
+                // In case the config file is malformed we can tell the UI about it
+                tx.send(Message::InitError(e.to_string()))
+                    .await
+                    .expect("should send");
+                tx.send(Message::core_msg(None, CoreUIMsg::NeedsInit))
+                    .await
+                    .expect("should send");
+                return;
+            }
+        };
         let network = config.network;
 
         // Create the network-specific datadir if it doesn't exist
@@ -485,10 +497,17 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     }
                     UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
                         if let Err(e) = core.set_onchain_receive_enabled(enabled).await {
-                            error!("Error setting onchain receive enabled: {e}");
+                            error!("error setting onchain receive enabled: {e}");
                         } else {
                             core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
                                 .await;
+                        }
+                    }
+                    UICoreMsg::SetTorEnabled(enabled) => {
+                        if let Err(e) = core.set_tor_enabled(enabled).await {
+                            error!("error setting tor enabled: {e}");
+                        } else {
+                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
                         }
                     }
                     UICoreMsg::Unlock(_password) => {

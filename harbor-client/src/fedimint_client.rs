@@ -72,15 +72,17 @@ impl FedimintClient {
 
         trace!("Building fedimint client db");
 
-        let db = FedimintStorage::new(storage, federation_id.to_string()).await?;
+        let db = FedimintStorage::new(storage.clone(), federation_id.to_string()).await?;
 
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
         let mut client_builder = fedimint_client::Client::builder(db.into()).await?;
 
-        // Tor should be enabled unless we're in debug mode AND the "disable-tor" feature is enabled
-        #[cfg(not(all(debug_assertions, feature = "disable-tor")))]
-        client_builder.with_tor_connector();
+        // Check if tor is enabled in profile
+        let profile = storage.get_profile()?;
+        if profile.as_ref().map_or(false, |p| p.tor_enabled()) {
+            client_builder.with_tor_connector();
+        }
 
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(MintClientInit);
@@ -104,23 +106,19 @@ impl FedimintClient {
         } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
             let download = Instant::now();
             let config = {
-                #[cfg(all(debug_assertions, feature = "disable-tor"))]
-                let config = fedimint_api_client::api::net::Connector::Tcp
-                    .download_from_invite_code(&invite_code)
-                    .await
-                    .map_err(|e| {
-                        error!("Could not download federation info: {e}");
-                        e
-                    })?;
-                #[cfg(not(all(debug_assertions, feature = "disable-tor")))]
-                let config = fedimint_api_client::api::net::Connector::Tor
-                    .download_from_invite_code(&invite_code)
-                    .await
-                    .map_err(|e| {
-                        error!("Could not download federation info: {e}");
-                        e
-                    })?;
-                config
+                let config = if profile.as_ref().map_or(false, |p| p.tor_enabled()) {
+                    fedimint_api_client::api::net::Connector::Tor
+                        .download_from_invite_code(&invite_code)
+                        .await
+                } else {
+                    fedimint_api_client::api::net::Connector::Tcp
+                        .download_from_invite_code(&invite_code)
+                        .await
+                };
+                config.map_err(|e| {
+                    error!("Could not download federation info: {e}");
+                    e
+                })?
             };
             trace!(
                 "Downloaded federation info in: {}ms",

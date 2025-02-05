@@ -62,6 +62,7 @@ pub fn setup_db(url: &str, password: String) -> anyhow::Result<Arc<SQLConnection
         }))
         .test_on_check_out(true)
         .build(manager)?;
+
     Ok(Arc::new(SQLConnection { db: pool }))
 }
 
@@ -77,6 +78,9 @@ pub trait DBConnection {
 
     // Sets the on-chain receive enabled flag
     fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()>;
+
+    // Sets the tor enabled flag
+    fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()>;
 
     // Retrieves the mnemonic from the DB
     fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic>;
@@ -191,6 +195,12 @@ impl DBConnection for SQLConnection {
     fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
         Profile::set_onchain_receive_enabled(conn, enabled)?;
+        Ok(())
+    }
+
+    fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        Profile::set_tor_enabled(conn, enabled)?;
         Ok(())
     }
 

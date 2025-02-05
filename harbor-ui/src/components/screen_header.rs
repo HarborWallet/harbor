@@ -1,12 +1,13 @@
 use crate::{HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use iced::{
-    widget::{column, horizontal_space, pick_list, row, text},
+    widget::{column, horizontal_space, pick_list, rich_text, row, span, text},
     Alignment, Element, Length, Padding,
 };
 
 use super::{
-    borderless_pick_list_style, format_amount, gray, hr, map_icon, menu_style, vr, SvgIcon,
+    borderless_pick_list_style, format_amount, gray, green, hr, map_icon, menu_style, red, vr,
+    SvgIcon,
 };
 
 pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
@@ -52,12 +53,27 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         let row = row![current_federation].spacing(16);
 
         let shield_icon = map_icon(SvgIcon::Shield, 16., 16.);
-        let secured = row![
-            text("Connection Secured by Tor").size(16).color(gray()),
-            shield_icon
-        ]
+        let shield_alert_icon = map_icon(SvgIcon::ShieldAlert, 16., 16.);
+        let tor_enabled = harbor.tor_enabled;
+        let secured = if tor_enabled {
+            row![
+                rich_text([
+                    span("Tor ").size(16).color(gray()),
+                    span("enabled").size(16).color(green()),
+                ]),
+                shield_icon
+            ]
+        } else {
+            row![
+                rich_text([
+                    span("Tor ").size(16).color(gray()),
+                    span("disabled").size(16).color(red()),
+                ]),
+                shield_alert_icon
+            ]
+        }
         .align_y(Alignment::Center)
-        .spacing(16)
+        .spacing(8)
         .padding(Padding::new(0.).right(16));
 
         column![

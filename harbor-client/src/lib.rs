@@ -96,6 +96,7 @@ pub enum UICoreMsg {
     },
     GetSeedWords,
     SetOnchainReceiveEnabled(bool),
+    SetTorEnabled(bool),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -129,7 +130,6 @@ pub enum CoreUIMsg {
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
     TransferFailure(String),
-    // todo probably want a way to incrementally add items to the history
     TransactionHistoryUpdated(Vec<TransactionItem>),
     FederationBalanceUpdated {
         id: FederationId,
@@ -155,6 +155,12 @@ pub enum CoreUIMsg {
     UnlockFailed(String),
     SeedWords(String),
     OnchainReceiveEnabled(bool),
+    TorEnabled(bool),
+    InitialProfile {
+        seed_words: String,
+        onchain_receive_enabled: bool,
+        tor_enabled: bool,
+    },
 }
 
 #[derive(Clone)]
@@ -209,9 +215,12 @@ impl HarborCore {
 
         let profile = self.storage.get_profile()?;
         if let Some(profile) = profile {
-            self.send_system_msg(CoreUIMsg::OnchainReceiveEnabled(
-                profile.onchain_receive_enabled(),
-            ))
+            // Send all profile settings in one message
+            self.send_system_msg(CoreUIMsg::InitialProfile {
+                seed_words: profile.seed_words.clone(),
+                onchain_receive_enabled: profile.onchain_receive_enabled(),
+                tor_enabled: profile.tor_enabled(),
+            })
             .await;
         }
 
@@ -508,23 +517,22 @@ impl HarborCore {
         log::info!("Getting federation info for invite code: {invite_code}");
         let download = Instant::now();
         let config = {
-            #[cfg(feature = "disable-tor")]
-            let config = fedimint_api_client::api::net::Connector::Tcp
+            let tor_enabled = match self.storage.get_profile() {
+                Ok(Some(profile)) => profile.tor_enabled(),
+                _ => true,
+            };
+            let connector = if tor_enabled {
+                fedimint_api_client::api::net::Connector::Tor
+            } else {
+                fedimint_api_client::api::net::Connector::Tcp
+            };
+            connector
                 .download_from_invite_code(&invite_code)
                 .await
                 .map_err(|e| {
                     error!("Could not download federation info: {e}");
                     e
-                })?;
-            #[cfg(not(feature = "disable-tor"))]
-            let config = fedimint_api_client::api::net::Connector::Tor
-                .download_from_invite_code(&invite_code)
-                .await
-                .map_err(|e| {
-                    error!("Could not download federation info: {e}");
-                    e
-                })?;
-            config
+                })?
         };
         trace!(
             "Downloaded federation info in: {}ms",
@@ -532,9 +540,13 @@ impl HarborCore {
         );
 
         let mut cache = CACHE.write().await;
+        let tor_enabled = match self.storage.get_profile() {
+            Ok(Some(profile)) => profile.tor_enabled(),
+            _ => true,
+        };
         let metadata = match cache.get(&invite_code.federation_id()).cloned() {
             None => {
-                let m = get_federation_metadata(FederationData::Config(&config)).await;
+                let m = get_federation_metadata(FederationData::Config(&config), tor_enabled).await;
                 cache.insert(invite_code.federation_id(), m.clone());
                 m
             }
@@ -633,11 +645,17 @@ impl HarborCore {
         // if we're missing metadata for federations, start background task to populate it
         if !needs_metadata.is_empty() {
             let mut tx = self.tx.clone();
+            let storage = self.storage.clone();
             tokio::task::spawn(async move {
+                let tor_enabled = match storage.get_profile() {
+                    Ok(Some(profile)) => profile.tor_enabled(),
+                    _ => true,
+                };
                 let mut w = CACHE.write().await;
                 for client in needs_metadata {
                     let id = client.federation_id();
-                    let metadata = get_federation_metadata(FederationData::Client(&client)).await;
+                    let metadata =
+                        get_federation_metadata(FederationData::Client(&client), tor_enabled).await;
                     w.insert(id, metadata);
                 }
                 drop(w);
@@ -660,7 +678,22 @@ impl HarborCore {
     }
 
     pub async fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        log::info!("Setting on-chain receive enabled to: {}", enabled);
         self.storage.set_onchain_receive_enabled(enabled)?;
+        log::info!(
+            "Successfully {} on-chain receive",
+            if enabled { "enabled" } else { "disabled" }
+        );
+        Ok(())
+    }
+
+    pub async fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+        log::info!("Setting Tor enabled to: {}", enabled);
+        self.storage.set_tor_enabled(enabled)?;
+        log::info!(
+            "Successfully {} Tor",
+            if enabled { "enabled" } else { "disabled" }
+        );
         Ok(())
     }
 }
