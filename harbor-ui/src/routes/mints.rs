@@ -1,10 +1,11 @@
-use iced::widget::column;
+use iced::widget::{column, row};
 use iced::Element;
 
 use crate::components::{
-    basic_layout, h_button, h_federation_item, h_header, h_input, InputArgs, SvgIcon,
+    basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
+    InputArgs, SvgIcon,
 };
-use crate::{HarborWallet, Message, PeekStatus};
+use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
 
@@ -16,7 +17,7 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
         .federation_list
         .iter()
         .fold(column![], |column, item| {
-            column.push(h_federation_item(item, None))
+            column.push(h_federation_item(item))
         })
         .spacing(48);
 
@@ -48,19 +49,26 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
             )
             .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
 
-            column![header, mint_input, peek_mint_button].spacing(48)
+            let peek_column = column![mint_input, peek_mint_button].spacing(16);
+
+            column![header, peek_column].spacing(48)
         }
 
         Some(peek_federation_item) => {
-            let federation_preview = h_federation_item(
-                peek_federation_item,
-                Some(harbor.mint_invite_code_str.clone()),
-            );
+            let federation_preview = h_federation_item_preview(peek_federation_item);
+
+            let is_joining = harbor.add_federation_status == AddFederationStatus::Adding;
+
+            let add_mint_button = h_button("Join Mint", SvgIcon::Plus, is_joining)
+                .on_press(Message::AddFederation(harbor.mint_invite_code_str.clone()));
 
             let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
                 .on_press(Message::CancelAddFederation);
 
-            column![header, federation_preview, start_over_button].spacing(48)
+            let button_row = row![start_over_button, add_mint_button].spacing(16);
+            let preview_column = column![federation_preview, button_row].spacing(16);
+
+            column![header, preview_column].spacing(48)
         }
     };
 

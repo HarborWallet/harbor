@@ -461,6 +461,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string()))
                                 .await;
                         } else {
+                            log::info!("Removed federation: {id}");
                             let new_federation_list = core.get_federation_items().await;
                             core.msg(
                                 msg.id,

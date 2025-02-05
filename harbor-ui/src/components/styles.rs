@@ -140,3 +140,19 @@ pub fn side_panel_style(theme: &Theme) -> ContainerStyle {
         shadow: Shadow::default(),
     }
 }
+
+pub fn tag_style(theme: &Theme) -> ContainerStyle {
+    let gray = lighten(theme.palette().background, 0.1);
+    let border = Border {
+        color: gray,
+        width: 0.,
+        radius: (4.).into(),
+    };
+
+    ContainerStyle {
+        text_color: None,
+        background: Some(gray.into()),
+        border,
+        shadow: Shadow::default(),
+    }
+}
