@@ -1,22 +1,62 @@
 use anyhow::anyhow;
 use arti_client::{TorAddr, TorClient};
 use fedimint_core::util::SafeUrl;
-use rustls_pki_types::ServerName;
+use http_body_util::Empty;
+use hyper::body::Bytes;
+use hyper::header::LOCATION;
+use hyper::{Request, Uri};
+use hyper_rustls::HttpsConnectorBuilder;
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_rustls::rustls::{ClientConfig, RootCertStore};
-use tokio_rustls::TlsConnector;
+use tokio_rustls::rustls::RootCertStore;
 
+const MAX_REDIRECTS: u8 = 5;
+const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
+
+/// Make a GET request using normal TCP with TLS.
+///
+/// This is the standard way to make HTTPS requests. It:
+/// - Uses a connection pool for better performance
+/// - Handles redirects automatically (up to MAX_REDIRECTS)
+/// - Enforces a response size limit
+/// - Returns deserialized JSON
+pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
+where
+    T: DeserializeOwned + Send + 'static,
+{
+    make_get_request_direct_internal::<T>(url.to_string(), 0).await
+}
+
+/// Make a GET request through the Tor network.
+///
+/// This provides enhanced privacy by:
+/// - Routing all traffic through the Tor network
+/// - Supporting .onion addresses
+/// - Enforcing HTTPS-only connections
+/// - Using fresh circuits for each request
+///
+/// The request can be cancelled at any time using the cancel_handle.
+///
+/// Note: This is slower than direct requests due to Tor routing and
+/// the need to bootstrap a Tor client for each request.
 pub(crate) async fn make_get_request_tor<T>(
     url: &str,
     cancel_handle: Arc<AtomicBool>,
 ) -> anyhow::Result<T>
 where
-    T: DeserializeOwned,
+    T: DeserializeOwned + Send + 'static,
 {
     log::debug!("Making get request to tor: {}", url);
+
+    let safe_url = SafeUrl::parse(url)?;
+    if safe_url.scheme() != "https" {
+        return Err(anyhow!("Only HTTPS is supported"));
+    }
 
     // Check if cancelled before starting
     if cancel_handle.load(Ordering::Relaxed) {
@@ -31,7 +71,7 @@ where
     log::debug!("Successfully created Tor client, starting bootstrap");
 
     // Set a timeout for the bootstrap process
-    let bootstrap_timeout = tokio::time::Duration::from_secs(30);
+    let bootstrap_timeout = Duration::from_secs(30);
     let bootstrap_result = tokio::time::timeout(bootstrap_timeout, tor_client.bootstrap()).await;
 
     match bootstrap_result {
@@ -51,11 +91,6 @@ where
     if cancel_handle.load(Ordering::Relaxed) {
         return Err(anyhow!("Request cancelled"));
     }
-
-    let safe_url = SafeUrl::parse(url)?;
-    let https = safe_url.scheme() == "https";
-
-    log::debug!("Successfully parsed the URL into a `SafeUrl`: {}", safe_url);
 
     let host = safe_url
         .host_str()
@@ -77,7 +112,7 @@ where
 
     log::debug!("Attempting to connect to {}:{} via Tor", &host, port);
 
-    let connect_timeout = tokio::time::Duration::from_secs(30);
+    let connect_timeout = Duration::from_secs(30);
     let stream = if is_onion {
         let mut stream_prefs = arti_client::StreamPrefs::default();
         stream_prefs.connect_to_onion_services(arti_client::config::BoolOrAuto::Explicit(true));
@@ -116,222 +151,218 @@ where
         }
     };
 
-    // Check if cancelled before making request
-    if cancel_handle.load(Ordering::Relaxed) {
-        return Err(anyhow!("Request cancelled"));
-    }
+    // After getting the stream, wrap it in TLS
+    let mut root_store = RootCertStore::empty();
+    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-    let res = if https {
-        log::debug!("Setting up TLS connection");
+    let config = tokio_rustls::rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
-        let mut root_store = RootCertStore::empty();
-        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
+    let server_name = rustls_pki_types::ServerName::try_from(host.as_str())
+        .map_err(|_| anyhow!("Invalid DNS name: {}", host))?
+        .to_owned();
 
-        let config = ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        let connector = TlsConnector::from(Arc::new(config));
-
-        // Parse the hostname into a ServerName
-        let server_name = ServerName::try_from(host.to_string())
-            .map_err(|_| anyhow!("Invalid DNS name: {}", &host))?;
-
-        log::debug!("Attempting TLS handshake with {}", &host);
-        let tls_timeout = tokio::time::Duration::from_secs(30);
-        let stream =
-            match tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)).await {
-                Ok(Ok(s)) => {
-                    log::debug!("TLS handshake successful");
-                    s
-                }
-                Ok(Err(e)) => return Err(anyhow!("TLS handshake failed: {:?}", e)),
-                Err(_) => {
-                    return Err(anyhow!(
-                        "TLS handshake timed out after {} seconds",
-                        tls_timeout.as_secs()
-                    ))
-                }
-            };
-
-        let response = make_request(
-            host.clone(),
-            path.clone(),
-            stream,
-            cancel_handle,
-            https,
-            port,
-        )
-        .await?;
-        match response {
-            RequestResult::Success(data) => data,
-            RequestResult::Redirect(_) => {
-                return Err(anyhow!("Redirects not supported for Tor requests"))
+    log::debug!("Starting TLS handshake with {}", host);
+    let tls_timeout = Duration::from_secs(30);
+    let tls_stream =
+        match tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)).await {
+            Ok(Ok(s)) => {
+                log::debug!("TLS handshake successful");
+                s
             }
-        }
-    } else {
-        let response = make_request(
-            host.clone(),
-            path.clone(),
-            stream,
-            cancel_handle,
-            https,
-            port,
-        )
-        .await?;
-        match response {
-            RequestResult::Success(data) => data,
-            RequestResult::Redirect(_) => {
-                return Err(anyhow!("Redirects not supported for Tor requests"))
+            Ok(Err(e)) => return Err(anyhow!("TLS handshake failed: {:?}", e)),
+            Err(_) => {
+                return Err(anyhow!(
+                    "TLS handshake timed out after {} seconds",
+                    tls_timeout.as_secs()
+                ))
             }
-        }
-    };
+        };
 
-    Ok(res)
+    make_request_tor(host, path, tls_stream, cancel_handle).await
 }
 
-async fn make_request<T>(
+async fn make_request_tor<T, S>(
     host: String,
     path: String,
-    mut stream: impl AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    stream: S,
     cancel_handle: Arc<AtomicBool>,
-    https: bool,
-    port: u16,
-) -> anyhow::Result<RequestResult<T>>
+) -> anyhow::Result<T>
 where
-    T: DeserializeOwned,
+    T: DeserializeOwned + Send + 'static,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    // This is a minimal HTTP client implementation specifically designed for making
-    // GET requests that return JSON responses. It does not support:
-    // - POST/PUT/DELETE requests
-    // - Streaming responses
-    // - Keep-alive connections
-    // - Compressed responses
-    // - WebSocket connections
-    // It does handle:
-    // - Basic redirects (301/302)
-    // - Response size limits
-    // - Timeouts
-    // - Cancellation
-
-    const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
-
     // Check if cancelled before sending request
     if cancel_handle.load(Ordering::Relaxed) {
         return Err(anyhow!("Request cancelled"));
     }
 
-    log::debug!("Preparing request to {}{}", host, path);
-    let request = format!(
-        "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: harbor-client/0.1.0\r\nConnection: close\r\n\r\n",
-        path,
-        host
+    // Create a Hyper connection using the TLS-wrapped Tor stream
+    log::debug!("Creating TokioIo wrapper for stream");
+    let io = hyper_util::rt::TokioIo::new(stream);
+
+    log::debug!("Starting HTTP/1.1 handshake");
+    let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+    log::debug!("HTTP/1.1 handshake successful");
+
+    // Spawn the connection driver task
+    tokio::spawn(async move {
+        if let Err(err) = conn.await {
+            log::error!("Connection driver failed: {:?}", err);
+        }
+    });
+
+    // For single connections, we need to use relative paths and set the Host header
+    log::debug!("Building request for path: {} with host: {}", path, host);
+    let request = build_request(path, Some(host))?;
+
+    // Log the full request for debugging
+    log::debug!(
+        "Sending request: {} {} {:?}",
+        request.method(),
+        request.uri(),
+        request.headers()
     );
 
-    log::debug!("Sending request");
-    stream.write_all(request.as_bytes()).await?;
-
-    // IMPORTANT: Make sure the request was written
-    stream.flush().await?;
-    log::debug!("Request sent and flushed");
-
-    // Read the response with a timeout
-    let body_timeout = tokio::time::Duration::from_secs(30);
-    let read_result = tokio::time::timeout(body_timeout, async {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 8192];
-
-        loop {
-            if buf.len() > MAX_RESPONSE_SIZE {
-                return Err(anyhow!(
-                    "Response too large, exceeded {} bytes",
-                    MAX_RESPONSE_SIZE
-                ));
-            }
-
-            match stream.read(&mut chunk).await? {
-                0 => break, // EOF
-                n => {
-                    buf.extend_from_slice(&chunk[..n]);
-                    log::debug!("Read {} bytes", n);
-                }
-            }
-        }
-
-        Ok::<_, anyhow::Error>(buf)
-    })
-    .await;
-
-    let buf = match read_result {
-        Ok(Ok(buf)) => {
-            log::debug!("Successfully read response, size: {} bytes", buf.len());
-            buf
-        }
-        Ok(Err(e)) => return Err(anyhow!("Failed to read response: {:?}", e)),
-        Err(_) => {
-            return Err(anyhow!(
-                "Reading response timed out after {} seconds",
-                body_timeout.as_secs()
-            ))
-        }
-    };
-
-    // Parse the HTTP response
-    let mut headers = [httparse::EMPTY_HEADER; 64];
-    let mut resp = httparse::Response::new(&mut headers);
-
-    match resp.parse(buf.as_slice()) {
-        Ok(httparse::Status::Complete(offset)) => {
-            let status = resp.code.unwrap_or(500);
-
-            // Handle redirects
-            if status == 301 || status == 302 {
-                // Find the Location header
-                if let Some(location) = headers
-                    .iter()
-                    .find(|h| h.name.eq_ignore_ascii_case("location"))
-                {
-                    if let Ok(redirect_url) = std::str::from_utf8(location.value) {
-                        log::debug!("Following redirect to: {}", redirect_url);
-
-                        // Handle relative URLs by constructing the full URL
-                        let full_redirect_url = if redirect_url.starts_with('/') {
-                            // It's a relative URL, construct the full URL using original scheme and port
-                            let scheme = if https { "https" } else { "http" };
-                            format!("{}://{}:{}{}", scheme, host, port, redirect_url)
-                        } else {
-                            // It's already a full URL
-                            redirect_url.to_string()
-                        };
-
-                        log::debug!("Full redirect URL: {}", full_redirect_url);
-                        return Ok(RequestResult::Redirect(full_redirect_url));
-                    }
-                }
-                return Err(anyhow!("Redirect response missing Location header"));
-            }
-
-            if status != 200 {
-                return Err(anyhow!("HTTP request failed with status: {}", status));
-            }
-
-            // Find the response body after headers
-            let body = &buf[offset..];
-            log::debug!("Parsing response body as JSON");
-            let parsed = serde_json::from_slice(body).map_err(anyhow::Error::from)?;
-            Ok(RequestResult::Success(parsed))
-        }
-        _ => Err(anyhow!("Failed to parse HTTP response")),
-    }
+    handle_http_request(request, sender).await
 }
 
-pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
+// Create a new Hyper client with TLS support and reasonable defaults
+fn create_https_client() -> anyhow::Result<
+    Client<
+        hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
+        http_body_util::Empty<Bytes>,
+    >,
+> {
+    let https = HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_only() // Enforce HTTPS for all connections
+        .enable_http1()
+        .build();
+
+    let client = Client::builder(TokioExecutor::new())
+        .pool_idle_timeout(Duration::from_secs(30))
+        .pool_max_idle_per_host(1)
+        .build(https);
+
+    Ok(client)
+}
+
+/// Common response handling logic
+async fn handle_response<T, B, E>(
+    response: hyper::Response<B>,
+    redirect_count: u8,
+    original_url: Option<&str>,
+) -> anyhow::Result<T>
+where
+    T: DeserializeOwned + Send + 'static,
+    E: std::error::Error + Send + Sync + 'static,
+    B: http_body_util::BodyExt<Data = Bytes, Error = E>,
+{
+    let status = response.status();
+
+    if status.is_redirection() {
+        if let Some(location) = response.headers().get(LOCATION) {
+            let location_str = location.to_str()?;
+            log::debug!("Got redirect to: {}", location_str);
+
+            // Handle relative redirects
+            let redirect_url = if location_str.starts_with('/') {
+                if let Some(base_url) = original_url {
+                    let base = SafeUrl::parse(base_url)?;
+                    format!(
+                        "{}://{}{}",
+                        base.scheme(),
+                        base.host_str().unwrap_or_default(),
+                        location_str
+                    )
+                } else {
+                    return Err(anyhow!(
+                        "Cannot handle relative redirect without original URL"
+                    ));
+                }
+            } else {
+                location_str.to_string()
+            };
+
+            log::debug!("Following redirect to: {}", redirect_url);
+            return make_get_request_direct_internal::<T>(redirect_url, redirect_count + 1).await;
+        }
+        return Err(anyhow!("Redirect response missing Location header"));
+    }
+
+    if !status.is_success() {
+        // Read and log the error response body
+        let body_bytes = http_body_util::BodyExt::collect(response.into_body())
+            .await?
+            .to_bytes();
+        let body_str = String::from_utf8_lossy(&body_bytes);
+
+        log::error!(
+            "HTTP request failed\nStatus: {}\nResponse body: {}",
+            status,
+            body_str.trim()
+        );
+        return Err(anyhow!("HTTP request failed with status: {}", status));
+    }
+
+    // Read the response body with size limit
+    let body_bytes = http_body_util::BodyExt::collect(response.into_body())
+        .await?
+        .to_bytes();
+
+    if body_bytes.len() > MAX_RESPONSE_SIZE {
+        return Err(anyhow!(
+            "Response too large, exceeded {} bytes",
+            MAX_RESPONSE_SIZE
+        ));
+    }
+
+    // Parse the JSON response
+    let parsed = serde_json::from_slice(&body_bytes)?;
+    Ok(parsed)
+}
+
+/// Common HTTP request/response handling logic for single connections
+async fn handle_http_request<T>(
+    request: Request<Empty<Bytes>>,
+    mut sender: hyper::client::conn::http1::SendRequest<Empty<Bytes>>,
+) -> anyhow::Result<T>
 where
     T: DeserializeOwned + Send + 'static,
 {
-    make_get_request_direct_internal::<T>(url.to_string(), 0).await
+    log::debug!("Sending request to server");
+    let response = sender.send_request(request).await?;
+    log::debug!(
+        "Got response: {} {:?}",
+        response.status(),
+        response.headers()
+    );
+    handle_response(response, 0, None).await
+}
+
+/// Build a request with common headers
+fn build_request(
+    uri: impl AsRef<str>,
+    host: Option<String>,
+) -> anyhow::Result<Request<Empty<Bytes>>> {
+    let uri_str = uri.as_ref();
+    let mut builder = Request::builder()
+        .uri(uri_str)
+        .header("User-Agent", "harbor-client/0.1.0");
+
+    // Only set Host header if we're not using an absolute URL
+    if let Some(host) = host {
+        if !uri_str.starts_with("http://") && !uri_str.starts_with("https://") {
+            builder = builder.header("Host", host);
+        }
+    }
+
+    builder
+        .body(Empty::<Bytes>::new())
+        .map_err(|e| anyhow!("Failed to build request: {}", e))
 }
 
 fn make_get_request_direct_internal<T>(
@@ -342,119 +373,34 @@ where
     T: DeserializeOwned + Send + 'static,
 {
     Box::pin(async move {
-        const MAX_REDIRECTS: u8 = 5;
         if redirect_count >= MAX_REDIRECTS {
             return Err(anyhow!("Too many redirects (max {})", MAX_REDIRECTS));
         }
 
+        // Enforce HTTPS
+        if !url.starts_with("https://") {
+            return Err(anyhow!("Only HTTPS is supported"));
+        }
+
         log::debug!("Making direct get request to: {}", url);
 
-        let safe_url = SafeUrl::parse(&url)?;
-        let https = safe_url.scheme() == "https";
+        let client = create_https_client()?;
+        let uri: Uri = url
+            .parse()
+            .map_err(|e| anyhow!("Invalid URL '{}': {}", url, e))?;
 
-        log::debug!("Successfully parsed the URL into a `SafeUrl`: {}", safe_url);
+        let request = build_request(uri.to_string(), None)?;
 
-        let host = safe_url
-            .host_str()
-            .ok_or_else(|| anyhow::anyhow!("Expected host str"))?
-            .to_string();
-        let port = safe_url
-            .port_or_known_default()
-            .ok_or_else(|| anyhow::anyhow!("Expected port number"))?;
-        let path = safe_url.path().to_string();
-
-        // Connect with timeout
-        let connect_timeout = tokio::time::Duration::from_secs(30);
-        let addr = format!("{}:{}", host, port);
-        log::debug!("Attempting to connect to {}", addr);
-
-        let stream = match tokio::time::timeout(
-            connect_timeout,
-            tokio::net::TcpStream::connect(&addr),
-        )
-        .await
-        {
-            Ok(Ok(stream)) => {
-                log::debug!("Successfully connected to {}", addr);
-                stream
+        let response = client.request(request).await.map_err(|e| {
+            if e.to_string().contains("rustls") {
+                anyhow!("TLS error while connecting: {}", e)
+            } else {
+                anyhow!("HTTP request failed: {}", e)
             }
-            Ok(Err(e)) => return Err(anyhow!("Failed to connect: {:?}", e)),
-            Err(_) => {
-                return Err(anyhow!(
-                    "Connection timed out after {} seconds",
-                    connect_timeout.as_secs()
-                ))
-            }
-        };
+        })?;
 
-        let response = if https {
-            log::debug!("Setting up TLS connection");
-
-            let mut root_store = RootCertStore::empty();
-            root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
-            let config = ClientConfig::builder()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
-
-            let connector = TlsConnector::from(Arc::new(config));
-
-            // Parse the hostname into a ServerName
-            let server_name = ServerName::try_from(host.to_string())
-                .map_err(|_| anyhow!("Invalid DNS name: {}", &host))?;
-
-            log::debug!("Attempting TLS handshake with {}", &host);
-            let tls_timeout = tokio::time::Duration::from_secs(30);
-            let stream =
-                match tokio::time::timeout(tls_timeout, connector.connect(server_name, stream))
-                    .await
-                {
-                    Ok(Ok(s)) => {
-                        log::debug!("TLS handshake successful");
-                        s
-                    }
-                    Ok(Err(e)) => return Err(anyhow!("TLS handshake failed: {:?}", e)),
-                    Err(_) => {
-                        return Err(anyhow!(
-                            "TLS handshake timed out after {} seconds",
-                            tls_timeout.as_secs()
-                        ))
-                    }
-                };
-
-            make_request(
-                host,
-                path,
-                stream,
-                Arc::new(AtomicBool::new(false)),
-                https,
-                port,
-            )
-            .await
-        } else {
-            make_request(
-                host,
-                path,
-                stream,
-                Arc::new(AtomicBool::new(false)),
-                https,
-                port,
-            )
-            .await
-        }?;
-
-        match response {
-            RequestResult::Success(data) => Ok(data),
-            RequestResult::Redirect(url) => {
-                make_get_request_direct_internal::<T>(url, redirect_count + 1).await
-            }
-        }
+        handle_response(response, redirect_count, Some(&url)).await
     })
-}
-
-enum RequestResult<T> {
-    Success(T),
-    Redirect(String),
 }
 
 #[cfg(test)]
@@ -533,9 +479,9 @@ mod tests {
         init();
         log::debug!("Starting test_direct_fetch_redirect");
 
-        // httpbin will redirect to /get
+        // Use httpbin's HTTPS endpoint which redirects to /get
         let result =
-            make_get_request_direct::<serde_json::Value>("http://httpbin.org/redirect/1").await;
+            make_get_request_direct::<serde_json::Value>("https://httpbin.org/redirect/1").await;
 
         match result {
             Ok(res) => {
