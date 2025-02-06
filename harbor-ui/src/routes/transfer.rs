@@ -84,7 +84,18 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     )
     .on_press(Message::Transfer);
 
-    let list = column![source_row, destination_row, amount_input, transfer_button].spacing(48);
+    // Add status display
+    let status_display = harbor
+        .current_transfer_id
+        .and_then(|id| harbor.operation_status.get(&id))
+        .map(|status| text(&status.message));
+
+    let mut list = column![source_row, destination_row, amount_input, transfer_button].spacing(48);
+
+    // Add status message if available
+    if let Some(status) = status_display {
+        list = list.push(status);
+    }
 
     container(scrollable(
         column![h_header("Transfer", "Rebalance your funds."), list]

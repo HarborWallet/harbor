@@ -22,6 +22,19 @@ impl Fedimint {
     }
 
     pub fn remove_federation(conn: &mut SqliteConnection, id: String) -> anyhow::Result<()> {
+        // First check if the federation exists and is active
+        let exists = fedimint::table
+            .filter(fedimint::id.eq(&id))
+            .filter(fedimint::active.eq(1))
+            .first::<Fedimint>(conn)
+            .optional()?
+            .is_some();
+
+        if !exists {
+            return Err(anyhow::anyhow!("Federation not found or already inactive"));
+        }
+
+        // Mark the federation as inactive
         diesel::update(fedimint::table)
             .filter(fedimint::id.eq(&id))
             .set(fedimint::active.eq(0))

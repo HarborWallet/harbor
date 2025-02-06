@@ -127,6 +127,7 @@ async fn setup_harbor_core(
         clients: Arc::new(RwLock::new(clients)),
         storage: db,
         stop: stop.clone(),
+        metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
     })
 }
 
@@ -341,6 +342,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         network,
                         clients: Arc::new(RwLock::new(HashMap::new())),
                         stop: Arc::new(AtomicBool::new(false)),
+                        metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
                     };
 
                     tx.send(Message::core_msg(id, CoreUIMsg::InitSuccess))
@@ -456,7 +458,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::GetFederationInfo(invite_code) => {
-                        match core.get_federation_info(invite_code).await {
+                        match core.get_federation_info(msg.id, invite_code).await {
                             Err(e) => {
                                 error!("Error getting federation info: {e}");
                                 core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
@@ -469,7 +471,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::AddFederation(invite_code) => {
-                        if let Err(e) = core.add_federation(invite_code).await {
+                        if let Err(e) = core.add_federation(msg.id, invite_code).await {
                             error!("Error adding federation: {e}");
                             core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
                                 .await;
@@ -484,7 +486,17 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::RemoveFederation(id) => {
-                        if let Err(e) = core.remove_federation(id).await {
+                        // Send status update before attempting removal
+                        core.msg(
+                            msg.id,
+                            CoreUIMsg::StatusUpdate {
+                                message: "Removing mint...".to_string(),
+                                operation_id: Some(msg.id),
+                            },
+                        )
+                        .await;
+
+                        if let Err(e) = core.remove_federation(msg.id, id).await {
                             error!("Error removing federation: {e}");
                             core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string()))
                                 .await;

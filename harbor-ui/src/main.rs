@@ -23,6 +23,7 @@ use iced::{clipboard, Color};
 use iced::{window, Element};
 use log::{debug, error, info, trace};
 use routes::Route;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -181,6 +182,11 @@ impl Message {
 
 // This is the UI state. It should only contain data that is directly rendered by the UI
 // More complicated state should be in Core, and bridged to the UI in a UI-friendly format.
+#[derive(Debug, Clone)]
+pub struct OperationStatus {
+    pub message: String,
+}
+
 #[derive(Default, Debug)]
 pub struct HarborWallet {
     ui_handle: Option<Arc<bridge::UIHandle>>,
@@ -226,6 +232,8 @@ pub struct HarborWallet {
     mint_invite_code_str: String,
     peek_status: PeekStatus,
     add_federation_status: AddFederationStatus,
+    current_peek_id: Option<Uuid>,
+    current_add_id: Option<Uuid>,
     // Transfer
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
@@ -241,6 +249,8 @@ pub struct HarborWallet {
     show_add_a_mint_cta: bool,
     has_navigated_to_mints: bool,
     onchain_receive_enabled: bool,
+    /// Tracks ongoing operations and their status
+    operation_status: HashMap<Uuid, OperationStatus>,
 }
 
 impl HarborWallet {
@@ -285,6 +295,8 @@ impl HarborWallet {
         self.mint_invite_code_str = String::new();
         self.peek_status = PeekStatus::Idle;
         self.add_federation_status = AddFederationStatus::Idle;
+        self.current_peek_id = None;
+        self.current_add_id = None;
     }
 
     fn clear_receive_state(&mut self) {
@@ -325,6 +337,13 @@ impl HarborWallet {
             |_| Message::Noop,
         );
         (id, task)
+    }
+
+    // Helper function to safely remove a toast by index
+    fn remove_toast(&mut self, index: usize) {
+        if index < self.toasts.len() {
+            self.toasts.remove(index);
+        }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -475,7 +494,7 @@ impl HarborWallet {
                 Task::none()
             }
             Message::CloseToast(index) => {
-                self.toasts.remove(index);
+                self.remove_toast(index);
                 Task::none()
             }
             Message::CancelAddFederation => {
@@ -742,12 +761,13 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     self.add_federation_status = AddFederationStatus::Adding;
-                    let (_, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
+                    let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
+                    self.current_add_id = Some(id);
                     task
                 } else {
-                    Task::perform(async {}, move |_| {
+                    Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
-                            title: "Failed to join mint".to_string(),
+                            title: "Can't add mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
@@ -758,7 +778,8 @@ impl HarborWallet {
                 let invite = InviteCode::from_str(&invite_code);
                 if let Ok(invite) = invite {
                     self.peek_status = PeekStatus::Peeking;
-                    let (_, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
+                    let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
+                    self.current_peek_id = Some(id);
                     task
                 } else {
                     Task::perform(async {}, |_| {
@@ -771,6 +792,16 @@ impl HarborWallet {
                 }
             }
             Message::RemoveFederation(federation_id) => {
+                // Check if the federation still exists before trying to remove it
+                if !self.federation_list.iter().any(|f| f.id == federation_id) {
+                    return Task::perform(async {}, |_| {
+                        Message::AddToast(Toast {
+                            title: "Federation already removed".to_string(),
+                            body: None,
+                            status: ToastStatus::Neutral,
+                        })
+                    });
+                }
                 let (_, task) = self.send_from_ui(UICoreMsg::RemoveFederation(federation_id));
                 task
             }
@@ -1156,6 +1187,20 @@ impl HarborWallet {
                     self.seed_words = Some(seed_words);
                     self.onchain_receive_enabled = onchain_receive_enabled;
                     self.tor_enabled = tor_enabled;
+                    Task::none()
+                }
+                CoreUIMsg::StatusUpdate {
+                    message,
+                    operation_id,
+                } => {
+                    if let Some(id) = operation_id {
+                        self.operation_status.insert(
+                            id,
+                            OperationStatus {
+                                message: message.clone(),
+                            },
+                        );
+                    }
                     Task::none()
                 }
             },

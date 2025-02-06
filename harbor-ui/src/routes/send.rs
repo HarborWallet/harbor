@@ -1,4 +1,4 @@
-use iced::widget::{column, Checkbox};
+use iced::widget::{column, text, Checkbox};
 use iced::Element;
 
 use crate::components::{
@@ -38,11 +38,17 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
 
     let checkbox = Checkbox::new("Send Max", harbor.is_max).on_toggle(Message::SetIsMax);
 
-    let column = column![header, amount_input, checkbox, dest_input, send_button];
+    // Add status display
+    let status_display = harbor
+        .current_send_id
+        .and_then(|id| harbor.operation_status.get(&id))
+        .map(|status| text(&status.message));
 
-    column![
-        h_screen_header(harbor, true),
-        basic_layout(column.spacing(48)),
-    ]
-    .into()
+    let mut content = column![header, amount_input, checkbox, dest_input, send_button].spacing(48);
+
+    if let Some(status) = status_display {
+        content = content.push(status);
+    }
+
+    column![h_screen_header(harbor, true), basic_layout(content),].into()
 }

@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use arti_client::{TorAddr, TorClient, TorClientConfig};
 use fedimint_core::util::SafeUrl;
 use http_body_util::{BodyExt, Empty};
@@ -5,18 +6,34 @@ use hyper::body::Bytes;
 use hyper::Request;
 use hyper_util::rt::TokioIo;
 use serde::de::DeserializeOwned;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_native_tls::native_tls::TlsConnector;
 
-pub(crate) async fn make_get_request_tor<T>(url: &str) -> anyhow::Result<T>
+pub(crate) async fn make_get_request_tor<T>(
+    url: &str,
+    cancel_handle: Arc<AtomicBool>,
+) -> anyhow::Result<T>
 where
     T: DeserializeOwned,
 {
     log::debug!("Making get request to tor: {}", url);
+
+    // Check if cancelled before starting
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
+
     let tor_config = TorClientConfig::default();
     let tor_client = TorClient::create_bootstrapped(tor_config)
         .await?
         .isolated_client();
+
+    // Check if cancelled after bootstrap
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
 
     log::debug!("Successfully created and bootstrapped the `TorClient`, for given `TorConfig`.");
 
@@ -33,6 +50,11 @@ where
         .ok_or_else(|| anyhow::anyhow!("Expected port number"))?;
     let tor_addr = TorAddr::from((host, port))
         .map_err(|e| anyhow::anyhow!("Invalid endpoint addr: {:?}: {e:#}", (host, port)))?;
+
+    // Check if cancelled before connection
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
 
     log::debug!("Successfully created `TorAddr` for given address (i.e. host and port)");
 
@@ -53,13 +75,18 @@ where
         anonymized_stream
     };
 
+    // Check if cancelled before making request
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
+
     let res = if https {
         let cx = TlsConnector::builder().build()?;
         let cx = tokio_native_tls::TlsConnector::from(cx);
         let stream = cx.connect(host, stream).await?;
-        make_request(&safe_url, stream).await?
+        make_request(&safe_url, stream, cancel_handle).await?
     } else {
-        make_request(&safe_url, stream).await?
+        make_request(&safe_url, stream, cancel_handle).await?
     };
 
     Ok(res)
@@ -68,10 +95,16 @@ where
 async fn make_request<T>(
     url: &SafeUrl,
     stream: impl AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    cancel_handle: Arc<AtomicBool>,
 ) -> anyhow::Result<T>
 where
     T: DeserializeOwned,
 {
+    // Check if cancelled before handshake
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
+
     let (mut request_sender, connection) =
         hyper::client::conn::http1::handshake(TokioIo::new(stream)).await?;
 
@@ -79,6 +112,11 @@ where
     tokio::spawn(async move {
         connection.await.unwrap();
     });
+
+    // Check if cancelled before sending request
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
 
     let req = Request::get(url.as_str())
         .header("Host", url.host_str().expect("already checked for host"))
@@ -100,13 +138,27 @@ where
         ));
     }
 
+    // Check if cancelled before reading body
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
+
     let mut buf: Vec<u8> = Vec::with_capacity(len);
     while let Some(frame) = resp.body_mut().frame().await {
+        // Check cancellation during body read
+        if cancel_handle.load(Ordering::Relaxed) {
+            return Err(anyhow!("Request cancelled"));
+        }
         let bytes = frame?.into_data().unwrap();
         buf.extend_from_slice(&bytes);
     }
 
     log::debug!("Successfully received the response body.");
+
+    // Check if cancelled before parsing
+    if cancel_handle.load(Ordering::Relaxed) {
+        return Err(anyhow!("Request cancelled"));
+    }
 
     let text = String::from_utf8(buf)?;
     serde_json::from_str(&text).map_err(anyhow::Error::from)
@@ -138,10 +190,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_metadata() {
-        let res =
-            make_get_request_tor::<FederationMetaConfig>("https://meta.dev.fedibtc.com/meta.json")
-                .await
-                .unwrap();
+        let res = make_get_request_tor::<FederationMetaConfig>(
+            "https://meta.dev.fedibtc.com/meta.json",
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
 
         assert!(!res.federations.is_empty());
     }
