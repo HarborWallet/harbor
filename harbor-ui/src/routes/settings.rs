@@ -76,7 +76,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
                 .on_press(Message::ShowSeedWords(true));
 
             let debug_stuff = if cfg!(debug_assertions) {
-                Some(debug_stuff())
+                Some(debug_stuff(harbor))
             } else {
                 None
             };

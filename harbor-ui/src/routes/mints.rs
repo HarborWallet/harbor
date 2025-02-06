@@ -1,9 +1,9 @@
-use iced::widget::{column, row, text};
+use iced::widget::{column, row};
 use iced::Element;
 
 use crate::components::{
     basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
-    InputArgs, SvgIcon,
+    operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
@@ -53,8 +53,8 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 
             // Add status display for preview operation
             if let Some(current_peek_id) = harbor.current_peek_id {
-                if let Some(status) = harbor.operation_status.get(&current_peek_id) {
-                    peek_column = peek_column.push(text(&status.message));
+                if let Some(status) = operation_status_for_id(harbor, Some(current_peek_id)) {
+                    peek_column = peek_column.push(status);
                 }
             }
 
@@ -77,8 +77,8 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 
             // Add status display for add operation
             if let Some(current_add_id) = harbor.current_add_id {
-                if let Some(status) = harbor.operation_status.get(&current_add_id) {
-                    preview_column = preview_column.push(text(&status.message));
+                if let Some(status) = operation_status_for_id(harbor, Some(current_add_id)) {
+                    preview_column = preview_column.push(status);
                 }
             }
 

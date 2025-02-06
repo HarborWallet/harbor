@@ -538,6 +538,9 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
                         }
                     }
+                    UICoreMsg::TestStatusUpdates => {
+                        core.test_status_updates(msg.id).await;
+                    }
                     UICoreMsg::Unlock(_password) => {
                         unreachable!("should already be unlocked")
                     }

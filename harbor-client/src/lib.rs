@@ -107,6 +107,7 @@ pub enum UICoreMsg {
     GetSeedWords,
     SetOnchainReceiveEnabled(bool),
     SetTorEnabled(bool),
+    TestStatusUpdates,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -209,6 +210,18 @@ impl HarborCore {
             .expect("Could not communicate with the UI");
     }
 
+    // Convenience method for sending status updates
+    pub async fn status_update(&self, id: Uuid, message: &str) {
+        self.msg(
+            id,
+            CoreUIMsg::StatusUpdate {
+                message: message.to_string(),
+                operation_id: Some(id),
+            },
+        )
+        .await;
+    }
+
     // Sends updates to the UI to reflect the initial state
     pub async fn init_ui_state(&self) -> anyhow::Result<()> {
         let federation_items = self.get_federation_items().await;
@@ -257,15 +270,8 @@ impl HarborCore {
         invoice: Bolt11Invoice,
         is_transfer: bool,
     ) -> anyhow::Result<()> {
-        // Send starting status
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Preparing to send lightning payment".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Preparing to send lightning payment")
+            .await;
 
         log::info!("Paying lightning invoice: {invoice} from federation: {federation_id}");
         if invoice.amount_milli_satoshis().is_none() {
@@ -278,15 +284,8 @@ impl HarborCore {
             .get_first_module::<LightningClientModule>()
             .expect("must have ln module");
 
-        // Send processing status
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Selecting gateway and calculating fees".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Selecting gateway and calculating fees")
+            .await;
 
         let gateway = select_gateway(&client)
             .await
@@ -306,28 +305,15 @@ impl HarborCore {
         log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
 
         // Send another update
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Creating payment transaction".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
 
         let outgoing = lightning_module
             .pay_bolt11_invoice(Some(gateway), invoice.clone(), ())
             .await?;
 
-        // Send waiting status
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Waiting for payment confirmation".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
 
         self.storage.create_lightning_payment(
             outgoing.payment_type.operation_id(),
@@ -377,15 +363,7 @@ impl HarborCore {
         lnurl: LnUrl,
         amount_sats: u64,
     ) -> anyhow::Result<()> {
-        // Send starting status
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Starting LNURL-pay flow".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Starting LNURL-pay flow").await;
 
         log::info!("Sending lnurl pay: {lnurl} from federation: {federation_id}");
 
@@ -393,29 +371,15 @@ impl HarborCore {
         if let Some(profile) = profile {
             let tor_enabled = profile.tor_enabled();
 
-            // Send processing status for LNURL request
-            self.msg(
-                msg_id,
-                CoreUIMsg::StatusUpdate {
-                    message: "Fetching payment details from recipient".to_string(),
-                    operation_id: Some(msg_id),
-                },
-            )
-            .await;
+            self.status_update(msg_id, "Fetching payment details from recipient")
+                .await;
 
             let pay_response =
                 make_lnurl_request(&lnurl, tor_enabled, self.metadata_fetch_cancel.clone()).await?;
             log::info!("Pay response: {pay_response:?}");
 
-            // Send processing status for invoice request
-            self.msg(
-                msg_id,
-                CoreUIMsg::StatusUpdate {
-                    message: "Requesting invoice from recipient".to_string(),
-                    operation_id: Some(msg_id),
-                },
-            )
-            .await;
+            self.status_update(msg_id, "Requesting invoice from recipient")
+                .await;
 
             let amount_msats = amount_sats * 1000;
             let invoice_response = lightning_address::get_invoice(
@@ -510,37 +474,13 @@ impl HarborCore {
     ) -> anyhow::Result<()> {
         log::info!("Transferring {amount} from {from} to {to}");
 
-        // Send initial status update
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Starting transfer between mints".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
-
-        // Send status update for generating invoice
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Generating invoice on destination mint".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Generating invoice on destination mint")
+            .await;
 
         let invoice = self.receive_lightning(msg_id, to, amount, true).await?;
 
-        // Send status update for paying invoice
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Paying invoice from source mint".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Paying invoice from source mint")
+            .await;
 
         self.send_lightning(msg_id, from, invoice, true).await?;
         Ok(())
@@ -675,15 +615,7 @@ impl HarborCore {
     ) -> anyhow::Result<(ClientConfig, FederationMeta)> {
         log::info!("Getting federation info for invite code: {invite_code}");
 
-        // Send initial status update
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Connecting to mint...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Connecting to mint").await;
 
         let download = Instant::now();
         let config = {
@@ -709,15 +641,7 @@ impl HarborCore {
             download.elapsed().as_millis()
         );
 
-        // Send status update for metadata retrieval
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Retrieving mint metadata...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Retrieving mint metadata").await;
 
         let mut cache = CACHE.write().await;
         let tor_enabled = match self.storage.get_profile() {
@@ -749,40 +673,15 @@ impl HarborCore {
         log::info!("Adding federation with invite code: {invite_code}");
         let id = invite_code.federation_id();
 
-        // Send initial status update
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Starting mint setup...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Starting mint setup").await;
 
         let mut clients = self.clients.write().await;
         if clients.get(&id).is_some() {
             return Err(anyhow!("Federation already added"));
         }
 
-        // Send status update for retrieving federation info
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Retrieving mint information...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
-
-        // Send status update for client creation
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Initializing mint connection...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Initializing mint connection")
+            .await;
 
         let client = FedimintClient::new(
             self.storage.clone(),
@@ -793,27 +692,11 @@ impl HarborCore {
         )
         .await?;
 
-        // Send status update for client registration
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Registering with mint...".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Registering with mint").await;
 
         clients.insert(id, client);
 
-        // Send status update for completion
-        self.msg(
-            msg_id,
-            CoreUIMsg::StatusUpdate {
-                message: "Mint setup complete!".to_string(),
-                operation_id: Some(msg_id),
-            },
-        )
-        .await;
+        self.status_update(msg_id, "Mint setup complete!").await;
 
         Ok(())
     }
@@ -964,5 +847,23 @@ impl HarborCore {
             if enabled { "enabled" } else { "disabled" }
         );
         Ok(())
+    }
+
+    pub async fn test_status_updates(&self, msg_id: Uuid) {
+        self.status_update(msg_id, "Starting test sequence").await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 1: Initializing test")
+            .await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 2: Running calculations")
+            .await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 3: Almost there").await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Test sequence complete!").await;
     }
 }

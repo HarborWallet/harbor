@@ -13,13 +13,18 @@ use iced::{
 };
 
 pub fn subtitle(theme: &Theme) -> Style {
+    let gray = lighten(theme.palette().background, 0.7);
+    Style { color: Some(gray) }
+}
+
+pub fn very_subtle(theme: &Theme) -> Style {
     let gray = lighten(theme.palette().background, 0.5);
     Style { color: Some(gray) }
 }
 
 pub fn link() -> Color {
     // This is the same theme.pallette().background just without needing `Theme`
-    lighten(Color::from_rgb8(23, 23, 25), 0.5)
+    lighten(Color::from_rgb8(23, 23, 25), 0.7)
 }
 
 const REGULAR_FONT: Font = Font {

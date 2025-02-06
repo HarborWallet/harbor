@@ -151,6 +151,7 @@ pub enum Message {
     OpenUrl(String),
     SelectTransaction(Option<TransactionItem>),
     OpenDataDirectory,
+    TestStatusUpdates,
     // Batch multiple messages together
     Batch(Vec<Message>),
     // Config commands
@@ -532,6 +533,10 @@ impl HarborWallet {
                 let dir = PathBuf::from(&data_dir(Some(network)));
                 opener::reveal(&dir).expect("Failed to open data directory");
                 Task::none()
+            }
+            Message::TestStatusUpdates => {
+                let (_id, task) = self.send_from_ui(UICoreMsg::TestStatusUpdates);
+                task
             }
             // Async commands we fire from the UI to core
             Message::Noop => Task::none(),
