@@ -500,7 +500,7 @@ fn neutral(theme: &Theme) -> container::Style {
 
 fn good(theme: &Theme) -> container::Style {
     let gray = lighten(theme.palette().background, 0.1);
-    let green = Color::from_rgb8(40, 164, 127);
+    let green = theme.palette().success;
 
     styled(gray, green)
 }

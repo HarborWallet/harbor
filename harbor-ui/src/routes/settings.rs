@@ -1,19 +1,40 @@
 use bitcoin::Network;
-use iced::widget::{column, pick_list, text, Checkbox};
-use iced::{Element, Padding};
+use iced::widget::{column, pick_list, text};
+use iced::{Element, Length, Padding};
 
 use crate::components::{
-    basic_layout, debug_stuff, h_button, h_header, menu_style, pick_list_style, SvgIcon,
+    basic_layout, debug_stuff, h_button, h_checkbox, h_header, menu_style, pick_list_style,
+    regular_text, very_subtle, SvgIcon,
 };
 use crate::{HarborWallet, Message};
 
 pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Settings", "The fun stuff.");
 
-    let onchain_receive_checkbox =
-        Checkbox::new("Enable On-chain Receive", harbor.onchain_receive_enabled)
-            .on_toggle(Message::SetOnchainReceiveEnabled);
+    let onchain_receive_checkbox = h_checkbox(
+        "On-chain Receive",
+        Some("Receive bitcoin on-chain. Advanced users only. Risky."),
+        harbor.onchain_receive_enabled,
+        |enabled| {
+            // Only warn them if they're enabling it
+            if enabled {
+                Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
+                    title: "WARNING: Use at your own risk!".to_string(),
+                    description: "On-chain receive is not fully supported and CAN RESULT IN LOSS OF FUNDS. If you can't think of why that would happen, then this feature is not for you!".to_string(),
+                    confirm_action: Box::new(Message::SetOnchainReceiveEnabled(enabled)),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                    confirm_button_text: "YOLO".to_string(),
+                }))
+            } else {
+                Message::SetOnchainReceiveEnabled(false)
+            }
+        },
+    );
 
+    let network_label = regular_text("Network".to_string(), 24);
+    let network_description = text("Switch networks to test Harbor with fake money.")
+        .style(very_subtle)
+        .size(14);
     let network_list = pick_list(
         [
             Network::Bitcoin,
@@ -37,16 +58,22 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
     )
     .style(pick_list_style)
     .padding(Padding::from(16))
+    .width(Length::Fill)
     .handle(pick_list::Handle::Arrow {
         size: Some(iced::Pixels(24.)),
     })
     .menu_style(menu_style);
 
+    let network_column = column![network_label, network_list, network_description].spacing(8);
+
     let open_data_dir_button = h_button("Open Data Directory", SvgIcon::FolderLock, false)
         .on_press(Message::OpenDataDirectory);
 
-    let tor_enabled_checkbox =
-        Checkbox::new("Enable Tor", harbor.tor_enabled).on_toggle(|enabled| {
+    let tor_enabled_checkbox = h_checkbox(
+        "Tor",
+        Some("Use Tor for enhanced privacy. Requires restart."),
+        harbor.tor_enabled,
+        |enabled| {
             Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
                 title: "Are you sure?".to_string(),
                 description: format!(
@@ -57,7 +84,8 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
                 cancel_action: Box::new(Message::SetConfirmModal(None)),
                 confirm_button_text: "Confirm".to_string(),
             }))
-        });
+        },
+    );
 
     let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
         (true, Some(s)) => {
@@ -83,10 +111,10 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
 
             column![
                 header,
-                button,
                 onchain_receive_checkbox,
                 tor_enabled_checkbox,
-                network_list,
+                network_column,
+                button,
                 open_data_dir_button,
             ]
             .push_maybe(debug_stuff)

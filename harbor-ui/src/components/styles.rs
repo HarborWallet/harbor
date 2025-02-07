@@ -1,6 +1,6 @@
 use iced::{
     overlay::menu,
-    widget::{container::Style as ContainerStyle, pick_list, text::Style},
+    widget::{checkbox, container::Style as ContainerStyle, pick_list, text::Style},
     Border, Color, Shadow, Theme,
 };
 
@@ -167,5 +167,26 @@ pub fn tag_style(theme: &Theme) -> ContainerStyle {
         background: Some(gray.into()),
         border,
         shadow: Shadow::default(),
+    }
+}
+
+pub fn checkbox_style(theme: &Theme, status: checkbox::Status) -> checkbox::Style {
+    let background = theme.palette().background;
+
+    let background = match status {
+        checkbox::Status::Hovered { is_checked: _ } => lighten(background, 0.1),
+        checkbox::Status::Active { is_checked: _ } => background,
+        checkbox::Status::Disabled { is_checked: _ } => background,
+    };
+
+    checkbox::Style {
+        icon_color: theme.palette().primary,
+        text_color: Some(Color::WHITE),
+        background: background.into(),
+        border: Border {
+            color: Color::WHITE,
+            width: 2.0,
+            radius: (8.0).into(),
+        },
     }
 }

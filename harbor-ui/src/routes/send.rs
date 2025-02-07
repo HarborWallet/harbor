@@ -1,9 +1,9 @@
-use iced::widget::{column, Checkbox};
+use iced::widget::column;
 use iced::Element;
 
 use crate::components::{
-    basic_layout, h_button, h_header, h_input, h_screen_header, operation_status_for_id, InputArgs,
-    SvgIcon,
+    basic_layout, h_button, h_checkbox, h_header, h_input, h_screen_header,
+    operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
@@ -37,7 +37,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
     )
     .on_press(Message::Send(harbor.send_dest_input_str.clone()));
 
-    let checkbox = Checkbox::new("Send Max", harbor.is_max).on_toggle(Message::SetIsMax);
+    let checkbox = h_checkbox("Send Max", None, harbor.is_max, Message::SetIsMax);
 
     let mut button_and_status = column![send_button];
 
