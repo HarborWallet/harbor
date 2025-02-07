@@ -10,7 +10,7 @@ use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::db_models::FederationItem;
-use harbor_client::lightning_address::parse_lightning_address;
+use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
     data_dir, CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
 };
@@ -560,7 +560,7 @@ impl HarborWallet {
                         });
                         self.current_send_id = Some(id);
                         task
-                    } else if let Ok(ln_address) = parse_lightning_address(&invoice_str) {
+                    } else if let Ok(lnurl) = parse_lnurl(&invoice_str) {
                         // TODO: can we handle is_max somehow?
                         let amount = if self.is_max {
                             return Task::perform(async {}, |_| {
@@ -582,7 +582,7 @@ impl HarborWallet {
                         };
                         let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
                             federation_id,
-                            lnurl: ln_address.lnurl(),
+                            lnurl,
                             amount_sats: amount,
                         });
                         self.current_send_id = Some(id);
@@ -729,9 +729,7 @@ impl HarborWallet {
                     let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
                         federation_id,
                         amount_sats,
-                        lnurl: parse_lightning_address("hrf@btcpay.hrf.org")
-                            .expect("this is valid")
-                            .lnurl(),
+                        lnurl: parse_lnurl("hrf@btcpay.hrf.org").expect("this is valid"),
                     });
                     self.current_send_id = Some(id);
                     task

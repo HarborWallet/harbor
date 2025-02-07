@@ -8,9 +8,12 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-pub fn parse_lightning_address(address: &str) -> anyhow::Result<LightningAddress> {
-    let ln_address = LightningAddress::from_str(address)?;
-    Ok(ln_address)
+pub fn parse_lnurl(address: &str) -> anyhow::Result<LnUrl> {
+    match LightningAddress::from_str(address) {
+        Ok(lightning_address) => Ok(lightning_address.lnurl()),
+        Err(_) => LnUrl::from_str(address)
+            .map_err(|_| anyhow::anyhow!("Invalid lightning address or lnurl")),
+    }
 }
 
 pub async fn get_invoice(
@@ -56,10 +59,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    async fn try_with_tor_mode(
-        ln_address: &LightningAddress,
-        tor_enabled: bool,
-    ) -> anyhow::Result<()> {
+    async fn try_with_tor_mode(lnurl: &LnUrl, tor_enabled: bool) -> anyhow::Result<()> {
         log::debug!(
             "Starting lightning address test with tor_enabled={}",
             tor_enabled
@@ -67,11 +67,10 @@ mod tests {
         let cancel_handle = Arc::new(AtomicBool::new(false));
 
         // Get the LNURL data
-        let lnurl = ln_address.lnurl();
         log::debug!("LNURL decoded: {}", lnurl.url);
 
         log::debug!("Making LNURL request to get payment details");
-        let pay_response = make_lnurl_request(&lnurl, tor_enabled, cancel_handle.clone()).await?;
+        let pay_response = make_lnurl_request(lnurl, tor_enabled, cancel_handle.clone()).await?;
         log::debug!(
             "Got payment details - min_sendable: {}, max_sendable: {}, callback: {}",
             pay_response.min_sendable,
@@ -118,15 +117,8 @@ mod tests {
         // Test parsing the lightning address
         let address = "refund@lnurl.mutinynet.com";
         log::debug!("Attempting to parse lightning address: {}", address);
-        let ln_address = parse_lightning_address(address)?;
+        let ln_address = parse_lnurl(address)?;
         log::debug!("Successfully parsed lightning address");
-
-        // Basic validation that we parsed correctly
-        assert_eq!(
-            ln_address.to_string(),
-            address,
-            "Lightning address should round-trip"
-        );
 
         // Always test without Tor first
         log::debug!("Starting non-Tor test");
