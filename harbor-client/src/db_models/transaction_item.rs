@@ -1,3 +1,4 @@
+use crate::db_models::PaymentStatus;
 use bitcoin::hashes::Hash;
 use bitcoin::Txid;
 use fedimint_core::config::FederationId;
@@ -21,6 +22,7 @@ pub struct TransactionItem {
     pub txid: Option<Txid>,
     pub direction: TransactionDirection,
     pub federation_id: FederationId,
+    pub status: PaymentStatus,
     pub timestamp: u64,
 }
 
@@ -32,6 +34,7 @@ impl TransactionItem {
             txid: None,
             direction: TransactionDirection::Incoming,
             federation_id: FederationId::dummy(),
+            status: PaymentStatus::Success,
             timestamp: 0,
         }
     }
@@ -43,6 +46,7 @@ impl TransactionItem {
             txid: Some(Txid::all_zeros()),
             direction: TransactionDirection::Outgoing,
             federation_id: FederationId::dummy(),
+            status: PaymentStatus::Success,
             timestamp: 0,
         }
     }

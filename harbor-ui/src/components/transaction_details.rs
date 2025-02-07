@@ -20,6 +20,7 @@ pub fn h_transaction_details<'a>(
         direction,
         timestamp,
         federation_id,
+        status: _,
         txid,
     } = item;
 
