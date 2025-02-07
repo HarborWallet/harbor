@@ -143,15 +143,15 @@ impl FedimintClient {
             None
         };
 
-        if fedimint_client.is_none() {
-            error!("did not have enough information to join federation");
-            return Err(anyhow!(
-                "did not have enough information to join federation"
-            ));
-        }
-        let fedimint_client = fedimint_client.expect("just checked");
-
-        let fedimint_client = Arc::new(fedimint_client);
+        let fedimint_client = match fedimint_client {
+            None => {
+                error!("did not have enough information to join federation");
+                return Err(anyhow!(
+                    "did not have enough information to join federation"
+                ));
+            }
+            Some(client) => Arc::new(client),
+        };
 
         trace!("Retrieving fedimint wallet client module");
 
@@ -628,24 +628,31 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     btc_out_point,
                 } => {
                     info!("Onchain receive waiting for confirmation: {btc_deposited} from {btc_out_point:?}");
-                    let txid = btc_out_point.txid;
-                    let params = ReceiveSuccessMsg::Onchain { txid };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveSuccess(params),
-                        })
-                        .await
-                        .unwrap();
 
-                    let fee_sats = 0; // fees for receives may exist one day
-                    if let Err(e) = storage.set_onchain_receive_txid(
-                        operation_id,
-                        txid,
-                        btc_deposited.to_sat(),
-                        fee_sats,
-                    ) {
-                        error!("Could not mark onchain payment txid: {e}");
+                    let recv = storage.get_onchain_receive(operation_id).ok().flatten();
+
+                    // only update txid and send notification, if txid isn't already set
+                    // we don't want to do this multiple times
+                    if recv.is_none_or(|r| r.txid().is_none()) {
+                        let txid = btc_out_point.txid;
+                        let params = ReceiveSuccessMsg::Onchain { txid };
+                        sender
+                            .send(CoreUIMsgPacket {
+                                id: Some(msg_id),
+                                msg: CoreUIMsg::ReceiveSuccess(params),
+                            })
+                            .await
+                            .unwrap();
+
+                        let fee_sats = 0; // fees for receives may exist one day
+                        if let Err(e) = storage.set_onchain_receive_txid(
+                            operation_id,
+                            txid,
+                            btc_deposited.to_sat(),
+                            fee_sats,
+                        ) {
+                            error!("Could not mark onchain payment txid: {e}");
+                        }
                     }
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
