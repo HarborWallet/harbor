@@ -1,4 +1,4 @@
-use crate::{HarborWallet, Message};
+use crate::{HarborWallet, Message, ReceiveStatus};
 use harbor_client::db_models::FederationItem;
 use iced::{
     widget::{column, horizontal_space, pick_list, rich_text, row, span, text},
@@ -21,23 +21,28 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
             .map(|f| f.name.clone())
             .collect();
 
-        let federation_list = pick_list(federation_names, Some(name.clone()), |selected_name| {
-            if let Some(federation) = harbor
-                .federation_list
-                .iter()
-                .find(|f| f.name == selected_name)
-            {
-                Message::ChangeFederation(federation.id)
-            } else {
-                Message::Noop
-            }
-        })
-        .style(borderless_pick_list_style)
-        .padding(Padding::from(16))
-        .handle(pick_list::Handle::Arrow {
-            size: Some(iced::Pixels(24.)),
-        })
-        .menu_style(menu_style);
+        let is_generating = harbor.receive_status == ReceiveStatus::Generating;
+
+        let federation_list =
+            pick_list(federation_names, Some(name.clone()), move |selected_name| {
+                if is_generating {
+                    Message::Noop
+                } else if let Some(federation) = harbor
+                    .federation_list
+                    .iter()
+                    .find(|f| f.name == selected_name)
+                {
+                    Message::ChangeFederation(federation.id)
+                } else {
+                    Message::Noop
+                }
+            })
+            .style(borderless_pick_list_style)
+            .padding(Padding::from(16))
+            .handle(pick_list::Handle::Arrow {
+                size: Some(iced::Pixels(24.)),
+            })
+            .menu_style(menu_style);
 
         let current_federation = row![people_icon, federation_list]
             .align_y(Alignment::Center)

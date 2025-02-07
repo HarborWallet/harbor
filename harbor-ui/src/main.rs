@@ -174,6 +174,7 @@ pub enum Message {
     SetOnchainReceiveEnabled(bool),
     // Core messages we get from core
     CoreMessage(CoreUIMsgPacket),
+    CancelReceiveGeneration,
 }
 
 impl Message {
@@ -865,6 +866,13 @@ impl HarborWallet {
             }
             Message::SetConfirmModal(modal_state) => {
                 self.confirm_modal = modal_state;
+                Task::none()
+            }
+            Message::CancelReceiveGeneration => {
+                // Cancel any ongoing metadata fetch
+                self.receive_status = ReceiveStatus::Idle;
+                self.receive_failure_reason = None;
+                self.current_receive_id = None;
                 Task::none()
             }
             // Handle any messages we get from core

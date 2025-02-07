@@ -3,7 +3,7 @@ use crate::components::{
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use iced::widget::container::Style;
-use iced::widget::{column, container, qr_code, radio, text};
+use iced::widget::{column, container, qr_code, radio, row, text};
 use iced::Color;
 use iced::{Border, Element, Font};
 
@@ -25,6 +25,8 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                 h_header("Deposit", "Receive on-chain or via lightning.")
             };
 
+            let generating = harbor.receive_status == ReceiveStatus::Generating;
+
             let amount_input = h_input(InputArgs {
                 label: "Amount",
                 placeholder: "420",
@@ -32,10 +34,9 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                 on_input: Message::ReceiveAmountChanged,
                 numeric: true,
                 suffix: Some("sats"),
+                disabled: generating,
                 ..InputArgs::default()
             });
-
-            let generating = harbor.receive_status == ReceiveStatus::Generating;
 
             let generate_button = h_button("Generate Invoice", SvgIcon::Qr, generating)
                 .on_press(Message::GenerateInvoice);
@@ -43,8 +44,17 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
             let generate_address_button = h_button("Generate Address", SvgIcon::Qr, generating)
                 .on_press(Message::GenerateAddress);
 
+            let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
+                .on_press(Message::CancelReceiveGeneration);
+
             if !harbor.onchain_receive_enabled {
-                column![header, amount_input, generate_button]
+                let mut col = column![header, amount_input];
+                if generating {
+                    col = col.push(row![start_over_button, generate_button].spacing(8));
+                } else {
+                    col = col.push(generate_button);
+                }
+                col
             } else {
                 let lightning_choice = radio(
                     "Lightning",
@@ -74,10 +84,23 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
                 match harbor.receive_method {
                     ReceiveMethod::Lightning => {
-                        column![header, method_choice, amount_input, generate_button]
+                        let mut col = column![header, method_choice, amount_input];
+                        if generating {
+                            col = col.push(row![start_over_button, generate_button].spacing(8));
+                        } else {
+                            col = col.push(generate_button);
+                        }
+                        col
                     }
                     ReceiveMethod::OnChain => {
-                        column![header, method_choice, generate_address_button]
+                        let mut col = column![header, method_choice];
+                        if generating {
+                            col = col
+                                .push(row![start_over_button, generate_address_button].spacing(8));
+                        } else {
+                            col = col.push(generate_address_button);
+                        }
+                        col
                     }
                 }
             }
