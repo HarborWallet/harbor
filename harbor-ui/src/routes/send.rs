@@ -2,7 +2,8 @@ use iced::widget::{column, Checkbox};
 use iced::Element;
 
 use crate::components::{
-    basic_layout, h_button, h_header, h_input, h_screen_header, InputArgs, SvgIcon,
+    basic_layout, h_button, h_header, h_input, h_screen_header, operation_status_for_id, InputArgs,
+    SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
@@ -17,6 +18,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         on_input: Message::SendAmountInputChanged,
         numeric: true,
         suffix: Some("sats"),
+        disabled: harbor.is_max,
         ..InputArgs::default()
     });
 
@@ -37,11 +39,24 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
 
     let checkbox = Checkbox::new("Send Max", harbor.is_max).on_toggle(Message::SetIsMax);
 
-    let column = column![header, amount_input, checkbox, dest_input, send_button];
+    let mut button_and_status = column![send_button];
 
-    column![
-        h_screen_header(harbor, true),
-        basic_layout(column.spacing(48)),
+    // Add status display with 16px spacing
+    if let Some(status) = harbor
+        .current_send_id
+        .and_then(|id| operation_status_for_id(harbor, Some(id)))
+    {
+        button_and_status = button_and_status.push(status).spacing(16);
+    }
+
+    let content = column![
+        header,
+        amount_input,
+        checkbox,
+        dest_input,
+        button_and_status
     ]
-    .into()
+    .spacing(48);
+
+    column![h_screen_header(harbor, true), basic_layout(content),].into()
 }

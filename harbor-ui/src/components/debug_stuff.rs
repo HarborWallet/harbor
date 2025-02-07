@@ -1,12 +1,12 @@
 use iced::Element;
 
-use crate::components::{h_button, h_header, SvgIcon};
+use crate::components::{h_button, h_header, operation_status, SvgIcon};
 use crate::components::{Toast, ToastStatus};
-use crate::Message;
+use crate::{HarborWallet, Message};
 use iced::widget::column;
 
 // This is just for testing purposes
-pub fn debug_stuff() -> Element<'static, Message> {
+pub fn debug_stuff(harbor: &HarborWallet) -> Element<'static, Message> {
     let header = h_header(
         "Debug Stuff",
         "If you're seeing this you're in dev mode or possibly in a dream.",
@@ -46,12 +46,20 @@ pub fn debug_stuff() -> Element<'static, Message> {
             },
         )));
 
-    let column = column![
+    let test_status_button = h_button("Test Status Updates", SvgIcon::Restart, false)
+        .on_press(Message::TestStatusUpdates);
+
+    let mut column = column![
         header,
         add_good_toast_button,
         add_error_toast_button,
-        test_confirm_modal_button
+        test_confirm_modal_button,
+        test_status_button,
     ];
+
+    if let Some(status) = operation_status(harbor) {
+        column = column.push(status);
+    }
 
     column.spacing(48).into()
 }

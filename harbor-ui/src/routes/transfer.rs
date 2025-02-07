@@ -2,7 +2,8 @@ use iced::widget::{column, container, pick_list, row, scrollable, text, PickList
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::components::{
-    h_balance_display, h_button, h_header, h_input, menu_style, pick_list_style, InputArgs, SvgIcon,
+    h_balance_display, h_button, h_header, h_input, menu_style, operation_status_for_id,
+    pick_list_style, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
@@ -84,7 +85,17 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     )
     .on_press(Message::Transfer);
 
-    let list = column![source_row, destination_row, amount_input, transfer_button].spacing(48);
+    let mut button_and_status = column![transfer_button];
+
+    // Add status display with 16px spacing
+    if let Some(status) = harbor
+        .current_transfer_id
+        .and_then(|id| operation_status_for_id(harbor, Some(id)))
+    {
+        button_and_status = button_and_status.push(status).spacing(16);
+    }
+
+    let list = column![source_row, destination_row, amount_input, button_and_status].spacing(48);
 
     container(scrollable(
         column![h_header("Transfer", "Rebalance your funds."), list]

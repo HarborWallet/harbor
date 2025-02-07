@@ -3,7 +3,7 @@ use iced::Element;
 
 use crate::components::{
     basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
-    InputArgs, SvgIcon,
+    operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
@@ -49,7 +49,14 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
             )
             .on_press(Message::PeekFederation(harbor.mint_invite_code_str.clone()));
 
-            let peek_column = column![mint_input, peek_mint_button].spacing(16);
+            let mut peek_column = column![mint_input, peek_mint_button].spacing(16);
+
+            // Add status display for preview operation
+            if let Some(current_peek_id) = harbor.current_peek_id {
+                if let Some(status) = operation_status_for_id(harbor, Some(current_peek_id)) {
+                    peek_column = peek_column.push(status);
+                }
+            }
 
             column![header, peek_column].spacing(48)
         }
@@ -66,7 +73,14 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
                 .on_press(Message::CancelAddFederation);
 
             let button_row = row![start_over_button, add_mint_button].spacing(16);
-            let preview_column = column![federation_preview, button_row].spacing(16);
+            let mut preview_column = column![federation_preview, button_row].spacing(16);
+
+            // Add status display for add operation
+            if let Some(current_add_id) = harbor.current_add_id {
+                if let Some(status) = operation_status_for_id(harbor, Some(current_add_id)) {
+                    preview_column = preview_column.push(status);
+                }
+            }
 
             column![header, preview_column].spacing(48)
         }

@@ -8,6 +8,8 @@ use log::error;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Global cache of federation metadata
@@ -75,13 +77,24 @@ impl FederationMeta {
 pub(crate) async fn get_federation_metadata(
     data: FederationData<'_>,
     tor_enabled: bool,
+    cancel_handle: Arc<AtomicBool>,
 ) -> FederationMeta {
+    // Check if cancelled before starting
+    if cancel_handle.load(Ordering::Relaxed) {
+        return FederationMeta::default();
+    }
+
     let meta_external_url = data.get_meta("meta_external_url");
     let config: Option<FederationMeta> = match meta_external_url.as_ref() {
         None => None,
         Some(url) => {
+            // Check if cancelled before making request
+            if cancel_handle.load(Ordering::Relaxed) {
+                return FederationMeta::default();
+            }
+
             let result = if tor_enabled {
-                make_get_request_tor::<FederationMetaConfig>(url).await
+                make_get_request_tor::<FederationMetaConfig>(url, cancel_handle.clone()).await
             } else {
                 make_get_request_direct::<FederationMetaConfig>(url).await
             };
@@ -97,6 +110,11 @@ pub(crate) async fn get_federation_metadata(
             }
         }
     };
+
+    // Check if cancelled before constructing response
+    if cancel_handle.load(Ordering::Relaxed) {
+        return FederationMeta::default();
+    }
 
     FederationMeta {
         meta_external_url, // Already set...

@@ -21,12 +21,16 @@ use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescript
 use fedimint_wallet_client::WalletClientModule;
 use futures::future::join_all;
 use futures::{channel::mpsc::Sender, SinkExt};
+use lightning_address::make_lnurl_request;
+use lnurl::lnurl::LnUrl;
 use log::{error, trace};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -54,6 +58,7 @@ pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
 mod http;
+pub mod lightning_address;
 pub mod metadata;
 
 #[derive(Debug, Clone)]
@@ -67,6 +72,11 @@ pub enum UICoreMsg {
     SendLightning {
         federation_id: FederationId,
         invoice: Bolt11Invoice,
+    },
+    SendLnurlPay {
+        federation_id: FederationId,
+        lnurl: LnUrl,
+        amount_sats: u64,
     },
     ReceiveLightning {
         federation_id: FederationId,
@@ -97,6 +107,7 @@ pub enum UICoreMsg {
     GetSeedWords,
     SetOnchainReceiveEnabled(bool),
     SetTorEnabled(bool),
+    TestStatusUpdates,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -161,6 +172,10 @@ pub enum CoreUIMsg {
         onchain_receive_enabled: bool,
         tor_enabled: bool,
     },
+    StatusUpdate {
+        message: String,
+        operation_id: Option<Uuid>,
+    },
 }
 
 #[derive(Clone)]
@@ -171,6 +186,7 @@ pub struct HarborCore {
     pub clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
     pub storage: Arc<dyn DBConnection + Send + Sync>,
     pub stop: Arc<AtomicBool>,
+    pub metadata_fetch_cancel: Arc<AtomicBool>,
 }
 
 impl HarborCore {
@@ -192,6 +208,18 @@ impl HarborCore {
             .send(CoreUIMsgPacket { id: Some(id), msg })
             .await
             .expect("Could not communicate with the UI");
+    }
+
+    // Convenience method for sending status updates
+    pub async fn status_update(&self, id: Uuid, message: &str) {
+        self.msg(
+            id,
+            CoreUIMsg::StatusUpdate {
+                message: message.to_string(),
+                operation_id: Some(id),
+            },
+        )
+        .await;
     }
 
     // Sends updates to the UI to reflect the initial state
@@ -242,6 +270,9 @@ impl HarborCore {
         invoice: Bolt11Invoice,
         is_transfer: bool,
     ) -> anyhow::Result<()> {
+        self.status_update(msg_id, "Preparing to send lightning payment")
+            .await;
+
         log::info!("Paying lightning invoice: {invoice} from federation: {federation_id}");
         if invoice.amount_milli_satoshis().is_none() {
             return Err(anyhow!("Invoice must have an amount"));
@@ -253,12 +284,14 @@ impl HarborCore {
             .get_first_module::<LightningClientModule>()
             .expect("must have ln module");
 
+        self.status_update(msg_id, "Selecting gateway and calculating fees")
+            .await;
+
         let gateway = select_gateway(&client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
 
         let fees = gateway.fees.to_amount(&amount);
-
         let total = fees + amount;
         let balance = client.get_balance().await;
         if total > balance {
@@ -271,9 +304,16 @@ impl HarborCore {
 
         log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
 
+        // Send another update
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+
         let outgoing = lightning_module
             .pay_bolt11_invoice(Some(gateway), invoice.clone(), ())
             .await?;
+
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
 
         self.storage.create_lightning_payment(
             outgoing.payment_type.operation_id(),
@@ -288,7 +328,7 @@ impl HarborCore {
                 let sub = lightning_module.subscribe_internal_pay(op_id).await?;
                 spawn_internal_payment_subscription(
                     self.tx.clone(),
-                    client.clone(),
+                    client,
                     self.storage.clone(),
                     op_id,
                     msg_id,
@@ -300,7 +340,7 @@ impl HarborCore {
                 let sub = lightning_module.subscribe_ln_pay(op_id).await?;
                 spawn_invoice_payment_subscription(
                     self.tx.clone(),
-                    client.clone(),
+                    client,
                     self.storage.clone(),
                     op_id,
                     msg_id,
@@ -312,6 +352,56 @@ impl HarborCore {
         }
 
         log::info!("Payment sent");
+
+        Ok(())
+    }
+
+    pub async fn send_lnurl_pay(
+        &self,
+        msg_id: Uuid,
+        federation_id: FederationId,
+        lnurl: LnUrl,
+        amount_sats: u64,
+    ) -> anyhow::Result<()> {
+        self.status_update(msg_id, "Starting LNURL-pay flow").await;
+
+        log::info!("Sending lnurl pay: {lnurl} from federation: {federation_id}");
+
+        let profile = self.storage.get_profile()?;
+        if let Some(profile) = profile {
+            let tor_enabled = profile.tor_enabled();
+
+            self.status_update(msg_id, "Fetching payment details from recipient")
+                .await;
+
+            let pay_response =
+                make_lnurl_request(&lnurl, tor_enabled, self.metadata_fetch_cancel.clone()).await?;
+            log::info!("Pay response: {pay_response:?}");
+
+            self.status_update(msg_id, "Requesting invoice from recipient")
+                .await;
+
+            let amount_msats = amount_sats * 1000;
+            let invoice_response = lightning_address::get_invoice(
+                &pay_response,
+                amount_msats,
+                tor_enabled,
+                self.metadata_fetch_cancel.clone(),
+            )
+            .await?;
+            log::info!("Invoice response: {invoice_response:?}");
+
+            let invoice = fedimint_ln_common::lightning_invoice::Bolt11Invoice::from_str(
+                &invoice_response.pr,
+            )?;
+
+            // Now we'll let send_lightning handle the rest of the status updates
+            self.send_lightning(msg_id, federation_id, invoice, false)
+                .await?;
+        } else {
+            log::error!("No profile found");
+            return Err(anyhow::anyhow!("No profile found"));
+        }
 
         Ok(())
     }
@@ -383,7 +473,15 @@ impl HarborCore {
         amount: Amount,
     ) -> anyhow::Result<()> {
         log::info!("Transferring {amount} from {from} to {to}");
+
+        self.status_update(msg_id, "Generating invoice on destination mint")
+            .await;
+
         let invoice = self.receive_lightning(msg_id, to, amount, true).await?;
+
+        self.status_update(msg_id, "Paying invoice from source mint")
+            .await;
+
         self.send_lightning(msg_id, from, invoice, true).await?;
         Ok(())
     }
@@ -512,9 +610,13 @@ impl HarborCore {
 
     pub async fn get_federation_info(
         &self,
+        msg_id: Uuid,
         invite_code: InviteCode,
     ) -> anyhow::Result<(ClientConfig, FederationMeta)> {
         log::info!("Getting federation info for invite code: {invite_code}");
+
+        self.status_update(msg_id, "Connecting to mint").await;
+
         let download = Instant::now();
         let config = {
             let tor_enabled = match self.storage.get_profile() {
@@ -539,6 +641,8 @@ impl HarborCore {
             download.elapsed().as_millis()
         );
 
+        self.status_update(msg_id, "Retrieving mint metadata").await;
+
         let mut cache = CACHE.write().await;
         let tor_enabled = match self.storage.get_profile() {
             Ok(Some(profile)) => profile.tor_enabled(),
@@ -546,7 +650,12 @@ impl HarborCore {
         };
         let metadata = match cache.get(&invite_code.federation_id()).cloned() {
             None => {
-                let m = get_federation_metadata(FederationData::Config(&config), tor_enabled).await;
+                let m = get_federation_metadata(
+                    FederationData::Config(&config),
+                    tor_enabled,
+                    self.metadata_fetch_cancel.clone(),
+                )
+                .await;
                 cache.insert(invite_code.federation_id(), m.clone());
                 m
             }
@@ -556,38 +665,69 @@ impl HarborCore {
         Ok((config, metadata))
     }
 
-    pub async fn add_federation(&self, invite_code: InviteCode) -> anyhow::Result<()> {
+    pub async fn add_federation(
+        &self,
+        msg_id: Uuid,
+        invite_code: InviteCode,
+    ) -> anyhow::Result<()> {
         log::info!("Adding federation with invite code: {invite_code}");
         let id = invite_code.federation_id();
+
+        self.status_update(msg_id, "Starting mint setup").await;
 
         let mut clients = self.clients.write().await;
         if clients.get(&id).is_some() {
             return Err(anyhow!("Federation already added"));
         }
 
+        self.status_update(msg_id, "Initializing mint connection")
+            .await;
+
         let client = FedimintClient::new(
             self.storage.clone(),
-            FederationInviteOrId::Invite(invite_code),
+            FederationInviteOrId::Invite(invite_code.clone()),
             &self.mnemonic,
             self.network,
             self.stop.clone(),
         )
         .await?;
 
-        clients.insert(client.fedimint_client.federation_id(), client);
+        self.status_update(msg_id, "Registering with mint").await;
+
+        clients.insert(id, client);
+
+        self.status_update(msg_id, "Mint setup complete!").await;
 
         Ok(())
     }
 
-    pub async fn remove_federation(&self, id: FederationId) -> anyhow::Result<()> {
+    pub async fn remove_federation(&self, _msg_id: Uuid, id: FederationId) -> anyhow::Result<()> {
         log::info!("Removing federation with id: {id}");
+
+        // Cancel any ongoing metadata fetch
+        self.metadata_fetch_cancel.store(true, Ordering::Relaxed);
+
+        // Small delay to allow any in-progress operations to complete
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         let mut clients = self.clients.write().await;
-        if clients.remove(&id).is_none() {
+
+        // Check if federation exists before attempting removal
+        if !clients.contains_key(&id) {
             return Err(anyhow!("Federation doesn't exist"));
         }
 
+        // Remove from clients first
+        clients.remove(&id);
+        drop(clients);
+
+        // Then remove from storage
         self.storage.remove_federation(id)?;
 
+        // Reset cancellation flag
+        self.metadata_fetch_cancel.store(false, Ordering::Relaxed);
+
+        log::info!("Successfully removed federation: {id}");
         Ok(())
     }
 
@@ -646,6 +786,7 @@ impl HarborCore {
         if !needs_metadata.is_empty() {
             let mut tx = self.tx.clone();
             let storage = self.storage.clone();
+            let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
             tokio::task::spawn(async move {
                 let tor_enabled = match storage.get_profile() {
                     Ok(Some(profile)) => profile.tor_enabled(),
@@ -653,20 +794,31 @@ impl HarborCore {
                 };
                 let mut w = CACHE.write().await;
                 for client in needs_metadata {
+                    // Check if we should cancel
+                    if metadata_fetch_cancel.load(Ordering::Relaxed) {
+                        break;
+                    }
                     let id = client.federation_id();
-                    let metadata =
-                        get_federation_metadata(FederationData::Client(&client), tor_enabled).await;
+                    let metadata = get_federation_metadata(
+                        FederationData::Client(&client),
+                        tor_enabled,
+                        metadata_fetch_cancel.clone(),
+                    )
+                    .await;
                     w.insert(id, metadata);
                 }
                 drop(w);
 
-                // update list in front end
-                tx.send(CoreUIMsgPacket {
-                    id: None,
-                    msg: CoreUIMsg::FederationListNeedsUpdate,
-                })
-                .await
-                .expect("federation list needs update");
+                // Only update the UI if we weren't cancelled
+                if !metadata_fetch_cancel.load(Ordering::Relaxed) {
+                    // update list in front end
+                    tx.send(CoreUIMsgPacket {
+                        id: None,
+                        msg: CoreUIMsg::FederationListNeedsUpdate,
+                    })
+                    .await
+                    .expect("federation list needs update");
+                }
             });
         }
 
@@ -695,5 +847,23 @@ impl HarborCore {
             if enabled { "enabled" } else { "disabled" }
         );
         Ok(())
+    }
+
+    pub async fn test_status_updates(&self, msg_id: Uuid) {
+        self.status_update(msg_id, "Starting test sequence").await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 1: Initializing test")
+            .await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 2: Running calculations")
+            .await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Phase 3: Almost there").await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        self.status_update(msg_id, "Test sequence complete!").await;
     }
 }

@@ -77,11 +77,25 @@ pub fn h_input(args: InputArgs<'_>) -> Element<Message, Theme> {
                 radius: (8.).into(),
             };
 
+            let value = if text_input::Status::Disabled == status {
+                gray
+            } else {
+                Color::WHITE
+            };
+
+            let darker_gray = darken(gray, 0.1);
+
+            let placeholder = if text_input::Status::Disabled == status {
+                darker_gray
+            } else {
+                gray
+            };
+
             text_input::Style {
                 background: Background::Color(Color::BLACK),
                 border,
-                placeholder: gray,
-                value: Color::WHITE,
+                placeholder,
+                value,
                 icon: Color::WHITE,
                 selection: theme.palette().primary,
             }
