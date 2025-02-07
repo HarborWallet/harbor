@@ -81,7 +81,12 @@ async fn setup_harbor_core(
         .ok()?;
 
     // Retrieve mnemonic
-    let mnemonic = db.retrieve_mnemonic().expect("should get seed");
+    let profile = db
+        .get_profile()
+        .ok()
+        .flatten()
+        .expect("Could not get profile from db");
+    let mnemonic = profile.mnemonic();
 
     // Create stop signal
     let stop = Arc::new(AtomicBool::new(false));
@@ -127,6 +132,7 @@ async fn setup_harbor_core(
         clients: Arc::new(RwLock::new(clients)),
         storage: db,
         stop: stop.clone(),
+        tor_enabled: Arc::new(AtomicBool::new(profile.tor_enabled())),
         metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
     })
 }
@@ -342,6 +348,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         network,
                         clients: Arc::new(RwLock::new(HashMap::new())),
                         stop: Arc::new(AtomicBool::new(false)),
+                        tor_enabled: Arc::new(AtomicBool::new(true)),
                         metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
                     };
 

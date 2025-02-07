@@ -80,7 +80,8 @@ impl FedimintClient {
 
         // Check if tor is enabled in profile
         let profile = storage.get_profile()?;
-        if profile.as_ref().map_or(false, |p| p.tor_enabled()) {
+        let tor_enabled = profile.expect("must have profile").tor_enabled();
+        if tor_enabled {
             client_builder.with_tor_connector();
         }
 
@@ -106,7 +107,7 @@ impl FedimintClient {
         } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
             let download = Instant::now();
             let config = {
-                let config = if profile.as_ref().map_or(false, |p| p.tor_enabled()) {
+                let config = if tor_enabled {
                     fedimint_api_client::api::net::Connector::Tor
                         .download_from_invite_code(&invite_code)
                         .await

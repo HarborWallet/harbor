@@ -186,6 +186,7 @@ pub struct HarborCore {
     pub clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
     pub storage: Arc<dyn DBConnection + Send + Sync>,
     pub stop: Arc<AtomicBool>,
+    pub tor_enabled: Arc<AtomicBool>,
     pub metadata_fetch_cancel: Arc<AtomicBool>,
 }
 
@@ -367,41 +368,33 @@ impl HarborCore {
 
         log::info!("Sending lnurl pay: {lnurl} from federation: {federation_id}");
 
-        let profile = self.storage.get_profile()?;
-        if let Some(profile) = profile {
-            let tor_enabled = profile.tor_enabled();
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        self.status_update(msg_id, "Fetching payment details from recipient")
+            .await;
 
-            self.status_update(msg_id, "Fetching payment details from recipient")
-                .await;
+        let pay_response =
+            make_lnurl_request(&lnurl, tor_enabled, self.metadata_fetch_cancel.clone()).await?;
+        log::info!("Pay response: {pay_response:?}");
 
-            let pay_response =
-                make_lnurl_request(&lnurl, tor_enabled, self.metadata_fetch_cancel.clone()).await?;
-            log::info!("Pay response: {pay_response:?}");
+        self.status_update(msg_id, "Requesting invoice from recipient")
+            .await;
 
-            self.status_update(msg_id, "Requesting invoice from recipient")
-                .await;
+        let amount_msats = amount_sats * 1000;
+        let invoice_response = lightning_address::get_invoice(
+            &pay_response,
+            amount_msats,
+            tor_enabled,
+            self.metadata_fetch_cancel.clone(),
+        )
+        .await?;
+        log::info!("Invoice response: {invoice_response:?}");
 
-            let amount_msats = amount_sats * 1000;
-            let invoice_response = lightning_address::get_invoice(
-                &pay_response,
-                amount_msats,
-                tor_enabled,
-                self.metadata_fetch_cancel.clone(),
-            )
+        let invoice =
+            fedimint_ln_common::lightning_invoice::Bolt11Invoice::from_str(&invoice_response.pr)?;
+
+        // Now we'll let send_lightning handle the rest of the status updates
+        self.send_lightning(msg_id, federation_id, invoice, false)
             .await?;
-            log::info!("Invoice response: {invoice_response:?}");
-
-            let invoice = fedimint_ln_common::lightning_invoice::Bolt11Invoice::from_str(
-                &invoice_response.pr,
-            )?;
-
-            // Now we'll let send_lightning handle the rest of the status updates
-            self.send_lightning(msg_id, federation_id, invoice, false)
-                .await?;
-        } else {
-            log::error!("No profile found");
-            return Err(anyhow::anyhow!("No profile found"));
-        }
 
         Ok(())
     }
@@ -617,12 +610,9 @@ impl HarborCore {
 
         self.status_update(msg_id, "Connecting to mint").await;
 
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
         let download = Instant::now();
         let config = {
-            let tor_enabled = match self.storage.get_profile() {
-                Ok(Some(profile)) => profile.tor_enabled(),
-                _ => true,
-            };
             let connector = if tor_enabled {
                 fedimint_api_client::api::net::Connector::Tor
             } else {
@@ -644,10 +634,6 @@ impl HarborCore {
         self.status_update(msg_id, "Retrieving mint metadata").await;
 
         let mut cache = CACHE.write().await;
-        let tor_enabled = match self.storage.get_profile() {
-            Ok(Some(profile)) => profile.tor_enabled(),
-            _ => true,
-        };
         let metadata = match cache.get(&invite_code.federation_id()).cloned() {
             None => {
                 let m = get_federation_metadata(
@@ -785,13 +771,9 @@ impl HarborCore {
         // if we're missing metadata for federations, start background task to populate it
         if !needs_metadata.is_empty() {
             let mut tx = self.tx.clone();
-            let storage = self.storage.clone();
+            let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
             let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
             tokio::task::spawn(async move {
-                let tor_enabled = match storage.get_profile() {
-                    Ok(Some(profile)) => profile.tor_enabled(),
-                    _ => true,
-                };
                 let mut w = CACHE.write().await;
                 for client in needs_metadata {
                     // Check if we should cancel
@@ -841,6 +823,7 @@ impl HarborCore {
 
     pub async fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         log::info!("Setting Tor enabled to: {}", enabled);
+        self.tor_enabled.swap(enabled, Ordering::Relaxed);
         self.storage.set_tor_enabled(enabled)?;
         log::info!(
             "Successfully {} Tor",
