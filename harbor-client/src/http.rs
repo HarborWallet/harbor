@@ -8,12 +8,25 @@ use hyper::{Request, Uri};
 use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
+use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::rustls::RootCertStore;
+use tor_rtcompat::PreferredRuntime;
+use url::Url;
+
+// Global TorClient singleton
+static TOR_CLIENT: Lazy<Arc<TorClient<PreferredRuntime>>> = Lazy::new(|| {
+    // Create an unbootstrapped client - it will bootstrap on first use
+    let client = TorClient::builder()
+        .bootstrap_behavior(arti_client::BootstrapBehavior::OnDemand)
+        .create_unbootstrapped()
+        .expect("Failed to create Tor client");
+    Arc::new(client)
+});
 
 const MAX_REDIRECTS: u8 = 5;
 const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
@@ -42,8 +55,7 @@ where
 ///
 /// The request can be cancelled at any time using the cancel_handle.
 ///
-/// Note: This is slower than direct requests due to Tor routing and
-/// the need to bootstrap a Tor client for each request.
+/// Note: This is slower than direct requests due to Tor routing.
 pub(crate) async fn make_get_request_tor<T>(
     url: &str,
     cancel_handle: Arc<AtomicBool>,
@@ -63,12 +75,10 @@ where
         return Err(anyhow!("Request cancelled"));
     }
 
-    let tor_client = TorClient::builder()
-        .bootstrap_behavior(arti_client::BootstrapBehavior::OnDemand)
-        .create_unbootstrapped()
-        .map_err(|e| anyhow!("Failed to create Tor client: {:?}", e))?;
+    // Get a reference to the global TorClient
+    let tor_client = TOR_CLIENT.clone();
 
-    log::debug!("Successfully created Tor client, starting bootstrap");
+    log::debug!("Starting bootstrap if needed");
 
     // Set a timeout for the bootstrap process
     let bootstrap_timeout = Duration::from_secs(30);
@@ -99,7 +109,15 @@ where
     let port = safe_url
         .port_or_known_default()
         .ok_or_else(|| anyhow::anyhow!("Expected port number"))?;
-    let path = safe_url.path().to_string();
+
+    // Parse the URL properly
+    let parsed_url = Url::parse(url)?;
+    // Get the path and query string
+    let path = if let Some(query) = parsed_url.query() {
+        format!("{}?{}", parsed_url.path(), query)
+    } else {
+        parsed_url.path().to_string()
+    };
     let is_onion = safe_url.is_onion_address();
 
     let tor_addr = TorAddr::from((host.as_str(), port))
@@ -377,8 +395,9 @@ where
             return Err(anyhow!("Too many redirects (max {})", MAX_REDIRECTS));
         }
 
-        // Enforce HTTPS
-        if !url.starts_with("https://") {
+        // Parse and validate URL
+        let parsed_url = Url::parse(&url)?;
+        if parsed_url.scheme() != "https" {
             return Err(anyhow!("Only HTTPS is supported"));
         }
 

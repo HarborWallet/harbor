@@ -25,6 +25,7 @@ hex = "0.4.3"
 home = "0.5.9"
 once_cell = "1.20.2"
 httparse = "1.8.0"
+url = "2.5.0"
 
 bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
@@ -45,6 +46,7 @@ hyper = { version = "1.5.0", default-features = false, features = ["client", "ht
 hyper-rustls = { version = "0.27.3", default-features = false }
 hyper-util = { version = "0.1.3", default-features = false, features = ["client", "client-legacy", "tokio"] }
 http-body-util = { version = "0.1.0", default-features = false }
+tor-rtcompat = { version = "0.20.0", default-features = false, features = ["tokio", "rustls"] }
 # END BLOCK OF KEEP IN SYNC WITH FEDIMINT'S VERSION
 
 tokio-rustls = { version = "0.26.0", default-features = false, features = ["logging", "tls12", "ring"] }

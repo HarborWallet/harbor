@@ -3374,6 +3374,8 @@ dependencies = [
  "tempdir",
  "tokio",
  "tokio-rustls 0.26.0",
+ "tor-rtcompat",
+ "url",
  "uuid",
  "webpki-roots 0.26.8",
 ]
