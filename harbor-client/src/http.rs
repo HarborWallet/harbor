@@ -97,7 +97,7 @@ where
 
     // Set a timeout for the bootstrap process
     let bootstrap_timeout = Duration::from_secs(30);
-    
+
     // Use select! to handle cancellation during bootstrap
     let bootstrap_result = tokio::select! {
         biased;  // Check cancellation first
@@ -213,7 +213,7 @@ where
 
     log::debug!("Starting TLS handshake with {}", host);
     let tls_timeout = Duration::from_secs(30);
-    
+
     // Use select! to handle cancellation during TLS handshake
     let tls_result = tokio::select! {
         biased;
