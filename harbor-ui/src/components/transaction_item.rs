@@ -1,14 +1,14 @@
+use super::{
+    darken, format_amount, format_timestamp, lighten, link, map_icon, MUTINY_GREEN, MUTINY_RED,
+};
 use crate::Message;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
+use harbor_client::db_models::PaymentStatus;
 use iced::{
     widget::{button, column, row, svg, text, Button},
     Border, Color, Element,
-};
-
-use super::{
-    darken, format_amount, format_timestamp, lighten, link, map_icon, MUTINY_GREEN, MUTINY_RED,
 };
 
 pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<Message> {
@@ -18,6 +18,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         direction,
         timestamp,
         federation_id: _,
+        status,
         txid: _,
     } = item;
     let kind_icon = match kind {
@@ -38,7 +39,16 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         }
     };
 
-    let formatted_amount = text(format_amount(*amount)).size(24);
+    let amount_str = if matches!(kind, TransactionItemKind::Onchain)
+        && matches!(direction, TransactionDirection::Incoming)
+        && matches!(status, PaymentStatus::WaitingConfirmation)
+    {
+        format!("{} (Pending)", format_amount(*amount))
+    } else {
+        format_amount(*amount)
+    };
+
+    let formatted_amount = text(amount_str).size(24);
 
     let row = row![direction_icon, kind_icon, formatted_amount,]
         .align_y(iced::Alignment::Center)

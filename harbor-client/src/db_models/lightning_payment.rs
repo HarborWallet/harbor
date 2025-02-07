@@ -164,6 +164,7 @@ impl From<LightningPayment> for TransactionItem {
             txid: None,
             direction: TransactionDirection::Outgoing,
             federation_id: payment.fedimint_id(),
+            status: payment.status(),
             timestamp: payment.updated_at.and_utc().timestamp() as u64,
         }
     }

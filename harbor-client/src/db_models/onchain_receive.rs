@@ -159,6 +159,7 @@ impl From<OnChainReceive> for TransactionItem {
                 .map(|t| Txid::from_str(t).expect("invalid txid")),
             direction: TransactionDirection::Incoming,
             federation_id: payment.fedimint_id(),
+            status: payment.status(),
             timestamp: payment.updated_at.and_utc().timestamp() as u64,
         }
     }
