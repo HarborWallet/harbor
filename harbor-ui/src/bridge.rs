@@ -125,16 +125,19 @@ async fn setup_harbor_core(
     });
 
     // Create and return HarborCore
-    Some(HarborCore {
-        network,
-        mnemonic,
-        tx: core_tx,
-        clients: Arc::new(RwLock::new(clients)),
-        storage: db,
-        stop: stop.clone(),
-        tor_enabled: Arc::new(AtomicBool::new(profile.tor_enabled())),
-        metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
-    })
+    Some(
+        HarborCore::new(
+            network,
+            mnemonic,
+            core_tx,
+            Arc::new(RwLock::new(clients)),
+            db,
+            stop.clone(),
+            Arc::new(AtomicBool::new(profile.tor_enabled())),
+        )
+        .await
+        .expect("Failed to build harbor core"),
+    )
 }
 
 /// Attempts to auto-unlock the wallet using a password from the environment.
@@ -341,16 +344,17 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         }
                     });
 
-                    let core = HarborCore {
-                        storage: db.clone(),
-                        tx: core_tx,
-                        mnemonic: db.generate_mnemonic(seed).expect("should generate words"),
+                    let core = HarborCore::new(
                         network,
-                        clients: Arc::new(RwLock::new(HashMap::new())),
-                        stop: Arc::new(AtomicBool::new(false)),
-                        tor_enabled: Arc::new(AtomicBool::new(true)),
-                        metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
-                    };
+                        db.generate_mnemonic(seed).expect("should generate words"),
+                        core_tx,
+                        Arc::new(RwLock::new(HashMap::new())),
+                        db.clone(),
+                        Arc::new(AtomicBool::new(false)), // stop
+                        Arc::new(AtomicBool::new(true)),  // tor enabled
+                    )
+                    .await
+                    .expect("Failed to build harbor core");
 
                     tx.send(Message::core_msg(id, CoreUIMsg::InitSuccess))
                         .await

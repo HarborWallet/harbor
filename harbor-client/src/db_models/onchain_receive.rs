@@ -146,6 +146,15 @@ impl OnChainReceive {
             )
             .load::<Self>(conn)?)
     }
+
+    pub fn get_pending(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
+        Ok(on_chain_receives::table
+            .filter(on_chain_receives::status.eq_any([
+                PaymentStatus::Pending as i32,
+                PaymentStatus::WaitingConfirmation as i32,
+            ]))
+            .load::<Self>(conn)?)
+    }
 }
 
 impl From<OnChainReceive> for TransactionItem {

@@ -143,15 +143,15 @@ impl FedimintClient {
             None
         };
 
-        if fedimint_client.is_none() {
-            error!("did not have enough information to join federation");
-            return Err(anyhow!(
-                "did not have enough information to join federation"
-            ));
-        }
-        let fedimint_client = fedimint_client.expect("just checked");
-
-        let fedimint_client = Arc::new(fedimint_client);
+        let fedimint_client = match fedimint_client {
+            None => {
+                error!("did not have enough information to join federation");
+                return Err(anyhow!(
+                    "did not have enough information to join federation"
+                ));
+            }
+            Some(client) => Arc::new(client),
+        };
 
         trace!("Retrieving fedimint wallet client module");
 

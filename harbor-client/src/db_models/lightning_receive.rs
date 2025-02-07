@@ -151,6 +151,15 @@ impl LightningReceive {
             .filter(lightning_receives::status.eq(PaymentStatus::Success as i32))
             .load::<Self>(conn)?)
     }
+
+    pub fn get_pending(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
+        Ok(lightning_receives::table
+            .filter(lightning_receives::status.eq_any([
+                PaymentStatus::Pending as i32,
+                PaymentStatus::WaitingConfirmation as i32,
+            ]))
+            .load::<Self>(conn)?)
+    }
 }
 
 impl From<LightningReceive> for TransactionItem {

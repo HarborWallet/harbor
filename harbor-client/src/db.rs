@@ -168,6 +168,14 @@ pub trait DBConnection {
     fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()>;
 
     fn get_transaction_history(&self) -> anyhow::Result<Vec<TransactionItem>>;
+
+    fn get_pending_onchain_receives(&self) -> anyhow::Result<Vec<OnChainReceive>>;
+
+    fn get_pending_onchain_payments(&self) -> anyhow::Result<Vec<OnChainPayment>>;
+
+    fn get_pending_lightning_receives(&self) -> anyhow::Result<Vec<LightningReceive>>;
+
+    fn get_pending_lightning_payments(&self) -> anyhow::Result<Vec<LightningPayment>>;
 }
 
 pub struct SQLConnection {
@@ -458,6 +466,26 @@ impl DBConnection for SQLConnection {
 
         info!("creating new seed");
         Ok(Mnemonic::from_str(&p.seed_words)?)
+    }
+
+    fn get_pending_onchain_receives(&self) -> anyhow::Result<Vec<OnChainReceive>> {
+        let conn = &mut self.db.get()?;
+        OnChainReceive::get_pending(conn)
+    }
+
+    fn get_pending_onchain_payments(&self) -> anyhow::Result<Vec<OnChainPayment>> {
+        let conn = &mut self.db.get()?;
+        OnChainPayment::get_pending(conn)
+    }
+
+    fn get_pending_lightning_receives(&self) -> anyhow::Result<Vec<LightningReceive>> {
+        let conn = &mut self.db.get()?;
+        LightningReceive::get_pending(conn)
+    }
+
+    fn get_pending_lightning_payments(&self) -> anyhow::Result<Vec<LightningPayment>> {
+        let conn = &mut self.db.get()?;
+        LightningPayment::get_pending(conn)
     }
 }
 

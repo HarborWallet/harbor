@@ -179,6 +179,7 @@ pub enum CoreUIMsg {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct HarborCore {
     pub network: Network,
     pub mnemonic: Mnemonic,
@@ -191,6 +192,138 @@ pub struct HarborCore {
 }
 
 impl HarborCore {
+    pub async fn new(
+        network: Network,
+        mnemonic: Mnemonic,
+        tx: Sender<CoreUIMsgPacket>,
+        clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+        storage: Arc<dyn DBConnection + Send + Sync>,
+        stop: Arc<AtomicBool>,
+        tor_enabled: Arc<AtomicBool>,
+    ) -> anyhow::Result<Self> {
+        // start subscription to pending events
+        let pending_onchain_recv = storage.get_pending_onchain_receives()?;
+        let pending_onchain_payments = storage.get_pending_onchain_payments()?;
+        let pending_lightning_recv = storage.get_pending_lightning_receives()?;
+        let pending_lightning_payments = storage.get_pending_lightning_payments()?;
+
+        let c = clients.clone();
+        let fed_clients = c.read().await;
+        for item in pending_onchain_recv {
+            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
+                let onchain = client
+                    .fedimint_client
+                    .get_first_module::<WalletClientModule>()
+                    .expect("must have wallet module");
+
+                let op_id = item.operation_id();
+                if let Ok(sub) = onchain.subscribe_deposit(op_id).await {
+                    spawn_onchain_receive_subscription(
+                        tx.clone(),
+                        client.fedimint_client.clone(),
+                        storage.clone(),
+                        op_id,
+                        Uuid::nil(),
+                        sub,
+                    )
+                    .await;
+                }
+            }
+        }
+
+        for item in pending_onchain_payments {
+            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
+                let onchain = client
+                    .fedimint_client
+                    .get_first_module::<WalletClientModule>()
+                    .expect("must have wallet module");
+
+                let op_id = item.operation_id();
+                if let Ok(sub) = onchain.subscribe_withdraw_updates(op_id).await {
+                    spawn_onchain_payment_subscription(
+                        tx.clone(),
+                        client.fedimint_client.clone(),
+                        storage.clone(),
+                        op_id,
+                        Uuid::nil(),
+                        sub,
+                    )
+                    .await;
+                }
+            }
+        }
+
+        for item in pending_lightning_recv {
+            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
+                let lightning_module = client
+                    .fedimint_client
+                    .get_first_module::<LightningClientModule>()
+                    .expect("must have ln module");
+
+                let op_id = item.operation_id();
+
+                if let Ok(sub) = lightning_module.subscribe_ln_receive(op_id).await {
+                    spawn_invoice_receive_subscription(
+                        tx.clone(),
+                        client.fedimint_client.clone(),
+                        storage.clone(),
+                        op_id,
+                        Uuid::nil(),
+                        false,
+                        sub,
+                    )
+                    .await;
+                }
+            }
+        }
+
+        for item in pending_lightning_payments {
+            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
+                let lightning_module = client
+                    .fedimint_client
+                    .get_first_module::<LightningClientModule>()
+                    .expect("must have ln module");
+
+                let op_id = item.operation_id();
+
+                // need to attempt for internal and external subscriptions for lightning payments
+                if let Ok(sub) = lightning_module.subscribe_ln_pay(op_id).await {
+                    spawn_invoice_payment_subscription(
+                        tx.clone(),
+                        client.fedimint_client.clone(),
+                        storage.clone(),
+                        op_id,
+                        Uuid::nil(),
+                        false,
+                        sub,
+                    )
+                    .await;
+                } else if let Ok(sub) = lightning_module.subscribe_internal_pay(op_id).await {
+                    spawn_internal_payment_subscription(
+                        tx.clone(),
+                        client.fedimint_client.clone(),
+                        storage.clone(),
+                        op_id,
+                        Uuid::nil(),
+                        sub,
+                    )
+                    .await;
+                }
+            }
+        }
+
+        Ok(Self {
+            network,
+            mnemonic,
+            tx,
+            clients,
+            storage,
+            stop,
+            tor_enabled,
+            metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
     // Initial setup messages that don't have an id
     // Panics if fails to send
     async fn send_system_msg(&self, msg: CoreUIMsg) {
