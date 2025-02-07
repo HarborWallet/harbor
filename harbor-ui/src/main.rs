@@ -3,6 +3,7 @@ use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{write_config, Config};
 use bitcoin::{Address, Network};
+use components::{MUTINY_GREEN, MUTINY_RED};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -853,6 +854,7 @@ impl HarborWallet {
             }
             Message::SetOnchainReceiveEnabled(enabled) => {
                 let (_, task) = self.send_from_ui(UICoreMsg::SetOnchainReceiveEnabled(enabled));
+                self.confirm_modal = None;
                 task
             }
             Message::SetTorEnabled(enabled) => {
@@ -1234,15 +1236,14 @@ impl HarborWallet {
     }
 
     fn theme(&self) -> iced::Theme {
-        let mutiny_red = Color::from_rgb8(250, 0, 80);
         iced::Theme::custom(
             String::from("Custom"),
             iced::theme::Palette {
                 background: Color::from_rgb8(23, 23, 25),
-                primary: mutiny_red,
+                primary: MUTINY_RED,
                 text: Color::WHITE,
-                success: Color::WHITE,
-                danger: mutiny_red,
+                success: MUTINY_GREEN,
+                danger: MUTINY_RED,
             },
         )
     }
