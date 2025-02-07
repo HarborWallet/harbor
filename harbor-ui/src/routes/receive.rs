@@ -1,5 +1,6 @@
 use crate::components::{
-    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, InputArgs, SvgIcon,
+    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header,
+    operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use iced::widget::container::Style;
@@ -38,23 +39,37 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
                 ..InputArgs::default()
             });
 
-            let generate_button = h_button("Generate Invoice", SvgIcon::Qr, generating)
-                .on_press(Message::GenerateInvoice);
+            let generate_invoice_button = || {
+                h_button("Generate Invoice", SvgIcon::Qr, generating)
+                    .on_press(Message::GenerateInvoice)
+            };
 
-            let generate_address_button = h_button("Generate Address", SvgIcon::Qr, generating)
-                .on_press(Message::GenerateAddress);
+            let generate_address_button = || {
+                h_button("Generate Address", SvgIcon::Qr, generating)
+                    .on_press(Message::GenerateAddress)
+            };
 
-            let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
-                .on_press(Message::CancelReceiveGeneration);
+            let start_over_button = || {
+                h_button("Start Over", SvgIcon::Restart, false)
+                    .on_press(Message::CancelReceiveGeneration)
+            };
+
+            let mut button_and_status = if generating {
+                column![row![start_over_button(), generate_invoice_button()].spacing(8)]
+            } else {
+                column![generate_invoice_button()]
+            };
+
+            // Add status display with 16px spacing if we have a current operation
+            if let Some(status) = harbor
+                .current_receive_id
+                .and_then(|id| operation_status_for_id(harbor, Some(id)))
+            {
+                button_and_status = button_and_status.push(status).spacing(16);
+            }
 
             if !harbor.onchain_receive_enabled {
-                let mut col = column![header, amount_input];
-                if generating {
-                    col = col.push(row![start_over_button, generate_button].spacing(8));
-                } else {
-                    col = col.push(generate_button);
-                }
-                col
+                column![header, amount_input, button_and_status]
             } else {
                 let lightning_choice = radio(
                     "Lightning",
@@ -84,23 +99,38 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
                 match harbor.receive_method {
                     ReceiveMethod::Lightning => {
-                        let mut col = column![header, method_choice, amount_input];
-                        if generating {
-                            col = col.push(row![start_over_button, generate_button].spacing(8));
+                        let mut button_and_status = if generating {
+                            column![row![start_over_button(), generate_invoice_button()].spacing(8)]
                         } else {
-                            col = col.push(generate_button);
+                            column![generate_invoice_button()]
+                        };
+
+                        // Add status display with 16px spacing if we have a current operation
+                        if let Some(status) = harbor
+                            .current_receive_id
+                            .and_then(|id| operation_status_for_id(harbor, Some(id)))
+                        {
+                            button_and_status = button_and_status.push(status).spacing(16);
                         }
-                        col
+
+                        column![header, method_choice, amount_input, button_and_status]
                     }
                     ReceiveMethod::OnChain => {
-                        let mut col = column![header, method_choice];
-                        if generating {
-                            col = col
-                                .push(row![start_over_button, generate_address_button].spacing(8));
+                        let mut button_and_status = if generating {
+                            column![row![start_over_button(), generate_address_button()].spacing(8)]
                         } else {
-                            col = col.push(generate_address_button);
+                            column![generate_address_button()]
+                        };
+
+                        // Add status display with 16px spacing if we have a current operation
+                        if let Some(status) = harbor
+                            .current_receive_id
+                            .and_then(|id| operation_status_for_id(harbor, Some(id)))
+                        {
+                            button_and_status = button_and_status.push(status).spacing(16);
                         }
-                        col
+
+                        column![header, method_choice, button_and_status]
                     }
                 }
             }
