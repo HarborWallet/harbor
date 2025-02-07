@@ -1,6 +1,8 @@
 use crate::db_models::schema::profile;
+use bip39::Mnemonic;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(
     QueryableByName, Queryable, AsChangeset, Serialize, Deserialize, Debug, Clone, PartialEq,
@@ -44,6 +46,10 @@ impl Profile {
             .execute(conn)?;
         log::debug!("Successfully updated Tor enabled setting in database");
         Ok(())
+    }
+
+    pub fn mnemonic(&self) -> Mnemonic {
+        Mnemonic::from_str(self.seed_words.as_str()).expect("valid mnemonic")
     }
 
     pub fn tor_enabled(&self) -> bool {
