@@ -716,7 +716,7 @@ impl HarborWallet {
                 }
             },
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
-                Ok(amount) => {
+                Ok(amount_sats) => {
                     let federation_id = match self.active_federation_id {
                         Some(f) => f,
                         None => {
@@ -726,13 +726,12 @@ impl HarborWallet {
                         }
                     };
 
-                    // TODO: don't hardcode this!
-                    let hardcoded_donation_address = "tb1qd28npep0s8frcm3y7dxqajkcy2m40eysplyr9v";
-                    let address = Address::from_str(hardcoded_donation_address).unwrap();
-                    let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
+                    let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
                         federation_id,
-                        address,
-                        amount_sats: Some(amount),
+                        amount_sats,
+                        lnurl: parse_lightning_address("hrf@btcpay.hrf.org")
+                            .expect("this is valid")
+                            .lnurl(),
                     });
                     self.current_send_id = Some(id);
                     task
