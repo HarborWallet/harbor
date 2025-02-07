@@ -8,7 +8,7 @@ use hyper::{Request, Uri};
 use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -19,14 +19,27 @@ use tor_rtcompat::PreferredRuntime;
 use url::Url;
 
 // Global TorClient singleton
-static TOR_CLIENT: Lazy<Arc<TorClient<PreferredRuntime>>> = Lazy::new(|| {
-    // Create an unbootstrapped client - it will bootstrap on first use
+static TOR_CLIENT: OnceCell<Arc<TorClient<PreferredRuntime>>> = OnceCell::new();
+
+/// Initialize the Tor client if not already initialized
+async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
     let client = TorClient::builder()
         .bootstrap_behavior(arti_client::BootstrapBehavior::OnDemand)
-        .create_unbootstrapped()
-        .expect("Failed to create Tor client");
-    Arc::new(client)
-});
+        .create_unbootstrapped()?;
+    Ok(Arc::new(client))
+}
+
+/// Get or initialize the Tor client
+async fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
+    if let Some(client) = TOR_CLIENT.get() {
+        Ok(client.clone())
+    } else {
+        let client = initialize_tor_client().await?;
+        // It's okay if another thread beat us to initialization
+        let _ = TOR_CLIENT.set(client.clone());
+        Ok(client)
+    }
+}
 
 const MAX_REDIRECTS: u8 = 5;
 const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
@@ -43,6 +56,13 @@ where
     T: DeserializeOwned + Send + 'static,
 {
     make_get_request_direct_internal::<T>(url.to_string(), 0).await
+}
+
+/// Helper function to monitor cancellation
+async fn check_cancel(cancel_handle: Arc<AtomicBool>) {
+    while !cancel_handle.load(Ordering::Relaxed) {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 /// Make a GET request through the Tor network.
@@ -70,19 +90,22 @@ where
         return Err(anyhow!("Only HTTPS is supported"));
     }
 
-    // Check if cancelled before starting
-    if cancel_handle.load(Ordering::Relaxed) {
-        return Err(anyhow!("Request cancelled"));
-    }
-
     // Get a reference to the global TorClient
-    let tor_client = TOR_CLIENT.clone();
+    let tor_client = get_tor_client().await?;
 
     log::debug!("Starting bootstrap if needed");
 
     // Set a timeout for the bootstrap process
     let bootstrap_timeout = Duration::from_secs(30);
-    let bootstrap_result = tokio::time::timeout(bootstrap_timeout, tor_client.bootstrap()).await;
+    
+    // Use select! to handle cancellation during bootstrap
+    let bootstrap_result = tokio::select! {
+        biased;  // Check cancellation first
+        _ = check_cancel(cancel_handle.clone()) => {
+            return Err(anyhow!("Request cancelled during bootstrap"));
+        }
+        result = tokio::time::timeout(bootstrap_timeout, tor_client.bootstrap()) => result,
+    };
 
     match bootstrap_result {
         Ok(Ok(_)) => log::debug!("Successfully bootstrapped Tor client"),
@@ -96,11 +119,6 @@ where
     }
 
     let tor_client = tor_client.isolated_client();
-
-    // Check if cancelled after client creation
-    if cancel_handle.load(Ordering::Relaxed) {
-        return Err(anyhow!("Request cancelled"));
-    }
 
     let host = safe_url
         .host_str()
@@ -123,11 +141,6 @@ where
     let tor_addr = TorAddr::from((host.as_str(), port))
         .map_err(|e| anyhow::anyhow!("Invalid endpoint addr: {:?}: {e:#}", (&host, port)))?;
 
-    // Check if cancelled before connection
-    if cancel_handle.load(Ordering::Relaxed) {
-        return Err(anyhow!("Request cancelled"));
-    }
-
     log::debug!("Attempting to connect to {}:{} via Tor", &host, port);
 
     let connect_timeout = Duration::from_secs(30);
@@ -135,12 +148,19 @@ where
         let mut stream_prefs = arti_client::StreamPrefs::default();
         stream_prefs.connect_to_onion_services(arti_client::config::BoolOrAuto::Explicit(true));
 
-        match tokio::time::timeout(
-            connect_timeout,
-            tor_client.connect_with_prefs(tor_addr, &stream_prefs),
-        )
-        .await
-        {
+        // Use select! to handle cancellation during onion connection
+        let stream_result = tokio::select! {
+            biased;
+            _ = check_cancel(cancel_handle.clone()) => {
+                return Err(anyhow!("Request cancelled during onion connection"));
+            }
+            result = tokio::time::timeout(
+                connect_timeout,
+                tor_client.connect_with_prefs(tor_addr, &stream_prefs),
+            ) => result,
+        };
+
+        match stream_result {
             Ok(Ok(stream)) => {
                 log::debug!("Successfully connected to onion address");
                 stream
@@ -154,7 +174,16 @@ where
             }
         }
     } else {
-        match tokio::time::timeout(connect_timeout, tor_client.connect(tor_addr)).await {
+        // Use select! to handle cancellation during regular connection
+        let stream_result = tokio::select! {
+            biased;
+            _ = check_cancel(cancel_handle.clone()) => {
+                return Err(anyhow!("Request cancelled during connection"));
+            }
+            result = tokio::time::timeout(connect_timeout, tor_client.connect(tor_addr)) => result,
+        };
+
+        match stream_result {
             Ok(Ok(stream)) => {
                 log::debug!("Successfully connected to regular address");
                 stream
@@ -184,20 +213,29 @@ where
 
     log::debug!("Starting TLS handshake with {}", host);
     let tls_timeout = Duration::from_secs(30);
-    let tls_stream =
-        match tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)).await {
-            Ok(Ok(s)) => {
-                log::debug!("TLS handshake successful");
-                s
-            }
-            Ok(Err(e)) => return Err(anyhow!("TLS handshake failed: {:?}", e)),
-            Err(_) => {
-                return Err(anyhow!(
-                    "TLS handshake timed out after {} seconds",
-                    tls_timeout.as_secs()
-                ))
-            }
-        };
+    
+    // Use select! to handle cancellation during TLS handshake
+    let tls_result = tokio::select! {
+        biased;
+        _ = check_cancel(cancel_handle.clone()) => {
+            return Err(anyhow!("Request cancelled during TLS handshake"));
+        }
+        result = tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)) => result,
+    };
+
+    let tls_stream = match tls_result {
+        Ok(Ok(s)) => {
+            log::debug!("TLS handshake successful");
+            s
+        }
+        Ok(Err(e)) => return Err(anyhow!("TLS handshake failed: {:?}", e)),
+        Err(_) => {
+            return Err(anyhow!(
+                "TLS handshake timed out after {} seconds",
+                tls_timeout.as_secs()
+            ))
+        }
+    };
 
     make_request_tor(host, path, tls_stream, cancel_handle).await
 }
