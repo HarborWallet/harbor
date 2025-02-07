@@ -176,6 +176,26 @@ pub trait DBConnection {
     fn get_pending_lightning_receives(&self) -> anyhow::Result<Vec<LightningReceive>>;
 
     fn get_pending_lightning_payments(&self) -> anyhow::Result<Vec<LightningPayment>>;
+
+    fn get_onchain_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<OnChainReceive>>;
+
+    fn get_onchain_payment(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<OnChainPayment>>;
+
+    fn get_lightning_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<LightningReceive>>;
+
+    fn get_lightning_payment(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<LightningPayment>>;
 }
 
 pub struct SQLConnection {
@@ -486,6 +506,38 @@ impl DBConnection for SQLConnection {
     fn get_pending_lightning_payments(&self) -> anyhow::Result<Vec<LightningPayment>> {
         let conn = &mut self.db.get()?;
         LightningPayment::get_pending(conn)
+    }
+
+    fn get_onchain_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<OnChainReceive>> {
+        let conn = &mut self.db.get()?;
+        OnChainReceive::get_by_operation_id(conn, operation_id)
+    }
+
+    fn get_onchain_payment(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<OnChainPayment>> {
+        let conn = &mut self.db.get()?;
+        OnChainPayment::get_by_operation_id(conn, operation_id)
+    }
+
+    fn get_lightning_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<LightningReceive>> {
+        let conn = &mut self.db.get()?;
+        LightningReceive::get_by_operation_id(conn, operation_id)
+    }
+
+    fn get_lightning_payment(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<Option<LightningPayment>> {
+        let conn = &mut self.db.get()?;
+        LightningPayment::get_by_operation_id(conn, operation_id)
     }
 }
 
