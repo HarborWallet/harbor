@@ -10,7 +10,11 @@ use super::{
     SvgIcon,
 };
 
-pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Message> {
+pub fn h_screen_header(
+    harbor: &HarborWallet,
+    show_balance: bool,
+    disable_switcher: bool,
+) -> Element<Message> {
     if let Some(item) = harbor.active_federation() {
         let FederationItem { name, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
@@ -24,8 +28,9 @@ pub fn h_screen_header(harbor: &HarborWallet, show_balance: bool) -> Element<Mes
         let is_generating = harbor.receive_status == ReceiveStatus::Generating;
 
         let federation_list =
+            // TODO: find a nicer way to disable pick_list than Noop
             pick_list(federation_names, Some(name.clone()), move |selected_name| {
-                if is_generating {
+                if is_generating || disable_switcher {
                     Message::Noop
                 } else if let Some(federation) = harbor
                     .federation_list
