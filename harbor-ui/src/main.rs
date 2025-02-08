@@ -1249,6 +1249,8 @@ impl HarborWallet {
                 text: Color::WHITE,
                 success: MUTINY_GREEN,
                 danger: MUTINY_RED,
+                // TODO: do we need a warning yellow?
+                warning: Color::from_rgb8(255, 165, 0),
             },
         )
     }

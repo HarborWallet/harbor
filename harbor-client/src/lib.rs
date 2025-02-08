@@ -539,7 +539,8 @@ impl HarborCore {
         amount: Amount,
         is_transfer: bool,
     ) -> anyhow::Result<Bolt11Invoice> {
-        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}");
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}. Tor enabled: {tor_enabled}");
 
         self.status_update(msg_id, "Connecting to mint").await;
 

@@ -136,18 +136,18 @@ where
             .layout(&mut tree.children[0], renderer, limits)
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: iced::mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> iced::event::Status {
-        self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
             layout,
@@ -156,7 +156,7 @@ where
             clipboard,
             shell,
             viewport,
-        )
+        );
     }
 
     fn draw(

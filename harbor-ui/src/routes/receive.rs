@@ -1,11 +1,11 @@
 use crate::components::{
-    basic_layout, h_button, h_caption_text, h_header, h_input, h_screen_header, h_small_button,
-    operation_status_for_id, tag_style, InputArgs, SvgIcon,
+    basic_layout, font_mono, h_button, h_caption_text, h_header, h_input, h_screen_header,
+    h_small_button, operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use iced::widget::container::Style;
 use iced::widget::{column, container, horizontal_space, qr_code, radio, row, text};
-use iced::{Border, Element, Font};
+use iced::{Border, Element};
 use iced::{Color, Length};
 
 /// Main view function.
@@ -154,24 +154,27 @@ fn render_method_choice(harbor: &HarborWallet) -> Element<Message> {
 fn render_generated_view(receive_string: String, harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Receive", "Scan this QR or copy the string.");
 
+    let qr_title = if harbor.receive_method == ReceiveMethod::Lightning {
+        "Lightning Invoice"
+    } else {
+        "On-chain Address"
+    };
+
     let data = harbor
         .receive_qr_data
         .as_ref()
         .expect("QR data should be present");
 
     // TODO: update iced so we can set the size of the qr code
-    let qr = qr_code(data).style(|_theme| iced::widget::qr_code::Style {
-        background: Color::WHITE,
-        cell: Color::BLACK,
-    });
-    let qr_container = container(qr).padding(16).style(|_theme| Style {
-        background: Some(iced::Background::Color(Color::WHITE)),
-        border: Border {
-            radius: (8.).into(),
-            ..Border::default()
-        },
-        ..Style::default()
-    });
+    let qr = qr_code(data)
+        .total_size(iced::Pixels(256.))
+        .style(|_theme| iced::widget::qr_code::Style {
+            background: Color::WHITE,
+            cell: Color::BLACK,
+        });
+    let qr_container = container(qr)
+        .align_x(iced::Alignment::Center)
+        .width(iced::Length::Fill);
 
     let first_20_chars = receive_string.chars().take(20).collect::<String>();
 
@@ -181,12 +184,10 @@ fn render_generated_view(receive_string: String, harbor: &HarborWallet) -> Eleme
 
     let text_and_copy = container(
         row![
-            text(format!("{first_20_chars}...")).size(16).font(Font {
-                family: iced::font::Family::Monospace,
-                weight: iced::font::Weight::Normal,
-                stretch: iced::font::Stretch::Normal,
-                style: iced::font::Style::Normal,
-            }),
+            text(format!("{first_20_chars}..."))
+                .size(16)
+                .font(font_mono())
+                .color(Color::BLACK),
             horizontal_space(),
             copy_button
         ]
@@ -194,17 +195,33 @@ fn render_generated_view(receive_string: String, harbor: &HarborWallet) -> Eleme
         .align_y(iced::Alignment::Center),
     )
     .width(Length::Fill)
-    .padding(8)
-    .style(tag_style);
+    .padding(8);
+
+    let qr_column = container(
+        column![
+            text(qr_title)
+                .size(16)
+                .font(font_mono())
+                .color(Color::BLACK),
+            qr_container,
+            text_and_copy
+        ]
+        .spacing(16),
+    )
+    .padding(16)
+    .style(|_theme| Style {
+        background: Some(iced::Background::Color(Color::WHITE)),
+        border: Border {
+            radius: (8.).into(),
+            ..Border::default()
+        },
+        ..Style::default()
+    });
 
     let reset_button =
         h_button("Start over", SvgIcon::Restart, false).on_press(Message::ReceiveStateReset);
 
-    let content = column![
-        header,
-        column![qr_container, text_and_copy,].spacing(16),
-        reset_button
-    ];
+    let content = column![header, column![qr_column, reset_button].spacing(16)];
 
     column![
         // Disable the network switcher once we have an invoice or address
