@@ -9,6 +9,7 @@ vendored = ["harbor-client/vendored"]
 
 [dependencies]
 harbor-client = { version = "0.1.0", path = "../harbor-client" }
+fd-lock = "4.0.2"
 
 log = "0.4"
 simplelog = "0.12"
