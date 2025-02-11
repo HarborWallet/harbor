@@ -1,7 +1,7 @@
 use iced::{
     widget::{
         button::{self, Status},
-        center, horizontal_space, rich_text, row, span, text, Button, Row,
+        center, horizontal_space, rich_text, row, span, text, Button,
     },
     Border, Color, Element, Length, Shadow, Theme,
 };
@@ -163,11 +163,13 @@ pub fn sidebar_button(
         .width(Length::Fixed(192.))
 }
 
-pub fn text_link<'a>(text_str: String, url: String) -> Row<'a, Message, Theme> {
+pub fn text_link(text_str: String, url: String) -> Element<'static, Message> {
     let svg = map_icon(SvgIcon::ExternalLink, 16., 16.);
-    let text = rich_text([span(text_str)
-        .link(Message::UrlClicked(url.clone()))
-        .underline(true)
-        .color(link())]);
-    row![svg, text].align_y(iced::Alignment::Center).spacing(8)
+    let text = rich_text([span(text_str).link(url).underline(true).color(link())])
+        .on_link_click(|url: String| Message::UrlClicked(url.to_string()));
+
+    row![svg, text]
+        .align_y(iced::Alignment::Center)
+        .spacing(8)
+        .into()
 }

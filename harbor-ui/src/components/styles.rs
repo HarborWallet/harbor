@@ -64,12 +64,12 @@ pub fn red() -> Color {
 pub fn menu_style(theme: &Theme) -> menu::Style {
     let border = Border {
         color: Color::WHITE,
-        width: 1.,
+        width: 0.,
         radius: (8.).into(),
     };
 
-    let background = theme.palette().background;
-    let selected_background = lighten(theme.palette().background, 0.05);
+    let background = lighten(theme.palette().background, 0.05);
+    let selected_background = lighten(theme.palette().background, 0.1);
 
     menu::Style {
         background: background.into(),
@@ -77,26 +77,6 @@ pub fn menu_style(theme: &Theme) -> menu::Style {
         selected_background: selected_background.into(),
         selected_text_color: Color::WHITE,
         text_color: Color::WHITE,
-    }
-}
-
-pub fn borderless_pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
-    let background = match status {
-        pick_list::Status::Hovered => lighten(theme.palette().background, 0.05),
-        pick_list::Status::Opened => darken(Color::BLACK, 0.1),
-        _ => theme.palette().background,
-    };
-
-    pick_list::Style {
-        border: Border {
-            color: Color::WHITE,
-            width: 0.,
-            radius: (8.).into(),
-        },
-        background: background.into(),
-        text_color: Color::WHITE,
-        placeholder_color: Color::WHITE,
-        handle_color: Color::WHITE,
     }
 }
 
@@ -109,7 +89,7 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
 
     let background = match status {
         pick_list::Status::Hovered => lighten(theme.palette().background, 0.05),
-        pick_list::Status::Opened => darken(Color::BLACK, 0.1),
+        pick_list::Status::Opened { .. } => darken(Color::BLACK, 0.1),
         _ => theme.palette().background,
     };
 
@@ -120,6 +100,16 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
         placeholder_color: Color::WHITE,
         handle_color: Color::WHITE,
     }
+}
+
+pub fn borderless_pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
+    let mut style = pick_list_style(theme, status);
+    style.border = Border {
+        color: Color::WHITE,
+        width: 0.,
+        radius: (8.).into(),
+    };
+    style
 }
 
 pub fn light_container_style(theme: &Theme) -> ContainerStyle {
@@ -188,5 +178,14 @@ pub fn checkbox_style(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
             width: 2.0,
             radius: (8.0).into(),
         },
+    }
+}
+
+pub fn font_mono() -> Font {
+    Font {
+        family: font::Family::Monospace,
+        weight: font::Weight::Normal,
+        stretch: font::Stretch::Normal,
+        style: font::Style::Normal,
     }
 }

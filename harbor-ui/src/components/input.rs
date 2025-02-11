@@ -67,7 +67,7 @@ pub fn h_input(args: InputArgs<'_>) -> Element<Message, Theme> {
             let gray = lighten(theme.palette().background, 0.5);
             let border_color = match status {
                 text_input::Status::Active => Color::WHITE,
-                text_input::Status::Focused => theme.palette().primary,
+                text_input::Status::Focused { .. } => theme.palette().primary,
                 text_input::Status::Hovered => darken(Color::WHITE, 0.2),
                 text_input::Status::Disabled => gray,
             };

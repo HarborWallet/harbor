@@ -58,5 +58,5 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
     ]
     .spacing(48);
 
-    column![h_screen_header(harbor, true), basic_layout(content),].into()
+    column![h_screen_header(harbor, true, false), basic_layout(content)].into()
 }

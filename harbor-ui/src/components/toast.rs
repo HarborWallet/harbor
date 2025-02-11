@@ -8,7 +8,7 @@ use iced::advanced::overlay;
 use iced::advanced::renderer;
 use iced::advanced::widget::{self, Operation, Tree};
 use iced::advanced::{Clipboard, Shell, Widget};
-use iced::event::{self, Event};
+use iced::event::Event;
 use iced::widget::button::Status;
 use iced::widget::{button, column, container, horizontal_space, row, text};
 use iced::Border;
@@ -207,18 +207,18 @@ impl Widget<Message, Theme, Renderer> for ToastManager<'_> {
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         state: &mut Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
-    ) -> event::Status {
-        self.content.as_widget_mut().on_event(
+    ) {
+        self.content.as_widget_mut().update(
             &mut state.children[0],
             event,
             layout,
@@ -227,7 +227,7 @@ impl Widget<Message, Theme, Renderer> for ToastManager<'_> {
             clipboard,
             shell,
             viewport,
-        )
+        );
     }
 
     fn draw(
@@ -330,15 +330,15 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'_, '_, Mes
         .translate(Vector::new(self.position.x, self.position.y))
     }
 
-    fn on_event(
+    fn update(
         &mut self,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
-    ) -> event::Status {
+    ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = &event {
             let mut next_redraw: Option<window::RedrawRequest> = None;
 
@@ -363,8 +363,8 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'_, '_, Mes
                     }
                 });
 
-            if let Some(redraw) = next_redraw {
-                shell.request_redraw(redraw);
+            if next_redraw.is_some() {
+                shell.request_redraw();
             }
         }
 
@@ -375,30 +375,16 @@ impl<Message> overlay::Overlay<Message, Theme, Renderer> for Overlay<'_, '_, Mes
             .zip(self.state.iter_mut())
             .zip(layout.children())
             .zip(self.instants.iter_mut())
-            .map(|(((child, state), layout), instant)| {
-                let mut local_messages = vec![];
-                let mut local_shell = Shell::new(&mut local_messages);
-
-                let status = child.as_widget_mut().on_event(
-                    state,
-                    event.clone(),
-                    layout,
-                    cursor,
-                    renderer,
-                    clipboard,
-                    &mut local_shell,
-                    &viewport,
+            .for_each(|(((child, state), layout), instant)| {
+                child.as_widget_mut().update(
+                    state, event, layout, cursor, renderer, clipboard, shell, &viewport,
                 );
 
-                if !local_shell.is_empty() {
+                // If the shell has any messages after update, we should remove the toast
+                if !shell.is_empty() {
                     instant.take();
                 }
-
-                shell.merge(local_shell, std::convert::identity);
-
-                status
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+            });
     }
 
     fn draw(

@@ -32,7 +32,7 @@ pub fn home(harbor: &HarborWallet) -> Element<Message> {
     .spacing(32);
 
     column![
-        h_screen_header(harbor, false),
+        h_screen_header(harbor, false, false),
         container(center(
             column![balance, buttons]
                 .spacing(32)

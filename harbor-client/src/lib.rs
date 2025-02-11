@@ -539,17 +539,26 @@ impl HarborCore {
         amount: Amount,
         is_transfer: bool,
     ) -> anyhow::Result<Bolt11Invoice> {
-        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}");
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}. Tor enabled: {tor_enabled}");
+
+        self.status_update(msg_id, "Connecting to mint").await;
+
         let client = self.get_client(federation_id).await.fedimint_client;
         let lightning_module = client
             .get_first_module::<LightningClientModule>()
             .expect("must have ln module");
         log::info!("Lightning module: {:?}", lightning_module.id);
 
+        self.status_update(msg_id, "Selecting gateway").await;
+
         let gateway = select_gateway(&client)
             .await
             .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
         log::info!("Gateway: {gateway:?}");
+
+        self.status_update(msg_id, "Generating invoice").await;
+
         let desc = Description::new(String::new()).expect("empty string is valid");
         let (op_id, invoice, preimage) = lightning_module
             .create_bolt11_invoice(
@@ -709,10 +718,14 @@ impl HarborCore {
 
         log::info!("Generating address for federation: {federation_id}");
 
+        self.status_update(msg_id, "Connecting to mint").await;
+
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
             .get_first_module::<WalletClientModule>()
             .expect("must have wallet module");
+
+        self.status_update(msg_id, "Generating address").await;
 
         let (op_id, address, _) = onchain.allocate_deposit_address_expert_only(()).await?;
 
