@@ -33,11 +33,18 @@ use uuid::Uuid;
 pub mod bridge;
 pub mod components;
 mod config;
+pub mod lock;
 pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
+    // Acquire the app lock - this prevents multiple instances from running
+    if let Err(e) = lock::AppLock::acquire() {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
+
     #[cfg(target_os = "macos")]
     let window_settings = window::Settings {
         platform_specific: window::settings::PlatformSpecific {
@@ -374,19 +381,9 @@ impl HarborWallet {
 
                 write_config(&new_config).expect("Failed to write config");
 
-                // Relaunch the app
-                use std::env;
-                use std::process::Command;
-
-                let args: Vec<String> = env::args().collect();
-                let executable = &args[0];
-
-                Command::new(executable)
-                    .args(&args[1..])
-                    .spawn()
-                    .expect("Failed to relaunch");
-
-                std::process::exit(0);
+                // Relaunch the app with the new network
+                lock::restart_app();
+                Task::none()
             }
             Message::Batch(messages) => {
                 Task::batch(messages.into_iter().map(|msg| self.update(msg)))
@@ -1177,18 +1174,8 @@ impl HarborWallet {
 
                     // After getting confirmation of the Tor setting change, restart the app
                     Task::perform(async {}, move |_| {
-                        use std::env;
-                        use std::process::Command;
-
-                        let args: Vec<String> = env::args().collect();
-                        let executable = &args[0];
-
-                        Command::new(executable)
-                            .args(&args[1..])
-                            .spawn()
-                            .expect("Failed to relaunch");
-
-                        std::process::exit(0);
+                        lock::restart_app();
+                        Message::Noop
                     })
                 }
                 CoreUIMsg::InitialProfile {
