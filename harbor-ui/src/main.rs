@@ -4,7 +4,6 @@ use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{write_config, Config};
 use bitcoin::{Address, Network};
 use components::{MUTINY_GREEN, MUTINY_RED};
-use fd_lock::RwLock;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
@@ -26,7 +25,6 @@ use iced::{window, Element};
 use log::{debug, error, info, trace};
 use routes::Route;
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -35,39 +33,17 @@ use uuid::Uuid;
 pub mod bridge;
 pub mod components;
 mod config;
+pub mod lock;
 pub mod routes;
 
 // This starts the program. Importantly, it registers the update and view methods, along with a subscription.
 // We can also run logic during load if we need to.
 pub fn main() -> iced::Result {
-    // Create a lock file in the data directory to prevent multiple instances
-    let lock_file_path = data_dir(None).join("harbor.lock");
-    let file = match File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&lock_file_path)
-    {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Failed to create or open lock file: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    // Try to acquire a write lock
-    let mut lock = RwLock::new(file);
-    let guard = match lock.try_write() {
-        Ok(guard) => guard,
-        Err(_) => {
-            eprintln!("Another instance of Harbor is already running");
-            std::process::exit(1);
-        }
-    };
-
-    // Keep the lock guard alive for the duration of the program
-    std::mem::forget(guard);
+    // Acquire the app lock - this prevents multiple instances from running
+    if let Err(e) = lock::AppLock::acquire() {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
 
     #[cfg(target_os = "macos")]
     let window_settings = window::Settings {
@@ -404,19 +380,9 @@ impl HarborWallet {
 
                 write_config(&new_config).expect("Failed to write config");
 
-                // Relaunch the app
-                use std::env;
-                use std::process::Command;
-
-                let args: Vec<String> = env::args().collect();
-                let executable = &args[0];
-
-                Command::new(executable)
-                    .args(&args[1..])
-                    .spawn()
-                    .expect("Failed to relaunch");
-
-                std::process::exit(0);
+                // Relaunch the app with the new network
+                lock::restart_app();
+                Task::none()
             }
             Message::Batch(messages) => {
                 Task::batch(messages.into_iter().map(|msg| self.update(msg)))
@@ -1200,18 +1166,8 @@ impl HarborWallet {
 
                     // After getting confirmation of the Tor setting change, restart the app
                     Task::perform(async {}, move |_| {
-                        use std::env;
-                        use std::process::Command;
-
-                        let args: Vec<String> = env::args().collect();
-                        let executable = &args[0];
-
-                        Command::new(executable)
-                            .args(&args[1..])
-                            .spawn()
-                            .expect("Failed to relaunch");
-
-                        std::process::exit(0);
+                        lock::restart_app();
+                        Message::Noop
                     })
                 }
                 CoreUIMsg::InitialProfile {
