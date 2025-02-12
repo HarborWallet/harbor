@@ -1,9 +1,9 @@
-use iced::widget::{column, row, text};
+use iced::widget::{column, row};
 use iced::Element;
 
 use crate::components::{
-    basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
-    operation_status_for_id, subtitle, InputArgs, SvgIcon,
+    basic_layout, h_button, h_federation_archived, h_federation_item, h_federation_item_preview,
+    h_header, h_input, operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
@@ -27,7 +27,7 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
         .iter()
         .filter(|a| !a.active)
         .fold(column![], |column, item| {
-            column.push(h_federation_item(item))
+            column.push(h_federation_archived(item))
         })
         .spacing(48);
 
@@ -36,8 +36,15 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
 
     // if we have inactive mints, display them
     let column = if harbor.federation_list.iter().filter(|a| !a.active).count() > 0 {
-        let sub = text("Archived Mints").size(18).style(subtitle);
-        column![header, active, add_another_mint_button, sub, inactive].spacing(48)
+        let archived_header = h_header("Archived Mints", "Mints you've joined and left.");
+        column![
+            header,
+            active,
+            add_another_mint_button,
+            archived_header,
+            inactive
+        ]
+        .spacing(48)
     } else {
         column![header, active, add_another_mint_button].spacing(48)
     };

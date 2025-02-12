@@ -174,6 +174,7 @@ pub enum Message {
     Unlock(String),
     Init(String), // TODO add seed option
     AddFederation(String),
+    RejoinFederation(FederationId),
     PeekFederation(String),
     RemoveFederation(FederationId),
     ChangeFederation(FederationId),
@@ -496,6 +497,11 @@ impl HarborWallet {
             }
             Message::CloseToast(index) => {
                 self.remove_toast(index);
+                Task::none()
+            }
+            Message::RejoinFederation(id) => {
+                // TODO: Implement this
+                log::info!("Rejoining federation: {:?}", id);
                 Task::none()
             }
             Message::CancelAddFederation => {
