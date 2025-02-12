@@ -1102,7 +1102,8 @@ impl HarborWallet {
                         })
                     })
                 }
-                CoreUIMsg::FederationListUpdated(list) => {
+                CoreUIMsg::FederationListUpdated(mut list) => {
+                    list.sort();
                     trace!("Updated federation list: {:#?}", list);
 
                     // if we don't have an active federation, set it to the first one
@@ -1114,7 +1115,6 @@ impl HarborWallet {
                     self.show_add_a_mint_cta = list.is_empty() && !self.has_navigated_to_mints;
 
                     self.federation_list = list;
-                    self.federation_list.sort();
                     Task::none()
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {
