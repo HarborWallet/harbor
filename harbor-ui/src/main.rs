@@ -1101,14 +1101,14 @@ impl HarborWallet {
 
                     // if we don't have an active federation, set it to the first one
                     if self.active_federation_id.is_none() {
-                        self.active_federation_id =
-                            list.iter().filter(|f| f.active).next().map(|f| f.id);
+                        self.active_federation_id = list.iter().find(|f| f.active).map(|f| f.id);
                     }
 
                     // Show the CTA if we have no federations and we haven't navigated to the mints page yet
                     self.show_add_a_mint_cta = list.is_empty() && !self.has_navigated_to_mints;
 
                     self.federation_list = list;
+                    self.federation_list.sort();
                     Task::none()
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {

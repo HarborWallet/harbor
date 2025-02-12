@@ -52,12 +52,16 @@ impl FederationItem {
 
 impl PartialOrd for FederationItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(
-            other
-                .balance
-                .cmp(&self.balance)
-                .then_with(|| self.id.cmp(&other.id)),
-        )
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FederationItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .balance
+            .cmp(&self.balance)
+            .then_with(|| self.id.cmp(&other.id))
     }
 }
 
