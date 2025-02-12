@@ -3,7 +3,7 @@ use iced::{Alignment, Element, Length, Padding};
 
 use crate::components::{
     h_balance_display, h_button, h_header, h_input, menu_style, operation_status_for_id,
-    pick_list_style, InputArgs, SvgIcon,
+    pick_list_style, ConfirmModalState, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
@@ -86,7 +86,20 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     )
     .on_press(Message::Transfer);
 
-    let mut button_and_status = column![transfer_button];
+    let mut button_and_status = if harbor.transfer_status == SendStatus::Sending {
+        // When transferring, include a "Start Over" next to the transfer button
+        let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
+            .on_press(Message::SetConfirmModal(Some(ConfirmModalState {
+                title: "Are you sure?".to_string(),
+                description: "We'll attempt to cancel this transfer, but since it's begun it's possible for it to still go through.".to_string(),
+                confirm_action: Box::new(Message::TransferStateReset),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                confirm_button_text: "Start Over".to_string(),
+            })));
+        column![row![start_over_button, transfer_button].spacing(8)]
+    } else {
+        column![transfer_button]
+    };
 
     // Add status display with 16px spacing
     if let Some(status) = harbor

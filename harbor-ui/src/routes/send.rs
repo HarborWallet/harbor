@@ -1,9 +1,9 @@
-use iced::widget::column;
+use iced::widget::{column, row};
 use iced::Element;
 
 use crate::components::{
     basic_layout, h_button, h_checkbox, h_header, h_input, h_screen_header,
-    operation_status_for_id, InputArgs, SvgIcon,
+    operation_status_for_id, ConfirmModalState, InputArgs, SvgIcon,
 };
 use crate::{HarborWallet, Message, SendStatus};
 
@@ -39,7 +39,20 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
 
     let checkbox = h_checkbox("Send Max", None, harbor.is_max, Message::SetIsMax);
 
-    let mut button_and_status = column![send_button];
+    let mut button_and_status = if harbor.send_status == SendStatus::Sending {
+        // When sending, include a "Start Over" next to the send button
+        let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
+            .on_press(Message::SetConfirmModal(Some(ConfirmModalState {
+                title: "Are you sure?".to_string(),
+                description: "We'll attempt to cancel this payment, but since it's begun it's possible for it to still go through.".to_string(),
+                confirm_action: Box::new(Message::SendStateReset),
+                cancel_action: Box::new(Message::SetConfirmModal(None)),
+                confirm_button_text: "Start Over".to_string(),
+            })));
+        column![row![start_over_button, send_button].spacing(8)]
+    } else {
+        column![send_button]
+    };
 
     // Add status display with 16px spacing
     if let Some(status) = harbor
