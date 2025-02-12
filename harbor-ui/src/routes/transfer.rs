@@ -13,6 +13,7 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     let federation_names: Vec<&str> = harbor
         .federation_list
         .iter()
+        .filter(|f| f.active)
         .map(|f| f.name.as_str())
         .collect();
 

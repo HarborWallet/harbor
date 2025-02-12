@@ -102,6 +102,8 @@ pub trait DBConnection {
     // gets the federation data for a specific federation
     fn list_federations(&self) -> anyhow::Result<Vec<String>>;
 
+    fn get_archived_mints(&self) -> anyhow::Result<Vec<MintMetadata>>;
+
     // updates the federation data
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()>;
 
@@ -565,6 +567,20 @@ impl DBConnection for SQLConnection {
         let conn = &mut self.db.get()?;
         db.upsert(conn)?;
         Ok(())
+    }
+
+    fn get_archived_mints(&self) -> anyhow::Result<Vec<MintMetadata>> {
+        let conn = &mut self.db.get()?;
+        let ids = Fedimint::get_archived_ids(conn)?;
+        let mut result = Vec::with_capacity(ids.len());
+        println!("archived mints: {:?}", ids);
+        for id in ids {
+            let m = MintMetadata::get(conn, id.to_string())?;
+            if let Some(m) = m {
+                result.push(m);
+            }
+        }
+        Ok(result)
     }
 }
 

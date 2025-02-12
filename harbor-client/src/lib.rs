@@ -7,6 +7,7 @@ use crate::fedimint_client::{
     spawn_onchain_receive_subscription, FederationInviteOrId, FedimintClient,
 };
 use crate::metadata::{get_federation_metadata, FederationData, FederationMeta, CACHE};
+use ::fedimint_client::ClientHandleArc;
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
@@ -825,7 +826,22 @@ impl HarborCore {
 
         self.status_update(msg_id, "Registering with mint").await;
 
-        clients.insert(id, client);
+        clients.insert(id, client.clone());
+
+        let tx = self.tx.clone();
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
+        let storage = self.storage.clone();
+        tokio::task::spawn(async move {
+            Self::update_mint_metdata(
+                vec![client.fedimint_client],
+                metadata_fetch_cancel,
+                tor_enabled,
+                storage,
+                tx,
+            )
+            .await;
+        });
 
         self.status_update(msg_id, "Mint setup complete!").await;
 
@@ -866,7 +882,7 @@ impl HarborCore {
         let clients = self.clients.read().await;
 
         let metadata_cache = CACHE.read().await;
-        
+
         let mut needs_metadata = vec![];
 
         // Tell the UI about any clients we have
@@ -911,6 +927,7 @@ impl HarborCore {
                 guardians: Some(guardians),
                 module_kinds: Some(module_kinds),
                 metadata: metadata.unwrap_or_default(),
+                active: true,
             });
         }
 
@@ -918,43 +935,78 @@ impl HarborCore {
 
         // if we're missing metadata for federations, start background task to populate it
         if !needs_metadata.is_empty() {
-            let mut tx = self.tx.clone();
+            let tx = self.tx.clone();
             let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
             let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
             let storage = self.storage.clone();
             tokio::task::spawn(async move {
-                let mut w = CACHE.write().await;
-                for client in needs_metadata {
-                    // Check if we should cancel
-                    if metadata_fetch_cancel.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    let id = client.federation_id();
-                    let metadata = get_federation_metadata(
-                        FederationData::Client(&client),
-                        tor_enabled,
-                        metadata_fetch_cancel.clone(),
-                    )
-                    .await;
-                    w.insert(id, metadata.clone());
-                    storage.upsert_federation_metadata(id, metadata).ok();
-                }
-                drop(w);
-
-                // Only update the UI if we weren't cancelled
-                if !metadata_fetch_cancel.load(Ordering::Relaxed) {
-                    // update list in front end
-                    tx.send(CoreUIMsgPacket {
-                        id: None,
-                        msg: CoreUIMsg::FederationListNeedsUpdate,
-                    })
-                    .await
-                    .expect("federation list needs update");
-                }
+                Self::update_mint_metdata(
+                    needs_metadata,
+                    metadata_fetch_cancel,
+                    tor_enabled,
+                    storage,
+                    tx,
+                )
+                .await;
             });
         }
 
+        // get archived mints
+        let archived = self.storage.get_archived_mints().expect("archived mints");
+        log::info!("Archived mints: {archived:?}");
+        for m in archived {
+            log::info!("Archived mint found: {m:?}");
+            let item = FederationItem {
+                id: FederationId::from_str(&m.id).unwrap(),
+                name: m.name.clone().unwrap_or("Unknown".to_string()),
+                balance: 0,
+                guardians: None,
+                module_kinds: None,
+                metadata: m.into(),
+                active: false,
+            };
+            res.push(item);
+        }
+
         res
+    }
+
+    async fn update_mint_metdata(
+        needs_metadata: Vec<ClientHandleArc>,
+        metadata_fetch_cancel: Arc<AtomicBool>,
+        tor_enabled: bool,
+        storage: Arc<dyn DBConnection + Send + Sync>,
+        mut tx: Sender<CoreUIMsgPacket>,
+    ) {
+        let mut w = CACHE.write().await;
+        for client in needs_metadata {
+            // Check if we should cancel
+            if metadata_fetch_cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            let id = client.federation_id();
+            let metadata = get_federation_metadata(
+                FederationData::Client(&client),
+                tor_enabled,
+                metadata_fetch_cancel.clone(),
+            )
+            .await;
+            w.insert(id, metadata.clone());
+            storage.upsert_federation_metadata(id, metadata).ok();
+            log::info!("Saved federation metadata: {id}");
+        }
+        drop(w);
+
+        // Only update the UI if we weren't cancelled
+        if !metadata_fetch_cancel.load(Ordering::Relaxed) {
+            // update list in front end
+            tx.send(CoreUIMsgPacket {
+                id: None,
+                msg: CoreUIMsg::FederationListNeedsUpdate,
+            })
+            .await
+            .expect("federation list needs update");
+        }
     }
 
     pub async fn get_seed_words(&self) -> String {

@@ -1,9 +1,9 @@
-use iced::widget::{column, row};
+use iced::widget::{column, row, text};
 use iced::Element;
 
 use crate::components::{
     basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
-    operation_status_for_id, InputArgs, SvgIcon,
+    operation_status_for_id, subtitle, InputArgs, SvgIcon,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
@@ -13,9 +13,19 @@ use super::{MintSubroute, Route};
 fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Mints", "Manage your mints here.");
 
-    let list = harbor
+    let active = harbor
         .federation_list
         .iter()
+        .filter(|a| a.active)
+        .fold(column![], |column, item| {
+            column.push(h_federation_item(item))
+        })
+        .spacing(48);
+
+    let inactive = harbor
+        .federation_list
+        .iter()
+        .filter(|a| !a.active)
         .fold(column![], |column, item| {
             column.push(h_federation_item(item))
         })
@@ -24,7 +34,13 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let add_another_mint_button = h_button("Add Another Mint", SvgIcon::Plus, false)
         .on_press(Message::Navigate(Route::Mints(MintSubroute::Add)));
 
-    let column = column![header, list, add_another_mint_button].spacing(48);
+    // if we have inactive mints, display them
+    let column = if harbor.federation_list.iter().filter(|a| !a.active).count() > 0 {
+        let sub = text("Archived Mints").size(18).style(subtitle);
+        column![header, active, add_another_mint_button, sub, inactive].spacing(48)
+    } else {
+        column![header, active, add_another_mint_button].spacing(48)
+    };
 
     basic_layout(column)
 }
@@ -90,7 +106,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 }
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
-    if harbor.federation_list.is_empty() {
+    if harbor.federation_list.iter().filter(|f| f.active).count() == 0 {
         mints_add(harbor)
     } else {
         match harbor.active_route {

@@ -278,7 +278,7 @@ impl HarborWallet {
             .expect("Federation not found");
         self.federation_list
             .iter()
-            .find(|f| f.id != fed.id)
+            .find(|f| f.id != fed.id && fed.active)
             .expect("No next federation found")
             .clone()
     }
@@ -423,6 +423,7 @@ impl HarborWallet {
                                 let fed_names: Vec<String> = self
                                     .federation_list
                                     .iter()
+                                    .filter(|f| f.active)
                                     .map(|f| f.name.clone())
                                     .collect();
                                 if fed_names.len() >= 2 {
@@ -1062,6 +1063,7 @@ impl HarborWallet {
                         guardians: Some(guardians),
                         module_kinds: Some(module_kinds),
                         metadata,
+                        active: true,
                     };
 
                     self.peek_federation_item = Some(item);
@@ -1099,7 +1101,8 @@ impl HarborWallet {
 
                     // if we don't have an active federation, set it to the first one
                     if self.active_federation_id.is_none() {
-                        self.active_federation_id = list.first().map(|f| f.id);
+                        self.active_federation_id =
+                            list.iter().filter(|f| f.active).next().map(|f| f.id);
                     }
 
                     // Show the CTA if we have no federations and we haven't navigated to the mints page yet
