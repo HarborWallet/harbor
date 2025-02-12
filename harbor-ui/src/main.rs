@@ -142,6 +142,7 @@ pub enum Message {
     SendAmountInputChanged(String),
     SetIsMax(bool),
     SendStateReset,
+    TransferStateReset,
     PasswordInputChanged(String),
     SeedInputChanged(String),
     MintInviteCodeInputChanged(String),
@@ -327,6 +328,8 @@ impl HarborWallet {
         self.send_dest_input_str = String::new();
         self.send_amount_input_str = String::new();
         self.is_max = false;
+        self.confirm_modal = None;
+        self.current_send_id = None;
         // We dont' clear the success msg so the history screen can show the most recent
         // transaction
     }
@@ -336,6 +339,8 @@ impl HarborWallet {
         self.transfer_to_federation_selection = None;
         self.transfer_from_federation_selection = None;
         self.transfer_status = SendStatus::Idle;
+        self.confirm_modal = None;
+        self.current_transfer_id = None;
     }
 
     fn send_from_ui(&self, msg: UICoreMsg) -> (Uuid, Task<Message>) {
@@ -481,6 +486,10 @@ impl HarborWallet {
                 self.clear_send_state();
                 Task::none()
             }
+            Message::TransferStateReset => {
+                self.clear_transfer_state();
+                Task::none()
+            }
             Message::ReceiveStateReset => {
                 self.clear_receive_state();
                 Task::none()
@@ -546,9 +555,14 @@ impl HarborWallet {
                     let federation_id = match self.active_federation_id {
                         Some(f) => f,
                         None => {
-                            // todo show error
                             error!("No active federation");
-                            return Task::none();
+                            return Task::perform(async {}, |_| {
+                                Message::AddToast(Toast {
+                                    title: "Cannot send".to_string(),
+                                    body: Some("No active mint selected".to_string()),
+                                    status: ToastStatus::Bad,
+                                })
+                            });
                         }
                     };
 
@@ -643,14 +657,26 @@ impl HarborWallet {
 
                 if from == to {
                     error!("Cannot transfer to same federation");
-                    return Task::none();
+                    return Task::perform(async {}, |_| {
+                        Message::AddToast(Toast {
+                            title: "Cannot transfer".to_string(),
+                            body: Some("Cannot transfer to the same mint".to_string()),
+                            status: ToastStatus::Bad,
+                        })
+                    });
                 }
 
                 let amount = match self.transfer_amount_input_str.parse::<u64>() {
                     Ok(a) => a,
                     Err(_) => {
                         error!("Invalid amount");
-                        return Task::none();
+                        return Task::perform(async {}, |_| {
+                            Message::AddToast(Toast {
+                                title: "Invalid amount".to_string(),
+                                body: Some("Please enter a valid number of sats".to_string()),
+                                status: ToastStatus::Bad,
+                            })
+                        });
                     }
                 };
 
@@ -972,7 +998,13 @@ impl HarborWallet {
                         self.transfer_status = SendStatus::Idle;
                     }
                     error!("Transfer failed: {reason}");
-                    Task::none()
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Failed to transfer".to_string(),
+                            body: Some(reason.clone()),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
                 CoreUIMsg::TransactionHistoryUpdated(history) => {
                     self.transaction_history = history;
