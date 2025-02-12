@@ -84,8 +84,6 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
 pub fn h_federation_archived(item: &FederationItem) -> Element<Message> {
     let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
 
-    column = column.push(h_balance_display(item.balance));
-
     let readd_button =
         h_small_button("", SvgIcon::Restart, false).on_press(Message::RejoinFederation(item.id));
 
