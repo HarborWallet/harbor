@@ -48,9 +48,9 @@ pub(crate) struct FederationMetaConfig {
 pub struct FederationMeta {
     // https://github.com/fedimint/fedimint/tree/master/docs/meta_fields
     pub federation_name: Option<String>,
-    federation_expiry_timestamp: Option<String>,
+    pub federation_expiry_timestamp: Option<String>,
     pub welcome_message: Option<String>,
-    vetted_gateways: Option<String>,
+    pub vetted_gateways: Option<String>,
     // undocumented parameters that fedi uses: https://meta.dev.fedibtc.com/meta.json
     pub federation_icon_url: Option<String>,
     pub meta_external_url: Option<String>,
@@ -62,6 +62,12 @@ pub struct FederationMeta {
 impl FederationMeta {
     pub fn federation_expiry_timestamp(&self) -> Option<u64> {
         self.federation_expiry_timestamp
+            .as_ref()
+            .and_then(|s| s.parse().ok())
+    }
+
+    pub fn popup_end_timestamp(&self) -> Option<u64> {
+        self.popup_end_timestamp
             .as_ref()
             .and_then(|s| s.parse().ok())
     }

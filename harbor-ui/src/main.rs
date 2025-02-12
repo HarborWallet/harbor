@@ -174,6 +174,7 @@ pub enum Message {
     Unlock(String),
     Init(String), // TODO add seed option
     AddFederation(String),
+    RejoinFederation(FederationId),
     PeekFederation(String),
     RemoveFederation(FederationId),
     ChangeFederation(FederationId),
@@ -244,6 +245,7 @@ pub struct HarborWallet {
     add_federation_status: AddFederationStatus,
     current_peek_id: Option<Uuid>,
     current_add_id: Option<Uuid>,
+    current_rejoin_id: Option<FederationId>,
     // Transfer
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
@@ -278,7 +280,7 @@ impl HarborWallet {
             .expect("Federation not found");
         self.federation_list
             .iter()
-            .find(|f| f.id != fed.id)
+            .find(|f| f.id != fed.id && fed.active)
             .expect("No next federation found")
             .clone()
     }
@@ -307,6 +309,7 @@ impl HarborWallet {
         self.add_federation_status = AddFederationStatus::Idle;
         self.current_peek_id = None;
         self.current_add_id = None;
+        self.current_rejoin_id = None;
     }
 
     fn clear_receive_state(&mut self) {
@@ -423,6 +426,7 @@ impl HarborWallet {
                                 let fed_names: Vec<String> = self
                                     .federation_list
                                     .iter()
+                                    .filter(|f| f.active)
                                     .map(|f| f.name.clone())
                                     .collect();
                                 if fed_names.len() >= 2 {
@@ -496,6 +500,14 @@ impl HarborWallet {
             Message::CloseToast(index) => {
                 self.remove_toast(index);
                 Task::none()
+            }
+            Message::RejoinFederation(id) => {
+                info!("Rejoining federation: {id}");
+                self.add_federation_status = AddFederationStatus::Adding;
+                let (_, task) = self.send_from_ui(UICoreMsg::RejoinFederation(id));
+                // We need to know which federation we're rejoining so we use the federation id
+                self.current_rejoin_id = Some(id);
+                task
             }
             Message::CancelAddFederation => {
                 self.clear_add_federation_state();
@@ -1062,6 +1074,7 @@ impl HarborWallet {
                         guardians: Some(guardians),
                         module_kinds: Some(module_kinds),
                         metadata,
+                        active: true,
                     };
 
                     self.peek_federation_item = Some(item);
@@ -1094,12 +1107,13 @@ impl HarborWallet {
                         })
                     })
                 }
-                CoreUIMsg::FederationListUpdated(list) => {
+                CoreUIMsg::FederationListUpdated(mut list) => {
+                    list.sort();
                     trace!("Updated federation list: {:#?}", list);
 
                     // if we don't have an active federation, set it to the first one
                     if self.active_federation_id.is_none() {
-                        self.active_federation_id = list.first().map(|f| f.id);
+                        self.active_federation_id = list.iter().find(|f| f.active).map(|f| f.id);
                     }
 
                     // Show the CTA if we have no federations and we haven't navigated to the mints page yet

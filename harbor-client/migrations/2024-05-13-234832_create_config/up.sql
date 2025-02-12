@@ -8,9 +8,23 @@ CREATE TABLE profile
 
 CREATE TABLE fedimint
 (
-    id     TEXT PRIMARY KEY NOT NULL,
-    value  BLOB             NOT NULL,
-    active INTEGER          NOT NULL DEFAULT 1
+    id          TEXT PRIMARY KEY NOT NULL,
+    invite_code TEXT             NOT NULL UNIQUE,
+    value       BLOB             NOT NULL,
+    active      INTEGER          NOT NULL DEFAULT 1
+);
+
+CREATE TABLE mint_metadata
+(
+    id                          TEXT PRIMARY KEY NOT NULL,
+    name                        TEXT,
+    welcome_message             TEXT,
+    federation_expiry_timestamp TIMESTAMP,
+    preview_message             TEXT,
+    popup_end_timestamp         TIMESTAMP,
+    popup_countdown_message     TEXT,
+    created_at                  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE lightning_payments
@@ -68,6 +82,15 @@ CREATE TABLE on_chain_receives
 );
 
 -- Create triggers to set the updated_at timestamps on update
+CREATE TRIGGER update_timestamp_mint_metadata
+    AFTER UPDATE
+    ON mint_metadata
+    FOR EACH ROW
+BEGIN
+UPDATE mint_metadata
+SET updated_at = CURRENT_TIMESTAMP
+WHERE id = OLD.id;
+END;
 CREATE TRIGGER update_timestamp_lightning_payments
     AFTER UPDATE
     ON lightning_payments

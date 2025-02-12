@@ -2,29 +2,53 @@ use iced::widget::{column, row};
 use iced::Element;
 
 use crate::components::{
-    basic_layout, h_button, h_federation_item, h_federation_item_preview, h_header, h_input,
-    operation_status_for_id, InputArgs, SvgIcon,
+    basic_layout, h_button, h_federation_archived, h_federation_item, h_federation_item_preview,
+    h_header, h_input, operation_status_for_id, InputArgs, SvgIcon,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 
 use super::{MintSubroute, Route};
 
 // Expects to always have at least one federation, otherwise we should be on the add mint screen
+// TODO: now that we have archived mints, we should show them even if there are no active mints
 fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Mints", "Manage your mints here.");
 
-    let list = harbor
+    let active = harbor
         .federation_list
         .iter()
+        .filter(|a| a.active)
         .fold(column![], |column, item| {
             column.push(h_federation_item(item))
+        })
+        .spacing(48);
+
+    let inactive = harbor
+        .federation_list
+        .iter()
+        .filter(|a| !a.active)
+        .fold(column![], |column, item| {
+            column.push(h_federation_archived(item, harbor))
         })
         .spacing(48);
 
     let add_another_mint_button = h_button("Add Another Mint", SvgIcon::Plus, false)
         .on_press(Message::Navigate(Route::Mints(MintSubroute::Add)));
 
-    let column = column![header, list, add_another_mint_button].spacing(48);
+    // if we have inactive mints, display them
+    let column = if harbor.federation_list.iter().filter(|a| !a.active).count() > 0 {
+        let archived_header = h_header("Archived Mints", "Mints you've joined and left.");
+        column![
+            header,
+            active,
+            add_another_mint_button,
+            archived_header,
+            inactive
+        ]
+        .spacing(48)
+    } else {
+        column![header, active, add_another_mint_button].spacing(48)
+    };
 
     basic_layout(column)
 }
@@ -90,7 +114,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
 }
 
 pub fn mints(harbor: &HarborWallet) -> Element<Message> {
-    if harbor.federation_list.is_empty() {
+    if harbor.federation_list.iter().filter(|f| f.active).count() == 0 {
         mints_add(harbor)
     } else {
         match harbor.active_route {

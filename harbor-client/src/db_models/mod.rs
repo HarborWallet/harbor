@@ -18,13 +18,14 @@ pub use onchain_receive::*;
 
 pub(crate) mod schema;
 
+pub mod mint_metadata;
 pub mod transaction_item;
 
 use crate::metadata::FederationMeta;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FederationItem {
     pub id: FederationId,
     pub name: String,
@@ -32,6 +33,7 @@ pub struct FederationItem {
     pub guardians: Option<Vec<String>>,
     pub module_kinds: Option<Vec<ModuleKind>>,
     pub metadata: FederationMeta,
+    pub active: bool,
 }
 
 impl FederationItem {
@@ -43,7 +45,23 @@ impl FederationItem {
             guardians: None,
             module_kinds: None,
             metadata: FederationMeta::default(),
+            active: true,
         }
+    }
+}
+
+impl PartialOrd for FederationItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FederationItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .balance
+            .cmp(&self.balance)
+            .then_with(|| self.id.cmp(&other.id))
     }
 }
 
