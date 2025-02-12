@@ -245,6 +245,7 @@ pub struct HarborWallet {
     add_federation_status: AddFederationStatus,
     current_peek_id: Option<Uuid>,
     current_add_id: Option<Uuid>,
+    current_rejoin_id: Option<FederationId>,
     // Transfer
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
@@ -308,6 +309,7 @@ impl HarborWallet {
         self.add_federation_status = AddFederationStatus::Idle;
         self.current_peek_id = None;
         self.current_add_id = None;
+        self.current_rejoin_id = None;
     }
 
     fn clear_receive_state(&mut self) {
@@ -501,8 +503,10 @@ impl HarborWallet {
             }
             Message::RejoinFederation(id) => {
                 info!("Rejoining federation: {id}");
-                let (id, task) = self.send_from_ui(UICoreMsg::RejoinFederation(id));
-                self.current_add_id = Some(id);
+                self.add_federation_status = AddFederationStatus::Adding;
+                let (_, task) = self.send_from_ui(UICoreMsg::RejoinFederation(id));
+                // We need to know which federation we're rejoining so we use the federation id
+                self.current_rejoin_id = Some(id);
                 task
             }
             Message::CancelAddFederation => {

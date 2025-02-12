@@ -10,6 +10,7 @@ use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 use super::{MintSubroute, Route};
 
 // Expects to always have at least one federation, otherwise we should be on the add mint screen
+// TODO: now that we have archived mints, we should show them even if there are no active mints
 fn mints_list(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Mints", "Manage your mints here.");
 
@@ -27,7 +28,7 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
         .iter()
         .filter(|a| !a.active)
         .fold(column![], |column, item| {
-            column.push(h_federation_archived(item))
+            column.push(h_federation_archived(item, harbor))
         })
         .spacing(48);
 

@@ -1,4 +1,4 @@
-use crate::Message;
+use crate::{AddFederationStatus, HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use harbor_client::metadata::FederationMeta;
 use iced::{
@@ -81,11 +81,17 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
         .into()
 }
 
-pub fn h_federation_archived(item: &FederationItem) -> Element<Message> {
+pub fn h_federation_archived<'a>(
+    item: &'a FederationItem,
+    harbor: &'a HarborWallet,
+) -> Element<'a, Message> {
     let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
 
-    let readd_button =
-        h_small_button("", SvgIcon::Restart, false).on_press(Message::RejoinFederation(item.id));
+    let is_joining = harbor.add_federation_status == AddFederationStatus::Adding
+        && harbor.current_rejoin_id == Some(item.id);
+
+    let readd_button = h_small_button("", SvgIcon::Restart, is_joining)
+        .on_press(Message::RejoinFederation(item.id));
 
     column = column.push(row![
         horizontal_space().width(Length::Fill),
