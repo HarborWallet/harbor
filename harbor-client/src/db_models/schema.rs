@@ -39,6 +39,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    mint_metadata (id) {
+        id -> Text,
+        name -> Nullable<Text>,
+        welcome_message -> Nullable<Text>,
+        federation_expiry_timestamp -> Nullable<Timestamp>,
+        preview_message -> Nullable<Text>,
+        popup_end_timestamp -> Nullable<Timestamp>,
+        popup_countdown_message -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     on_chain_payments (operation_id) {
         operation_id -> Text,
         fedimint_id -> Text,
@@ -84,6 +98,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     fedimint,
     lightning_payments,
     lightning_receives,
+    mint_metadata,
     on_chain_payments,
     on_chain_receives,
     profile,

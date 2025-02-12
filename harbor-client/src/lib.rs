@@ -19,7 +19,6 @@ use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use fedimint_wallet_client::WalletClientModule;
-use futures::future::join_all;
 use futures::{channel::mpsc::Sender, SinkExt};
 use lightning_address::make_lnurl_request;
 use lnurl::lnurl::LnUrl;
@@ -867,9 +866,12 @@ impl HarborCore {
         let clients = self.clients.read().await;
 
         let metadata_cache = CACHE.read().await;
+        
+        let mut needs_metadata = vec![];
 
         // Tell the UI about any clients we have
-        let res = join_all(clients.values().map(|c| async {
+        let mut res = Vec::with_capacity(clients.len());
+        for c in clients.values() {
             let balance = c.fedimint_client.get_balance().await;
             let config = c.fedimint_client.config().await;
 
@@ -889,9 +891,17 @@ impl HarborCore {
             // get metadata from in memory cache
             let metadata = metadata_cache
                 .get(&c.fedimint_client.federation_id())
-                .cloned();
+                .cloned()
+                // if not in cache, get from db
+                .or_else(|| {
+                    needs_metadata.push(c.fedimint_client.clone());
+                    self.storage
+                        .get_federation_metadata(c.fedimint_client.federation_id())
+                        .ok()
+                        .flatten()
+                });
 
-            FederationItem {
+            res.push(FederationItem {
                 id: c.fedimint_client.federation_id(),
                 name: c
                     .fedimint_client
@@ -901,24 +911,17 @@ impl HarborCore {
                 guardians: Some(guardians),
                 module_kinds: Some(module_kinds),
                 metadata: metadata.unwrap_or_default(),
-            }
-        }))
-        .await;
+            });
+        }
 
         drop(metadata_cache);
-
-        // go through federations metadata and start background task to fetch
-        let needs_metadata = res
-            .iter()
-            .filter(|f| f.metadata == FederationMeta::default())
-            .flat_map(|f| clients.get(&f.id).map(|c| c.fedimint_client.clone()))
-            .collect::<Vec<_>>();
 
         // if we're missing metadata for federations, start background task to populate it
         if !needs_metadata.is_empty() {
             let mut tx = self.tx.clone();
             let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
             let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
+            let storage = self.storage.clone();
             tokio::task::spawn(async move {
                 let mut w = CACHE.write().await;
                 for client in needs_metadata {
@@ -933,7 +936,8 @@ impl HarborCore {
                         metadata_fetch_cancel.clone(),
                     )
                     .await;
-                    w.insert(id, metadata);
+                    w.insert(id, metadata.clone());
+                    storage.upsert_federation_metadata(id, metadata).ok();
                 }
                 drop(w);
 

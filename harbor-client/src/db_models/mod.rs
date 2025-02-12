@@ -18,6 +18,7 @@ pub use onchain_receive::*;
 
 pub(crate) mod schema;
 
+pub mod mint_metadata;
 pub mod transaction_item;
 
 use crate::metadata::FederationMeta;

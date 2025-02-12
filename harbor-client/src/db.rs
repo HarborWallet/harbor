@@ -1,8 +1,10 @@
+use crate::db_models::mint_metadata::MintMetadata;
 use crate::db_models::transaction_item::TransactionItem;
 use crate::db_models::{
     Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
     OnChainReceive, Profile,
 };
+use crate::metadata::FederationMeta;
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use bitcoin::address::NetworkUnchecked;
@@ -196,6 +198,14 @@ pub trait DBConnection {
         &self,
         operation_id: OperationId,
     ) -> anyhow::Result<Option<LightningPayment>>;
+
+    fn get_federation_metadata(&self, id: FederationId) -> anyhow::Result<Option<FederationMeta>>;
+
+    fn upsert_federation_metadata(
+        &self,
+        id: FederationId,
+        metadata: FederationMeta,
+    ) -> anyhow::Result<()>;
 }
 
 pub struct SQLConnection {
@@ -538,6 +548,23 @@ impl DBConnection for SQLConnection {
     ) -> anyhow::Result<Option<LightningPayment>> {
         let conn = &mut self.db.get()?;
         LightningPayment::get_by_operation_id(conn, operation_id)
+    }
+
+    fn get_federation_metadata(&self, id: FederationId) -> anyhow::Result<Option<FederationMeta>> {
+        let conn = &mut self.db.get()?;
+        let meta = MintMetadata::get(conn, id.to_string())?.map(|i| i.into());
+        Ok(meta)
+    }
+
+    fn upsert_federation_metadata(
+        &self,
+        id: FederationId,
+        metadata: FederationMeta,
+    ) -> anyhow::Result<()> {
+        let db = MintMetadata::from(id, metadata);
+        let conn = &mut self.db.get()?;
+        db.upsert(conn)?;
+        Ok(())
     }
 }
 
