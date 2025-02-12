@@ -17,6 +17,7 @@ use diesel::{
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
+use fedimint_core::invite_code::InviteCode;
 use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use log::{error, info};
@@ -95,6 +96,12 @@ pub trait DBConnection {
 
     // Removes a federation from the DB
     fn remove_federation(&self, f: FederationId) -> anyhow::Result<()>;
+
+    // Sets a federation as active
+    fn set_federation_active(&self, f: FederationId) -> anyhow::Result<()>;
+
+    // Gets a federation's invite code
+    fn get_federation_invite_code(&self, f: FederationId) -> anyhow::Result<Option<InviteCode>>;
 
     // gets the federation data for a specific federation
     fn get_federation_value(&self, id: String) -> anyhow::Result<Option<Vec<u8>>>;
@@ -261,12 +268,12 @@ impl DBConnection for SQLConnection {
 
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
-        let f = Fedimint {
-            id,
-            value,
-            active: 1,
-        };
-        f.update(conn)
+        Fedimint::update_value(conn, id, value)
+    }
+
+    fn set_federation_active(&self, f: FederationId) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        Fedimint::set_active(conn, f.to_string())
     }
 
     fn create_ln_receive(
@@ -573,7 +580,6 @@ impl DBConnection for SQLConnection {
         let conn = &mut self.db.get()?;
         let ids = Fedimint::get_archived_ids(conn)?;
         let mut result = Vec::with_capacity(ids.len());
-        println!("archived mints: {:?}", ids);
         for id in ids {
             let m = MintMetadata::get(conn, id.to_string())?;
             if let Some(m) = m {
@@ -581,6 +587,12 @@ impl DBConnection for SQLConnection {
             }
         }
         Ok(result)
+    }
+
+    fn get_federation_invite_code(&self, f: FederationId) -> anyhow::Result<Option<InviteCode>> {
+        let conn = &mut self.db.get()?;
+        Ok(Fedimint::get(conn, f.to_string())?
+            .and_then(|f| InviteCode::from_str(&f.invite_code).ok()))
     }
 }
 
@@ -640,6 +652,7 @@ mod tests {
 
     const DEFAULT_PASSWORD: &str = "p.a$$w0rd!'x";
     const FEDERATION_ID: &str = "c8d423964c7ad944d30f57359b6e5b260e211dcfdb945140e28d4df51fd572d2";
+    const INVITE_CODE: &str = "fed11qgqzc2nhwden5te0vejkg6tdd9h8gepwvejkg6tdd9h8garhduhx6at5d9h8jmn9wshxxmmd9uqqzgxg6s3evnr6m9zdxr6hxkdkukexpcs3mn7mj3g5pc5dfh63l4tj6g9zk4er";
 
     fn setup_test_db() -> Arc<SQLConnection> {
         let tmp_dir = TempDir::new("harbor").expect("Could not create temp dir");
@@ -663,6 +676,7 @@ mod tests {
 
         let new_fedimint = NewFedimint {
             id: FEDERATION_ID.to_string(),
+            invite_code: INVITE_CODE.to_string(),
             value: vec![],
         };
         db.insert_new_federation(new_fedimint).unwrap();
@@ -705,6 +719,7 @@ mod tests {
 
         let new_fedimint = NewFedimint {
             id: FEDERATION_ID.to_string(),
+            invite_code: INVITE_CODE.to_string(),
             value: vec![],
         };
         db.insert_new_federation(new_fedimint.clone()).unwrap();

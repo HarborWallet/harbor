@@ -3,6 +3,7 @@
 diesel::table! {
     fedimint (id) {
         id -> Text,
+        invite_code -> Text,
         value -> Binary,
         active -> Integer,
     }

@@ -98,6 +98,7 @@ pub enum UICoreMsg {
     GetFederationInfo(InviteCode),
     AddFederation(InviteCode),
     RemoveFederation(FederationId),
+    RejoinFederation(FederationId),
     FederationListNeedsUpdate,
     Unlock(String),
     Init {
@@ -833,7 +834,7 @@ impl HarborCore {
         let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
         let storage = self.storage.clone();
         tokio::task::spawn(async move {
-            Self::update_mint_metdata(
+            Self::update_mint_metadata(
                 vec![client.fedimint_client],
                 metadata_fetch_cancel,
                 tor_enabled,
@@ -940,7 +941,7 @@ impl HarborCore {
             let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
             let storage = self.storage.clone();
             tokio::task::spawn(async move {
-                Self::update_mint_metdata(
+                Self::update_mint_metadata(
                     needs_metadata,
                     metadata_fetch_cancel,
                     tor_enabled,
@@ -953,9 +954,7 @@ impl HarborCore {
 
         // get archived mints
         let archived = self.storage.get_archived_mints().expect("archived mints");
-        log::info!("Archived mints: {archived:?}");
         for m in archived {
-            log::info!("Archived mint found: {m:?}");
             let item = FederationItem {
                 id: FederationId::from_str(&m.id).unwrap(),
                 name: m.name.clone().unwrap_or("Unknown".to_string()),
@@ -971,7 +970,7 @@ impl HarborCore {
         res
     }
 
-    async fn update_mint_metdata(
+    async fn update_mint_metadata(
         needs_metadata: Vec<ClientHandleArc>,
         metadata_fetch_cancel: Arc<AtomicBool>,
         tor_enabled: bool,

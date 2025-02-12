@@ -56,6 +56,13 @@ impl FederationInviteOrId {
             FederationInviteOrId::Id(i) => *i,
         }
     }
+
+    pub fn invite_code(&self) -> Option<InviteCode> {
+        match self {
+            FederationInviteOrId::Invite(ref i) => Some(i.clone()),
+            FederationInviteOrId::Id(_) => None,
+        }
+    }
 }
 
 impl FedimintClient {
@@ -72,7 +79,8 @@ impl FedimintClient {
 
         trace!("Building fedimint client db");
 
-        let db = FedimintStorage::new(storage.clone(), federation_id.to_string()).await?;
+        let db = FedimintStorage::new(storage.clone(), federation_id, invite_or_id.invite_code())
+            .await?;
 
         let is_initialized = fedimint_client::Client::is_initialized(&db.clone().into()).await;
 
@@ -697,24 +705,30 @@ pub(crate) async fn spawn_onchain_receive_subscription(
 pub struct FedimintStorage {
     storage: Arc<dyn DBConnection + Send + Sync>,
     fedimint_memory: Arc<MemDatabase>,
-    federation_id: String,
+    federation_id: FederationId,
 }
 
 impl FedimintStorage {
     pub async fn new(
         storage: Arc<dyn DBConnection + Send + Sync>,
-        federation_id: String,
+        federation_id: FederationId,
+        invite_code: Option<InviteCode>,
     ) -> anyhow::Result<Self> {
         let fedimint_memory = MemDatabase::new();
 
         // get the fedimint data or create a new fedimint entry if it doesn't exist
         let fedimint_data: Vec<(Vec<u8>, Vec<u8>)> =
-            match storage.get_federation_value(federation_id.clone())? {
-                Some(v) => bincode::deserialize(&v)?,
+            match storage.get_federation_value(federation_id.to_string())? {
+                Some(v) => {
+                    storage.set_federation_active(federation_id)?;
+                    bincode::deserialize(&v)?
+                }
                 None => {
+                    let invite_code = invite_code.ok_or(anyhow::anyhow!("invite_code missing"))?;
                     storage.insert_new_federation(NewFedimint {
-                        id: federation_id.clone(),
+                        id: federation_id.to_string(),
                         value: vec![],
+                        invite_code: invite_code.to_string(),
                     })?;
                     vec![]
                 }
@@ -750,7 +764,7 @@ impl IRawDatabase for FedimintStorage {
     async fn begin_transaction<'a>(&'a self) -> SQLPseudoTransaction {
         SQLPseudoTransaction {
             storage: self.storage.clone(),
-            federation_id: self.federation_id.clone(),
+            federation_id: self.federation_id.to_string(),
             mem: self.fedimint_memory.begin_transaction().await,
         }
     }

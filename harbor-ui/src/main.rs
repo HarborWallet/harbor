@@ -500,9 +500,10 @@ impl HarborWallet {
                 Task::none()
             }
             Message::RejoinFederation(id) => {
-                // TODO: Implement this
-                log::info!("Rejoining federation: {:?}", id);
-                Task::none()
+                info!("Rejoining federation: {id}");
+                let (id, task) = self.send_from_ui(UICoreMsg::RejoinFederation(id));
+                self.current_add_id = Some(id);
+                task
             }
             Message::CancelAddFederation => {
                 self.clear_add_federation_state();

@@ -8,9 +8,10 @@ CREATE TABLE profile
 
 CREATE TABLE fedimint
 (
-    id     TEXT PRIMARY KEY NOT NULL,
-    value  BLOB             NOT NULL,
-    active INTEGER          NOT NULL DEFAULT 1
+    id          TEXT PRIMARY KEY NOT NULL,
+    invite_code TEXT             NOT NULL UNIQUE,
+    value       BLOB             NOT NULL,
+    active      INTEGER          NOT NULL DEFAULT 1
 );
 
 CREATE TABLE mint_metadata
@@ -22,8 +23,8 @@ CREATE TABLE mint_metadata
     preview_message             TEXT,
     popup_end_timestamp         TIMESTAMP,
     popup_countdown_message     TEXT,
-    created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at                  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE lightning_payments

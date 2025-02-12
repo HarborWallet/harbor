@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[diesel(table_name = fedimint)]
 pub struct Fedimint {
     pub id: String,
+    pub invite_code: String,
     pub value: Vec<u8>,
     pub active: i32,
 }
@@ -19,6 +20,13 @@ impl Fedimint {
             .first::<Fedimint>(conn)
             .optional()?
             .map(|v| v.value))
+    }
+
+    pub fn get(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<Fedimint>> {
+        Ok(fedimint::table
+            .filter(fedimint::id.eq(id))
+            .first::<Fedimint>(conn)
+            .optional()?)
     }
 
     pub fn remove_federation(conn: &mut SqliteConnection, id: String) -> anyhow::Result<()> {
@@ -43,6 +51,14 @@ impl Fedimint {
         Ok(())
     }
 
+    pub fn set_active(conn: &mut SqliteConnection, id: String) -> anyhow::Result<()> {
+        diesel::update(fedimint::table)
+            .filter(fedimint::id.eq(id))
+            .set(fedimint::active.eq(1))
+            .execute(conn)?;
+        Ok(())
+    }
+
     pub fn get_ids(conn: &mut SqliteConnection) -> anyhow::Result<Vec<String>> {
         Ok(fedimint::table
             .filter(fedimint::active.eq(1))
@@ -61,13 +77,14 @@ impl Fedimint {
             .collect())
     }
 
-    pub fn update(&self, conn: &mut SqliteConnection) -> anyhow::Result<()> {
+    pub fn update_value(
+        conn: &mut SqliteConnection,
+        id: String,
+        value: Vec<u8>,
+    ) -> anyhow::Result<()> {
         let _ = diesel::update(fedimint::table)
-            .filter(fedimint::id.eq(&self.id))
-            .set((
-                fedimint::value.eq(&self.value),
-                fedimint::active.eq(self.active),
-            ))
+            .filter(fedimint::id.eq(&id))
+            .set((fedimint::value.eq(&value),))
             .execute(conn)?;
 
         Ok(())
@@ -78,6 +95,7 @@ impl Fedimint {
 #[diesel(table_name = fedimint)]
 pub struct NewFedimint {
     pub id: String,
+    pub invite_code: String,
     pub value: Vec<u8>,
 }
 
@@ -85,6 +103,7 @@ impl From<&NewFedimint> for Fedimint {
     fn from(new_fedimint: &NewFedimint) -> Self {
         Fedimint {
             id: new_fedimint.id.clone(),
+            invite_code: new_fedimint.invite_code.clone(),
             value: new_fedimint.value.clone(),
             active: 1,
         }
