@@ -26,6 +26,7 @@ jobs:
             make: bash scripts/build-macos.sh
             package: bash scripts/package-macos.sh
     runs-on: ${{ matrix.target.os }}
+    environment: signing
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
