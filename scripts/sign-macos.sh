@@ -2,10 +2,12 @@
 
 set -e # Exit on error
 
-# Source the environment variables
-set -a  # automatically export all variables
-source .env
-set +a
+# Source the environment variables if .env exists
+if [ -f ".env" ]; then
+    set -a  # automatically export all variables
+    source .env
+    set +a
+fi
 
 # Debug: Print shell information
 echo "Shell: $SHELL"
@@ -15,6 +17,16 @@ RELEASE_DIR="target/release"
 APP_DIR="$RELEASE_DIR/macos"
 APP_NAME="Harbor.app"
 APP_PATH="$APP_DIR/$APP_NAME"
+
+# Clean up any leftover files from previous runs
+rm -f certificate.p12 notarization.zip
+security delete-keychain build.keychain 2>/dev/null || true
+
+# Check if app exists
+if [ ! -d "$APP_PATH" ]; then
+    echo "Error: $APP_PATH does not exist"
+    exit 1
+fi
 
 # Check required environment variables
 environment=(
@@ -48,7 +60,7 @@ security delete-keychain build.keychain 2>/dev/null || true
 security create-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain 2>/dev/null
 echo "Created new keychain"
 
-security default-keychain -s build.keychain 2>/dev/null
+security default-keychain -s build.keychain
 echo "Set as default keychain"
 
 security unlock-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain 2>/dev/null
@@ -71,7 +83,7 @@ IDENTITIES=$(security find-identity -v -p codesigning build.keychain | grep -c "
 echo "Found $IDENTITIES valid signing identities"
 
 echo "Signing Harbor.app..."
-/usr/bin/codesign --force -s "$MACOS_CERTIFICATE_NAME" --options runtime "$APP_PATH" -v 2>/dev/null
+/usr/bin/codesign --force -s "$MACOS_CERTIFICATE_NAME" --options runtime "$APP_PATH" -v
 
 echo "Creating keychain profile for notarization..."
 xcrun notarytool store-credentials "harbor-notary-profile" \
@@ -80,7 +92,7 @@ xcrun notarytool store-credentials "harbor-notary-profile" \
     --password "$MACOS_NOTARIZATION_PWD" 2>/dev/null
 
 echo "Creating notarization archive..."
-ditto -c -k --keepParent "$APP_PATH" "notarization.zip" 2>/dev/null
+ditto -c -k --keepParent "$APP_PATH" "notarization.zip"
 
 echo "Submitting app for notarization..."
 xcrun notarytool submit "notarization.zip" --keychain-profile "harbor-notary-profile" --wait
