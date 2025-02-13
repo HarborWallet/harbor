@@ -48,7 +48,7 @@ jobs:
           MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
           MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
           MACOS_NOTARIZATION_PWD: ${{ secrets.MACOS_NOTARIZATION_PWD }}
-        run: nix develop --command bash -c "bash scripts/sign-macos.sh"
+        run: nix develop --command bash -c "scripts/sign-macos.sh"
 
       - name: Package DMG
         run: nix develop --command bash -c "${{ matrix.target.package }}"
