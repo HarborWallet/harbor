@@ -96,7 +96,7 @@ where
     log::debug!("Starting bootstrap if needed");
 
     // Set a timeout for the bootstrap process
-    let bootstrap_timeout = Duration::from_secs(30);
+    let bootstrap_timeout = Duration::from_secs(60);
 
     // Use select! to handle cancellation during bootstrap
     let bootstrap_result = tokio::select! {
