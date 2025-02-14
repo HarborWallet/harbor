@@ -13,7 +13,7 @@ done
 
 # Generate icons for each size
 for size in "${ICON_SIZES[@]}"; do
-    convert "$ICON_SOURCE" -resize "${size}x${size}" "$OUTPUT_DIR/${size}x${size}/harbor.png"
+    magick convert "$ICON_SOURCE" -resize "${size}x${size}" "$OUTPUT_DIR/${size}x${size}/harbor.png"
 done
 
 echo "✨ Generated Linux icons in $OUTPUT_DIR" 
