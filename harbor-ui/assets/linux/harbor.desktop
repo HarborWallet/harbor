@@ -7,4 +7,4 @@ Categories=Office;Finance;
 Exec=harbor
 Icon=cash.harbor.harbor
 StartupWMClass=cash.harbor.harbor
-Terminal=false 
+Terminal=false
