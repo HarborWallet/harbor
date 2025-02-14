@@ -56,7 +56,16 @@ cd -
 
 # Generate AppImage
 echo "Generating AppImage..."
+# Get architecture and normalize to common format
 ARCH=$(uname -m)
-appimagetool "$APPDIR" "$LINUX_DIR/$APP_NAME-$VERSION-$ARCH.AppImage"
+if [ "$ARCH" = "aarch64" ]; then
+    ARCH="arm64"
+elif [ "$ARCH" = "x86_64" ]; then
+    ARCH="x86_64"
+fi
+
+# Set architecture explicitly for appimagetool
+export ARCH
+appimagetool --no-appstream "$APPDIR" "$LINUX_DIR/$APP_NAME-$VERSION-$ARCH.AppImage"
 
 echo "✨ Created AppImage in $LINUX_DIR" 
