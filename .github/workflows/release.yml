@@ -16,16 +16,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build
-    strategy:
-      matrix:
-        target:
-          - target: macos
-            os: macos-latest
-            make: bash scripts/build-macos.sh
-            package: bash scripts/package-macos.sh
-    runs-on: ${{ matrix.target.os }}
+  build-mac:
+    name: Build MacOS
+    runs-on: macos
     environment: signing
     steps:
       - uses: actions/checkout@v4
@@ -37,10 +30,9 @@ jobs:
           env-vars: CARGO USE_VENDOR_FEATURE
 
       - name: Build
-        run: nix develop --command bash -c "${{ matrix.target.make }}"
+        run: nix develop --command bash -c "bash scripts/build-macos.sh"
 
       - name: Sign macOS
-        if: matrix.target.target == 'macos'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -52,7 +44,7 @@ jobs:
         run: nix develop --command bash -c "scripts/sign-macos.sh"
 
       - name: Package DMG
-        run: nix develop --command bash -c "${{ matrix.target.package }}"
+        run: nix develop --command bash -c "bash scripts/package-macos.sh"
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -62,4 +54,50 @@ jobs:
           draft: true
           prerelease: false
           generate_release_notes: true
-          files: target/release/macos/harbor.dmg 
+          files: target/release/macos/harbor.dmg
+  build-linux:
+    name: Build linux
+    runs-on: ubuntu-22.04
+    environment: signing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          env-vars: CARGO USE_VENDOR_FEATURE
+
+      - name: Install linux deps
+        if: matrix.target.target == 'linux'
+        run: |
+          sudo apt update
+          sudo apt install \
+            build-essential \
+            git \
+            pkg-config \
+            libdbus-1-dev \
+            libsqlcipher-dev \
+            libudev-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            libasound2-dev
+
+      - name: Build
+        run: bash scripts/package-linux.sh package
+
+      - name: Set artifact path
+        run: echo "ARTIFACT_PATH=$(bash scripts/package-linux.sh archive_path)" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target.target }}
+          path: ${{ env.ARTIFACT_PATH }}
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          files: ${{ env.ARTIFACT_PATH }}
