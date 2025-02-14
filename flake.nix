@@ -55,6 +55,24 @@
             pkgs.darwin.apple_sdk.frameworks.AppKit
             pkgs.darwin.apple_sdk.frameworks.CoreText
             pkgs.darwin.apple_sdk.frameworks.WebKit
+          ]
+          ++ lib.optionals pkgs.stdenv.isLinux [
+            # Added for Linux AppImage builds
+            pkgs.appimagekit
+            pkgs.imagemagick
+            # Linux-specific graphics dependencies
+            pkgs.mesa
+            pkgs.libglvnd
+            pkgs.xorg.libX11
+            pkgs.xorg.libXcursor
+            pkgs.xorg.libXi
+            pkgs.xorg.libXrandr
+            pkgs.xorg.libxcb
+            pkgs.libxkbcommon
+            pkgs.wayland
+            pkgs.wayland-protocols
+            pkgs.wayland-scanner
+            pkgs.vulkan-loader
           ];
       in
       {
@@ -69,44 +87,20 @@
         };
 
         devShell = pkgs.mkShell rec {
-          packages = inputs ++ [
-            pkgs.mesa
-            pkgs.libglvnd # Adds EGL support
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
-            pkgs.xorg.libxcb
-            pkgs.libxkbcommon
-            pkgs.wayland
-            # Wayland-specific dependencies
-            pkgs.wayland-protocols
-            pkgs.wayland-scanner
-            # For Vulkan fallback (wgpu might need this)
-            pkgs.vulkan-loader
-          ];
+          packages = inputs;
 
           # Important environment variables for EGL and Wayland
-          # EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
-          # WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
-          LD_LIBRARY_PATH = lib.makeLibraryPath ([
-            pkgs.mesa
-            pkgs.libglvnd
-            pkgs.xorg.libX11
-            pkgs.libxkbcommon
-            pkgs.wayland
-          ]);
-
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
-            # Add important Mesa paths
-            export LIBGL_DRIVERS_PATH=${pkgs.mesa.drivers}/lib/dri
-            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa.drivers}/share/glvnd/egl_vendor.d/
-            # Wayland specific environment variables
-            export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+            ${lib.optionalString pkgs.stdenv.isLinux ''
+              # Add important Mesa paths (Linux only)
+              export LIBGL_DRIVERS_PATH=${pkgs.mesa}/lib/dri
+              export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa}/share/glvnd/egl_vendor.d/
+              # Wayland specific environment variables
+              export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+            ''}
           '';
         };
-
       }
     );
 }

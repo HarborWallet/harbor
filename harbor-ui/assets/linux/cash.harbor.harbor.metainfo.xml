@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <content_rating type="oars-1.1">
+    </content_rating>
+    <id>cash.harbor.harbor</id>
+    <metadata_license>MIT</metadata_license>
+    <project_license>MIT</project_license>
+    <name>Harbor</name>
+    <summary>Harbor is a Lightning Wallet for better bitcoin privacy.</summary>
+    <description>
+        <p>
+            Harbor is a Lightning Wallet focused on privacy and security. It allows you to manage your bitcoin and
+            lightning funds with enhanced privacy features, making it easier to maintain financial sovereignty while
+            using the Lightning Network.
+        </p>
+    </description>
+    <launchable type="desktop-id">cash.harbor.harbor.desktop</launchable>
+    <url type="homepage">https://github.com/futurepaul/harbor</url>
+    <url type="bugtracker">https://github.com/futurepaul/harbor/issues</url>
+    <screenshots>
+        <screenshot type="default">
+            <caption>Harbor logo</caption>
+            <image>https://raw.githubusercontent.com/futurepaul/harbor/main/harbor-ui/assets/harbor_icon.png</image>
+        </screenshot>
+    </screenshots>
+    <developer_name>Harbor Wallet Devs</developer_name>
+    <releases>
+        <release version="0.1.0" date="2024-02-14"/>
+    </releases>
+</component> 

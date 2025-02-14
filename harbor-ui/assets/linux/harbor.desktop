@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Harbor
+Comment=Lightning Wallet for better bitcoin privacy
+Type=Application
+Keywords=bitcoin;lightning;privacy;wallet;
+Categories=Office;Finance;
+Exec=harbor %U
+Icon=cash.harbor.harbor
+StartupWMClass=cash.harbor.harbor
+Terminal=false 

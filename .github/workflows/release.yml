@@ -21,6 +21,10 @@ jobs:
     strategy:
       matrix:
         target:
+          - target: linux
+            os: ubuntu-latest
+            make: bash scripts/build-linux.sh
+            package: echo "Linux packaging is done in build step"
           - target: macos
             os: macos-latest
             make: bash scripts/build-macos.sh
@@ -52,6 +56,7 @@ jobs:
         run: nix develop --command bash -c "scripts/sign-macos.sh"
 
       - name: Package DMG
+        if: matrix.target.target == 'macos'
         run: nix develop --command bash -c "${{ matrix.target.package }}"
 
       - name: Create Release and Upload Assets
@@ -62,4 +67,6 @@ jobs:
           draft: true
           prerelease: false
           generate_release_notes: true
-          files: target/release/macos/harbor.dmg 
+          files: |
+            target/release/macos/harbor.dmg
+            target/release/linux/Harbor-*-x86_64.AppImage 
