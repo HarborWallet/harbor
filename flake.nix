@@ -87,8 +87,8 @@
           ];
 
           # Important environment variables for EGL and Wayland
-          EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
-          WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
+          # EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
+          # WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
           LD_LIBRARY_PATH = lib.makeLibraryPath ([
             pkgs.mesa
             pkgs.libglvnd
