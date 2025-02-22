@@ -72,6 +72,7 @@ jobs:
           sudo apt install \
             build-essential \
             git \
+            dpkg \
             pkg-config \
             libdbus-1-dev \
             libsqlcipher-dev \
@@ -84,13 +85,17 @@ jobs:
         run: bash scripts/package-linux.sh package
 
       - name: Set artifact path
-        run: echo "ARTIFACT_PATH=$(bash scripts/package-linux.sh archive_path)" >> "$GITHUB_ENV"
+        run: |
+          echo "ARTIFACT_PATH=$(bash scripts/package-linux.sh archive_path)" >> "$GITHUB_ENV"
+          echo "DEB_PATH=$(bash scripts/package-linux.sh deb_path)" >> "$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target.target }}
-          path: ${{ env.ARTIFACT_PATH }}
+          name: linux
+          path: |
+            ${{ env.ARTIFACT_PATH }}
+            ${{ env.DEB_PATH }}
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -100,4 +105,6 @@ jobs:
           draft: true
           prerelease: false
           generate_release_notes: true
-          files: ${{ env.ARTIFACT_PATH }}
+          files: |
+            ${{ env.ARTIFACT_PATH }}
+            ${{ env.DEB_PATH }}
