@@ -176,18 +176,24 @@ fn render_generated_view(receive_string: String, harbor: &HarborWallet) -> Eleme
         .align_x(iced::Alignment::Center)
         .width(iced::Length::Fill);
 
-    let first_20_chars = receive_string.chars().take(20).collect::<String>();
-
     // Create a row with the truncated text and copy button
     let copy_button = h_small_button("", SvgIcon::Copy, false)
-        .on_press(Message::CopyToClipboard(receive_string.to_string()));
+        .on_press(Message::CopyToClipboard(receive_string.clone()));
+
+    let str = if receive_string.len() <= 20 {
+        receive_string
+    } else {
+        let first_10_chars = receive_string.chars().take(10).collect::<String>();
+        let last_10_chars = receive_string
+            .chars()
+            .skip(receive_string.chars().count() - 10)
+            .collect::<String>();
+        format!("{first_10_chars}...{last_10_chars}")
+    };
 
     let text_and_copy = container(
         row![
-            text(format!("{first_20_chars}..."))
-                .size(16)
-                .font(font_mono())
-                .color(Color::BLACK),
+            text(str).size(16).font(font_mono()).color(Color::BLACK),
             horizontal_space(),
             copy_button
         ]
