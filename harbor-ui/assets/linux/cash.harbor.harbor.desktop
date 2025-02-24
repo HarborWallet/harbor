@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Habor
+Comment=Fedimint ecash desktop wallet for better bitcoin privacy
+Type=Application
+Keywords=bitcoin;lightning;ecash;privacy;tor;fedimint;
+Categories=Office;Finance;
+Exec=harbor-ui %U
+Icon=cash.harbor.harbor
+StartupWMClass=cash.harbor.harbor
+Terminal=false

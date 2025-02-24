@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <content_rating type="oars-1.1">
+    </content_rating>
+    <id>cash.harbor.harbor</id>
+    <metadata_license>MIT</metadata_license>
+    <project_license>MIT</project_license>
+    <name>Harbor</name>
+    <summary>Harbor is an ecash desktop wallet for better bitcoin privacy.</summary>
+    <description>
+        <p>
+            Harbor is an ecash desktop wallet for better bitcoin privacy. Use this tool to interact with ecash mints,
+            moving money in and out using existing Bitcoin wallets. As you use mints, you may be able to increase the
+            privacy of your money. Harbor also aims to demystify ecash mints for users and make them easier to use.
+        </p>
+    </description>
+    <launchable type="desktop-id">cash.harbor.harbor.desktop</launchable>
+    <url type="homepage">Harbor.cash</url>
+    <url type="bugtracker">https://github.com/HarborWallet/harbor/issues</url>
+    <screenshots>
+        <screenshot type="default">
+            <caption>harbor logo</caption>
+            <image>
+                https://camo.githubusercontent.com/36432bbea8022f7f873a7e5fcf983ed4e3a84a8764be44b5eb2ab5e9056cbaf4/68747470733a2f2f626c6f672e6d7574696e7977616c6c65742e636f6d2f636f6e74656e742f696d616765732f73697a652f77323030302f323032342f30352f686172626f722d707265766965772e6a706567
+            </image>
+        </screenshot>
+    </screenshots>
+    <developer_name>Harbor Wallet Devs</developer_name>
+    <releases>
+        <release version="0.2.0"
+                 date="2025-02-14"/>
+    </releases>
+</component>
