@@ -50,11 +50,7 @@
             pkgs.xorg.libXrandr
             pkgs.diesel-cli
             pkgs.nixfmt-rfc-style
-            # Added dependencies for keyring on Linux
-            pkgs.dbus
-            pkgs.libsecret
-            pkgs.gnome.gnome-keyring
-            pkgs.gnome.libgnome-keyring
+
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
@@ -69,7 +65,27 @@
             pkgs.alsa-lib
             pkgs.dpkg
             pkgs.fakeroot
-            # Linux-specific graphics dependencies are already in the devShell
+            # Linux-specific graphics dependencies
+            pkgs.mesa
+            pkgs.libglvnd
+            pkgs.xorg.libX11
+            pkgs.xorg.libXcursor
+            pkgs.xorg.libXi
+            pkgs.xorg.libXrandr
+            pkgs.xorg.libxcb
+            pkgs.libxkbcommon
+            # Wayland dependencies
+            pkgs.wayland
+            pkgs.wayland-protocols
+            pkgs.wayland-scanner
+            # For Vulkan fallback
+            pkgs.vulkan-loader
+            pkgs.vulkan-headers
+            # Keyring stuff
+            pkgs.dbus
+            pkgs.libsecret
+            pkgs.gnome-keyring
+            pkgs.libgnome-keyring
           ];
       in
       {
@@ -84,22 +100,7 @@
         };
 
         devShell = pkgs.mkShell rec {
-          packages = inputs ++ [
-            pkgs.mesa
-            pkgs.libglvnd # Adds EGL support
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
-            pkgs.xorg.libxcb
-            pkgs.libxkbcommon
-            pkgs.wayland
-            # Wayland-specific dependencies
-            pkgs.wayland-protocols
-            pkgs.wayland-scanner
-            # For Vulkan fallback (wgpu might need this)
-            pkgs.vulkan-loader
-          ];
+          packages = inputs;
 
           # Important environment variables for EGL and Wayland
           LD_LIBRARY_PATH = lib.makeLibraryPath ([
@@ -115,24 +116,43 @@
 
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
-            # Add important Mesa paths
-            export LIBGL_DRIVERS_PATH=${pkgs.mesa.drivers}/lib/dri
-            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa.drivers}/share/glvnd/egl_vendor.d/
-            # Wayland specific environment variables
-            export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
-            
-            # Ensure DBus session is available for keyring
-            if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
-              eval $(dbus-launch --sh-syntax)
-              export DBUS_SESSION_BUS_ADDRESS
-            fi
-            
-            # Start gnome-keyring-daemon if not running
-            if ! pgrep -x "gnome-keyring-d" > /dev/null; then
-              eval $(gnome-keyring-daemon --start --components=secrets)
-              export GNOME_KEYRING_CONTROL
-              export SSH_AUTH_SOCK
-            fi
+            ${lib.optionalString pkgs.stdenv.isLinux ''
+              # Add important Mesa paths (Linux only)
+              export LIBGL_DRIVERS_PATH=${pkgs.mesa.drivers}/lib/dri
+              export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa.drivers}/share/glvnd/egl_vendor.d/
+              
+              # Wayland specific environment variables - only set if directory exists
+              if [ -d "/run/user/$(id -u)" ]; then
+                export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+              fi
+              
+              # Set Wayland display if in a Wayland session
+              if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+                export WAYLAND_DISPLAY=wayland-0
+              fi
+              
+              # Only try to start DBus and keyring if not in CI
+              if [ "${builtins.getEnv "CI"}" != "true" ]; then
+                # Ensure DBus session is available for keyring
+                if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && command -v dbus-daemon >/dev/null; then
+                  dbus_output=$(dbus-launch --sh-syntax 2>/dev/null || true)
+                  if [ -n "$dbus_output" ]; then
+                    eval "$dbus_output"
+                    export DBUS_SESSION_BUS_ADDRESS
+                  fi
+                fi
+                
+                # Start gnome-keyring-daemon if not running and command exists
+                if command -v gnome-keyring-daemon >/dev/null && ! pgrep -x "gnome-keyring-d" > /dev/null; then
+                  keyring_output=$(gnome-keyring-daemon --start --components=secrets 2>/dev/null || true)
+                  if [ -n "$keyring_output" ]; then
+                    eval "$keyring_output"
+                    export GNOME_KEYRING_CONTROL
+                    export SSH_AUTH_SOCK
+                  fi
+                fi
+              fi
+            ''}
           '';
         };
       }

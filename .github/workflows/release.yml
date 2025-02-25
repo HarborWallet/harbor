@@ -14,6 +14,7 @@ on:
 # Add permissions block
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-mac:
@@ -70,26 +71,16 @@ jobs:
 
       - name: Build with Nix
         run: |
-          # Build using nix environment but don't package yet
+          # Build using nix environment only - no system deps
           nix develop --command bash -c "cargo build --release --features vendored -p harbor-ui"
 
-      - name: Install Linux packaging dependencies
-        # These are specifically for the .deb packaging process
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            build-essential \
-            git \
-            dpkg \
-            pkg-config
-
       - name: Package Linux .deb
-        run: bash scripts/package-linux.sh package
+        run: nix develop --command bash -c "bash scripts/package-linux.sh package"
 
       - name: Set artifact path
         run: |
-          echo "ARTIFACT_PATH=$(bash scripts/package-linux.sh archive_path)" >> "$GITHUB_ENV"
-          echo "DEB_PATH=$(bash scripts/package-linux.sh deb_path)" >> "$GITHUB_ENV"
+          echo "ARTIFACT_PATH=$(nix develop --command bash -c 'bash scripts/package-linux.sh archive_path')" >> "$GITHUB_ENV"
+          echo "DEB_PATH=$(nix develop --command bash -c 'bash scripts/package-linux.sh deb_path')" >> "$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
