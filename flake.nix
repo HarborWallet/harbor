@@ -50,11 +50,26 @@
             pkgs.xorg.libXrandr
             pkgs.diesel-cli
             pkgs.nixfmt-rfc-style
+            # Added dependencies for keyring on Linux
+            pkgs.dbus
+            pkgs.libsecret
+            pkgs.gnome.gnome-keyring
+            pkgs.gnome.libgnome-keyring
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
             pkgs.darwin.apple_sdk.frameworks.CoreText
             pkgs.darwin.apple_sdk.frameworks.WebKit
+          ]
+          ++ lib.optionals pkgs.stdenv.isLinux [
+            # Linux dependencies for building and packaging
+            pkgs.sqlcipher
+            pkgs.udev
+            pkgs.libxkbcommon
+            pkgs.alsa-lib
+            pkgs.dpkg
+            pkgs.fakeroot
+            # Linux-specific graphics dependencies are already in the devShell
           ];
       in
       {
@@ -87,14 +102,15 @@
           ];
 
           # Important environment variables for EGL and Wayland
-          # EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
-          # WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
           LD_LIBRARY_PATH = lib.makeLibraryPath ([
             pkgs.mesa
             pkgs.libglvnd
             pkgs.xorg.libX11
             pkgs.libxkbcommon
             pkgs.wayland
+            # Added libraries to LD_LIBRARY_PATH for keyring
+            pkgs.dbus.lib
+            pkgs.libsecret
           ]);
 
           shellHook = ''
@@ -104,9 +120,21 @@
             export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa.drivers}/share/glvnd/egl_vendor.d/
             # Wayland specific environment variables
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+            
+            # Ensure DBus session is available for keyring
+            if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+              eval $(dbus-launch --sh-syntax)
+              export DBUS_SESSION_BUS_ADDRESS
+            fi
+            
+            # Start gnome-keyring-daemon if not running
+            if ! pgrep -x "gnome-keyring-d" > /dev/null; then
+              eval $(gnome-keyring-daemon --start --components=secrets)
+              export GNOME_KEYRING_CONTROL
+              export SSH_AUTH_SOCK
+            fi
           '';
         };
-
       }
     );
 }

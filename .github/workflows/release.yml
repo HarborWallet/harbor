@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
       - uses: Swatinem/rust-cache@v2
         with:
@@ -61,27 +61,29 @@ jobs:
     environment: signing
     steps:
       - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
       - uses: Swatinem/rust-cache@v2
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
 
-      - name: Install linux deps
-        if: matrix.target.target == 'linux'
+      - name: Build with Nix
+        run: |
+          # Build using nix environment but don't package yet
+          nix develop --command bash -c "cargo build --release --features vendored -p harbor-ui"
+
+      - name: Install Linux packaging dependencies
+        # These are specifically for the .deb packaging process
         run: |
           sudo apt update
-          sudo apt install \
+          sudo apt install -y \
             build-essential \
             git \
             dpkg \
-            pkg-config \
-            libdbus-1-dev \
-            libsqlcipher-dev \
-            libudev-dev \
-            libxkbcommon-dev \
-            libfontconfig1-dev \
-            libasound2-dev
+            pkg-config
 
-      - name: Build
+      - name: Package Linux .deb
         run: bash scripts/package-linux.sh package
 
       - name: Set artifact path
