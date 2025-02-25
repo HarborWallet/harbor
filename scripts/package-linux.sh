@@ -38,6 +38,7 @@ deb_path() {
 create_deb() {
   local PACKAGE_ROOT="$RELEASE_DIR/debian"
   local INSTALL_ROOT="$PACKAGE_ROOT/usr"
+  local BINARY_PATH="$RELEASE_DIR/$TARGET"
 
   # Clean up any previous package files
   rm -rf "$PACKAGE_ROOT"
@@ -49,244 +50,134 @@ create_deb() {
   mkdir -p "$INSTALL_ROOT/share/metainfo"
   mkdir -p "$INSTALL_ROOT/share/icons/hicolor/512x512/apps"
   mkdir -p "$INSTALL_ROOT/share/icons/hicolor/scalable/apps"
-  # Create lib directory for Wayland libraries
+  mkdir -p "$INSTALL_ROOT/lib/harbor"
   mkdir -p "$INSTALL_ROOT/lib/harbor/libs"
 
-  # Create control file with proper dependencies for both X11 and Wayland
-  cat > "$PACKAGE_ROOT/DEBIAN/control" << EOF
-Package: harbor
-Version: $VERSION
-Architecture: $ARCH
-Maintainer: benthecarman <benthecarman@live.com> Paul Miller <paul@paul.lol>
-Description: Harbor UI Application
- Fedimint ecash desktop wallet for better bitcoin privacy
-Section: utils
-Priority: optional
-Homepage: https://harbor.cash
-Depends: libc6, libdbus-1-3, libsecret-1-0, libxkbcommon0, libudev1, libfontconfig1, libasound2, libwayland-client0, libwayland-egl1, libwayland-cursor0, libx11-6, mesa-utils, libxkbcommon-x11-0
-Recommends: libvulkan1
-EOF
-
-  # Create pre-installation script to ensure system compatibility
-  cat > "$PACKAGE_ROOT/DEBIAN/preinst" << 'EOF'
-#!/bin/sh
-set -e
-
-# Check for Wayland compatibility
-WAYLAND_FOUND=0
-for lib in libwayland-client.so libwayland-cursor.so libwayland-egl.so; do
-    if [ -f "/usr/lib/$lib" ] || [ -f "/usr/lib/x86_64-linux-gnu/$lib" ]; then
-        WAYLAND_FOUND=1
-        break
-    fi
-done
-
-# Don't require Wayland - we'll fall back to X11 if not available
-if [ "$WAYLAND_FOUND" -eq 0 ]; then
-    echo "Warning: Wayland libraries not found, X11 will be used as fallback."
-fi
-
-exit 0
-EOF
-
-  # Make pre-installation script executable
-  chmod 755 "$PACKAGE_ROOT/DEBIAN/preinst"
-
   # Verify the binary exists
-  BINARY_PATH="$RELEASE_DIR/$TARGET"
   if [ ! -f "$BINARY_PATH" ]; then
     echo "Error: Binary not found at $BINARY_PATH"
     exit 1
   fi
 
-  # Copy Wayland libraries using the same Nix environment used for building
-  if [ "${CI:-false}" = "true" ]; then
-    # In CI, we're already in a Nix shell, so we can get libraries directly
-    echo "Copying libraries from Nix environment to .deb package..."
+  # Copy the binary
+  install -Dm755 "$BINARY_PATH" "$INSTALL_ROOT/lib/harbor/harbor-ui-bin"
+
+  # Bundle required Wayland and graphics libraries
+  echo "Bundling libraries for Wayland and graphics support..."
+  
+  if [ -n "$DEB_LIBRARIES" ]; then
+    # Use libraries from Nix environment
+    echo "Using libraries from Nix environment (DEB_LIBRARIES)"
     
-    # Search for libraries in the LD_LIBRARY_PATH from the Nix environment
-    IFS=':' read -ra LIB_PATHS <<< "$LD_LIBRARY_PATH"
+    IFS=':' read -ra LIB_PATHS <<< "$DEB_LIBRARIES"
     for lib_dir in "${LIB_PATHS[@]}"; do
       if [ -d "$lib_dir" ]; then
-        for lib_file in "$lib_dir"/libwayland-*.so* "$lib_dir"/libEGL.so* "$lib_dir"/libvulkan.so*; do
-          if [ -f "$lib_file" ]; then
-            echo "Copying: $lib_file"
-            cp -L "$lib_file" "$INSTALL_ROOT/lib/harbor/libs/" 2>/dev/null || true
+        echo "Searching in: $lib_dir"
+        # Copy all Wayland, GL, other important libraries, and core C runtime libraries
+        for pattern in "libwayland*.so*" "libEGL*.so*" "libGL*.so*" "libvulkan*.so*" "libxkbcommon*.so*" "libX*.so*" "libdbus*.so*" "libffi*.so*" "libgcc_s*.so*" "libc.so*" "ld-linux*.so*" "libm.so*" "librt.so*" "libpthread.so*" "libstdc++*.so*" "libICE.so*" "libSM.so*"; do
+          for lib_file in "$lib_dir"/$pattern; do
+            if [ -f "$lib_file" ] && [ ! -L "$lib_file" ]; then
+              echo "  - Copying: $lib_file"
+              cp -L "$lib_file" "$INSTALL_ROOT/lib/harbor/libs/" 2>/dev/null || true
+            fi
+          done
+        done
+      fi
+    done
+  else
+    # Fallback to system libraries
+    echo "DEB_LIBRARIES not set, falling back to system libraries"
+    for lib_dir in /usr/lib/x86_64-linux-gnu /usr/lib /lib/x86_64-linux-gnu /lib; do
+      if [ -d "$lib_dir" ]; then
+        echo "Searching in: $lib_dir"
+        for lib in libwayland-client.so* libwayland-cursor.so* libwayland-egl.so* libEGL.so* libGL.so* libdbus-1.so* libxkbcommon.so* libc.so* ld-linux-x86-64.so* libm.so* librt.so* libpthread.so* libstdc++.so* libICE.so* libSM.so*; do
+          if [ -f "$lib_dir/$lib" ]; then
+            echo "  - Copying: $lib_dir/$lib"
+            cp -L "$lib_dir/$lib" "$INSTALL_ROOT/lib/harbor/libs/" 2>/dev/null || true
           fi
         done
       fi
     done
   fi
-  
-  # Always make sure we have critical libraries, if not found in Nix env
-  if [ ! -f "$INSTALL_ROOT/lib/harbor/libs/libwayland-client.so" ]; then
-    echo "Falling back to system Wayland libraries..."
-    # Copy from system locations as fallback
-    for path in /usr/lib/x86_64-linux-gnu /usr/lib; do
-      if [ -d "$path" ]; then
-        # Copy Wayland main libraries
-        for lib in libwayland-client.so* libwayland-cursor.so* libwayland-egl.so*; do
-          if [ -f "$path/$lib" ]; then
-            echo "Copying system library: $path/$lib"
-            cp -L "$path/$lib" "$INSTALL_ROOT/lib/harbor/libs/" 2>/dev/null || true
-          fi
-        done
-        
-        # Copy additional required libraries that might be needed
-        for lib in libffi.so* libdbus-1.so* libEGL.so* libwl_*.so*; do
-          if [ -f "$path/$lib" ]; then
-            echo "Copying dependency: $path/$lib"
-            cp -L "$path/$lib" "$INSTALL_ROOT/lib/harbor/libs/" 2>/dev/null || true
-          fi
-        done
+
+  # Make sure library permissions are correct
+  chmod 755 "$INSTALL_ROOT/lib/harbor/libs"
+  chmod 644 "$INSTALL_ROOT/lib/harbor/libs/"*.so*
+
+  # Create proper symlinks for the libraries
+  echo "Creating library symlinks..."
+  for lib in "$INSTALL_ROOT/lib/harbor/libs/"*.so.*; do
+    if [ -f "$lib" ]; then
+      base=$(basename "$lib" | grep -o '^[^.]*\.so')
+      if [ -n "$base" ]; then
+        target=$(basename "$lib")
+        echo "  - Linking: $base -> $target"
+        ln -sf "$target" "$INSTALL_ROOT/lib/harbor/libs/$base"
       fi
-    done
+    fi
+  done
+  
+  # Verify we have the critical Wayland libraries
+  if [ ! -f "$INSTALL_ROOT/lib/harbor/libs/libwayland-client.so" ]; then
+    echo "WARNING: Failed to bundle libwayland-client.so"
+  fi
+  
+  if [ ! -f "$INSTALL_ROOT/lib/harbor/libs/libwayland-egl.so" ]; then
+    echo "WARNING: Failed to bundle libwayland-egl.so"
+  fi
+
+  # Manual patching of the binary's RPATH
+  if command -v patchelf >/dev/null; then
+    echo "Patching RPATH of binary to use bundled libraries..."
+    patchelf --set-rpath "/usr/lib/harbor/libs:/usr/lib:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu" "$INSTALL_ROOT/lib/harbor/harbor-ui-bin"
+    echo "New RPATH: $(patchelf --print-rpath "$INSTALL_ROOT/lib/harbor/harbor-ui-bin")"
+  else
+    echo "WARNING: patchelf not found, cannot patch binary RPATH!"
+    echo "You must install patchelf to create a working .deb package."
+    exit 1
   fi
 
   # Create a wrapper script that sets up the environment
   cat > "$INSTALL_ROOT/bin/harbor-ui" << 'EOF'
 #!/bin/bash
-# Wrapper script for harbor-ui that sets up the environment
+# Wrapper script for harbor-ui
 
-# Our bundled libraries from Nix should take priority
-if [ -d "/usr/lib/harbor/libs" ]; then
-  export LD_LIBRARY_PATH="/usr/lib/harbor/libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-fi
+# Ensure bundled libraries are used
+export LD_LIBRARY_PATH="/usr/lib/harbor/libs:${LD_LIBRARY_PATH}"
 
-# Determine system architecture - only use these if our bundled libs aren't sufficient
-if [ "$(uname -m)" = "x86_64" ]; then
-  LIB_DIRS=(
-    "/usr/lib"
-    "/usr/lib/x86_64-linux-gnu"
-    "/usr/lib64"
-  )
-else
-  LIB_DIRS=(
-    "/usr/lib"
-    "/usr/lib/$(uname -m)-linux-gnu"
-  )
-fi
-
-# Only add system library paths if necessary
-if [ ! -f "/usr/lib/harbor/libs/libwayland-client.so" ]; then
-  EXTRA_LD_PATHS=""
-  for dir in "${LIB_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-      EXTRA_LD_PATHS="${EXTRA_LD_PATHS:+$EXTRA_LD_PATHS:}$dir"
-    fi
-  done
-  
-  # Append system library paths after our bundled paths
-  if [ -n "$EXTRA_LD_PATHS" ]; then
-    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$EXTRA_LD_PATHS"
-  fi
-fi
-
-# Standard locations for graphics drivers and EGL vendor configs
-DRI_PATHS=(
-  "/usr/lib/dri"
-  "/usr/lib/x86_64-linux-gnu/dri"
-  "/usr/lib64/dri"
-  "/usr/lib/mesa/dri"  # Added Mesa-specific path
-)
-
-EGL_VENDOR_DIRS=(
-  "/usr/share/glvnd/egl_vendor.d"
-  "/usr/share/egl/egl_vendor.d"
-  "/etc/glvnd/egl_vendor.d"
-  "/usr/lib/x86_64-linux-gnu/glvnd/egl_vendor.d"  # Added additional vendor path
-)
-
-# Find and set DRI path
-if [ -z "$LIBGL_DRIVERS_PATH" ]; then
-  for path in "${DRI_PATHS[@]}"; do
-    if [ -d "$path" ]; then
-      export LIBGL_DRIVERS_PATH="$path"
-      break
-    fi
-  done
-fi
-
-# Find and set EGL vendor path
-if [ -z "$__EGL_VENDOR_LIBRARY_DIRS" ]; then
-  for path in "${EGL_VENDOR_DIRS[@]}"; do
-    if [ -d "$path" ]; then
-      export __EGL_VENDOR_LIBRARY_DIRS="$path"
-      break
-    fi
-  done
-fi
-
-# Set XDG_RUNTIME_DIR if not set
-if [ -z "$XDG_RUNTIME_DIR" ]; then
-  USER_ID=$(id -u)
-  XDG_DIR="/run/user/$USER_ID"
-  
-  # Only set if the directory exists or can be created
-  if [ -d "$XDG_DIR" ] || mkdir -p "$XDG_DIR" 2>/dev/null; then
-    export XDG_RUNTIME_DIR="$XDG_DIR"
-    # Ensure proper permissions
-    chmod 700 "$XDG_DIR"
-  fi
-fi
-
-# Check for Wayland availability and libraries
-if [ -f "/usr/lib/harbor/libs/libwayland-client.so" ]; then
-  # Use our bundled Wayland libraries from Nix
+# Detect Wayland and set proper environment
+if [ "$XDG_SESSION_TYPE" = "wayland" ] || [ -n "$WAYLAND_DISPLAY" ]; then
   export WINIT_UNIX_BACKEND=wayland
-  export EGL_PLATFORM=wayland
   export GDK_BACKEND=wayland
+  export EGL_PLATFORM=wayland
   
-  # Set WAYLAND_DEBUG for diagnostic information if needed
-  # export WAYLAND_DEBUG=1
-  
-  # Set environment variables similar to what worked in the AppImage
-  export LIBGL_DRIVERS_PATH=${LIBGL_DRIVERS_PATH:-/usr/lib/dri}
-  export __EGL_VENDOR_LIBRARY_DIRS=${__EGL_VENDOR_LIBRARY_DIRS:-/usr/share/glvnd/egl_vendor.d/}
-  
-  # Set important environment variables directly
+  # Set WAYLAND_DISPLAY if not already set
   if [ -z "$WAYLAND_DISPLAY" ] && [ -n "$XDG_RUNTIME_DIR" ]; then
     export WAYLAND_DISPLAY=wayland-0
   fi
-  
-  # Force direct rendering for better performance
-  export LIBGL_ALWAYS_SOFTWARE=0
-  
-  # Add Vulkan ICD path if it exists
-  if [ -d "/usr/share/vulkan/icd.d" ]; then
-    export VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/intel_icd.json:/usr/share/vulkan/icd.d/radeon_icd.json"
-  fi
-elif [ -f "/usr/lib/libwayland-client.so" ] || [ -f "/usr/lib/x86_64-linux-gnu/libwayland-client.so" ]; then
-  # Fall back to system Wayland libraries if available
-  export WINIT_UNIX_BACKEND=wayland
-  export EGL_PLATFORM=wayland
-  export GDK_BACKEND=wayland
-  
-  # Set important environment variables directly
-  if [ -z "$WAYLAND_DISPLAY" ] && [ -n "$XDG_RUNTIME_DIR" ]; then
-    export WAYLAND_DISPLAY=wayland-0
-  fi
-elif [ "$XDG_SESSION_TYPE" = "wayland" ]; then
-  # If we're in a Wayland session but don't have direct library access
-  export WINIT_UNIX_BACKEND=wayland
-  export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
-  export GDK_BACKEND=wayland
 else
   # Fallback to X11
   export WINIT_UNIX_BACKEND=x11
   export GDK_BACKEND=x11
 fi
 
-# Add debugging info to a log file
-echo "Environment variables:" > /tmp/harbor-env-debug.log
-echo "WINIT_UNIX_BACKEND=$WINIT_UNIX_BACKEND" >> /tmp/harbor-env-debug.log
-echo "EGL_PLATFORM=$EGL_PLATFORM" >> /tmp/harbor-env-debug.log
-echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY" >> /tmp/harbor-env-debug.log
-echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" >> /tmp/harbor-env-debug.log
-echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> /tmp/harbor-env-debug.log
-echo "LIBGL_DRIVERS_PATH=$LIBGL_DRIVERS_PATH" >> /tmp/harbor-env-debug.log
-echo "__EGL_VENDOR_LIBRARY_DIRS=$__EGL_VENDOR_LIBRARY_DIRS" >> /tmp/harbor-env-debug.log
-ls -la /usr/lib/harbor/libs >> /tmp/harbor-env-debug.log 2>&1 || true
+# Set standard paths for graphics drivers
+export LIBGL_DRIVERS_PATH=${LIBGL_DRIVERS_PATH:-/usr/lib/dri}
+export __EGL_VENDOR_LIBRARY_DIRS=${__EGL_VENDOR_LIBRARY_DIRS:-/usr/share/glvnd/egl_vendor.d/}
+
+# Try software rendering if hardware fails
+export LIBGL_ALWAYS_SOFTWARE=1
+
+# For debugging - uncomment if needed
+# export WAYLAND_DEBUG=1
+
+# List loaded libraries for debugging
+if [ "${HARBOR_DEBUG:-0}" = "1" ]; then
+  echo "Environment variables:" > /tmp/harbor-env-debug.log
+  env | grep -E "WAYLAND|XDG|LD_LIBRARY|LIBGL|EGL|WINIT|GDK" >> /tmp/harbor-env-debug.log
+  echo "Library path contents:" >> /tmp/harbor-env-debug.log
+  ls -la /usr/lib/harbor/libs >> /tmp/harbor-env-debug.log 2>&1
+fi
 
 # Run the actual binary
 exec "/usr/lib/harbor/harbor-ui-bin" "$@"
@@ -295,11 +186,20 @@ EOF
   # Make the wrapper script executable
   chmod 755 "$INSTALL_ROOT/bin/harbor-ui"
 
-  # Create directory for the actual binary
-  mkdir -p "$INSTALL_ROOT/lib/harbor"
-
-  # Copy the actual binary with a different name
-  install -Dm755 "$BINARY_PATH" "$INSTALL_ROOT/lib/harbor/harbor-ui-bin"
+  # Create control file with dependencies
+  cat > "$PACKAGE_ROOT/DEBIAN/control" << EOF
+Package: harbor
+Version: $VERSION
+Architecture: $ARCH
+Maintainer: benthecarman <benthecarman@live.com>, Paul Miller <paul@paul.lol>
+Description: Harbor UI Application
+ Fedimint ecash desktop wallet for better bitcoin privacy
+Section: utils
+Priority: optional
+Homepage: https://harbor.cash
+Depends: libc6, libx11-6
+Recommends: libwayland-client0, libwayland-egl1, libwayland-cursor0, libxkbcommon0, libgl1
+EOF
 
   # Install icons - we know exactly where they are
   install -Dm644 "harbor-ui/assets/harbor_icon.png" "$INSTALL_ROOT/share/icons/hicolor/512x512/apps/cash.harbor.harbor.png"
@@ -322,23 +222,6 @@ fi
 if [ -x "$(command -v gtk-update-icon-cache)" ]; then
     gtk-update-icon-cache -f -t /usr/share/icons/hicolor
 fi
-
-# Fix permissions for bundled libraries
-if [ -d "/usr/lib/harbor/libs" ]; then
-    chmod 755 /usr/lib/harbor/libs
-    chmod 644 /usr/lib/harbor/libs/*.so* 2>/dev/null || true
-    
-    # Make sure our libraries are properly linked
-    for lib in /usr/lib/harbor/libs/*.so.*; do
-        if [ -f "$lib" ]; then
-            base=$(basename "$lib" | cut -d. -f1)
-            ln -sf "$lib" "/usr/lib/harbor/libs/$base.so" 2>/dev/null || true
-        fi
-    done
-fi
-
-# Unlike previous versions, we DO NOT create symlinks to system libraries
-# as this might override our carefully bundled libraries
 
 exit 0
 EOF

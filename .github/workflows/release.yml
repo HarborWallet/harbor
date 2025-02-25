@@ -69,13 +69,19 @@ jobs:
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
 
+      - name: Ensure patchelf is available
+        run: |
+          nix-env -i patchelf
+
       - name: Build with Nix
         run: |
           # Build using nix environment only - no system deps
           nix develop --command bash -c "cargo build --release --features vendored -p harbor-ui"
 
       - name: Package Linux .deb
-        run: nix develop --command bash -c "bash scripts/package-linux.sh package"
+        run: |
+          # Use direct manual patching of RPATH
+          nix develop --command bash -c "bash scripts/package-linux.sh package"
 
       - name: Set artifact path
         run: |

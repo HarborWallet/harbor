@@ -50,6 +50,8 @@
             pkgs.xorg.libXrandr
             pkgs.diesel-cli
             pkgs.nixfmt-rfc-style
+            # Make sure patchelf is included for direct binary patching
+            pkgs.patchelf
 
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
@@ -87,6 +89,30 @@
             pkgs.gnome-keyring
             pkgs.libgnome-keyring
           ];
+        
+        # Define libraries that should be bundled in the .deb package
+        debLibraries = with pkgs; [
+          # Core libraries
+          stdenv.cc.cc.lib
+          zlib
+          libsecret
+          # Graphics libraries
+          libGL
+          mesa.drivers
+          wayland
+          libxkbcommon
+          vulkan-loader
+          # X11 libraries
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libXi
+          xorg.libXrandr
+          # Sound
+          alsa-lib
+          # Other dependencies
+          dbus
+          udev
+        ];
       in
       {
         defaultPackage = pkgs.rustPlatform.buildRustPackage {
@@ -113,6 +139,9 @@
             pkgs.dbus.lib
             pkgs.libsecret
           ]);
+          
+          # Export list of libraries that should be bundled
+          DEB_LIBRARIES = lib.makeLibraryPath debLibraries;
 
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
