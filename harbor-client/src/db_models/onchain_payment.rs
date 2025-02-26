@@ -62,14 +62,14 @@ impl OnChainPayment {
         conn: &mut SqliteConnection,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address<NetworkUnchecked>,
+        address: Address,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()> {
         let new = NewOnChainPayment {
             operation_id: operation_id.fmt_full().to_string(),
             fedimint_id: fedimint_id.to_string(),
-            address: address.assume_checked().to_string(),
+            address: address.to_string(),
             amount_sats: amount_sats as i64,
             fee_sats: fee_sats as i64,
             status: PaymentStatus::Pending as i32,

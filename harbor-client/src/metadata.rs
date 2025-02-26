@@ -24,7 +24,7 @@ pub(crate) enum FederationData<'a> {
 impl FederationData<'_> {
     pub(crate) fn get_meta(&self, str: &str) -> Option<String> {
         match self {
-            FederationData::Client(c) => c.get_meta(str),
+            FederationData::Client(c) => c.get_config_meta(str),
             FederationData::Config(c) => c.meta(str).ok().flatten(),
         }
     }

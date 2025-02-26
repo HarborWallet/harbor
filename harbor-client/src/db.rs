@@ -7,7 +7,6 @@ use crate::db_models::{
 use crate::metadata::FederationMeta;
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
-use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
 use diesel::{
     connection::SimpleConnection,
@@ -149,7 +148,7 @@ pub trait DBConnection {
         &self,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address<NetworkUnchecked>,
+        address: Address,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()>;
@@ -368,7 +367,7 @@ impl DBConnection for SQLConnection {
         &self,
         operation_id: OperationId,
         fedimint_id: FederationId,
-        address: Address<NetworkUnchecked>,
+        address: Address,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()> {
@@ -853,7 +852,7 @@ mod tests {
             &mut conn,
             operation_id,
             FederationId::from_str(FEDERATION_ID).unwrap(),
-            address.clone(),
+            address.clone().assume_checked(),
             amount,
             fee,
         )

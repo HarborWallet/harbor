@@ -630,9 +630,12 @@ impl HarborCore {
         address: Address<NetworkUnchecked>,
         sats: Option<u64>,
     ) -> anyhow::Result<()> {
+        let address = address
+            .require_network(self.network)
+            .map_err(|_| anyhow!("Address is for wrong network"))?;
+
         log::info!(
-            "Sending onchain payment to address: {} from federation: {federation_id}",
-            address.clone().assume_checked()
+            "Sending onchain payment to address: {address} from federation: {federation_id}",
         );
         let client = self.get_client(federation_id).await.fedimint_client;
         let onchain = client
@@ -642,7 +645,7 @@ impl HarborCore {
         let (fees, amount) = match sats {
             Some(sats) => {
                 let amount = bitcoin::Amount::from_sat(sats);
-                let fees = onchain.get_withdraw_fees(address.clone(), amount).await?;
+                let fees = onchain.get_withdraw_fees(&address, amount).await?;
                 (fees, amount)
             }
             None => {
@@ -655,7 +658,7 @@ impl HarborCore {
                 // get fees for the entire balance
                 let fees = onchain
                     .get_withdraw_fees(
-                        address.clone(),
+                        &address,
                         bitcoin::Amount::from_sat(balance.sats_round_down()),
                     )
                     .await?;
@@ -681,7 +684,7 @@ impl HarborCore {
             ));
         }
 
-        let op_id = onchain.withdraw(address.clone(), amount, fees, ()).await?;
+        let op_id = onchain.withdraw(&address, amount, fees, ()).await?;
 
         self.storage.create_onchain_payment(
             op_id,
@@ -922,7 +925,7 @@ impl HarborCore {
                 id: c.fedimint_client.federation_id(),
                 name: c
                     .fedimint_client
-                    .get_meta("federation_name")
+                    .get_config_meta("federation_name")
                     .unwrap_or("Unknown".to_string()),
                 balance: balance.sats_round_down(),
                 guardians: Some(guardians),

@@ -201,6 +201,9 @@ pub fn run_core() -> impl Stream<Item = Message> {
             .add_filter_ignore_str("naga")
             .add_filter_ignore_str("cosmic_text")
             .add_filter_ignore_str("rustls")
+            // spammy trace logs
+            .add_filter_ignore_str("calloop")
+            .add_filter_ignore_str("soketto")
             .build();
         CombinedLogger::init(vec![
             TermLogger::new(
