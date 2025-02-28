@@ -926,6 +926,12 @@ impl HarborCore {
                         .flatten()
                 });
 
+            let on_chain_supported =
+                match c.fedimint_client.get_first_module::<WalletClientModule>() {
+                    Ok(w) => w.supports_safe_deposit().await,
+                    Err(_) => false,
+                };
+
             res.push(FederationItem {
                 id: c.fedimint_client.federation_id(),
                 name: c
@@ -936,6 +942,7 @@ impl HarborCore {
                 guardians: Some(guardians),
                 module_kinds: Some(module_kinds),
                 metadata: metadata.unwrap_or_default(),
+                on_chain_supported,
                 active: true,
             });
         }
@@ -970,6 +977,7 @@ impl HarborCore {
                 guardians: None,
                 module_kinds: None,
                 metadata: m.into(),
+                on_chain_supported: false,
                 active: false,
             };
             res.push(item);
