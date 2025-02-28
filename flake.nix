@@ -100,8 +100,8 @@
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
             # Add important Mesa paths
-            export LIBGL_DRIVERS_PATH=${pkgs.mesa.drivers}/lib/dri
-            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa.drivers}/share/glvnd/egl_vendor.d/
+            export LIBGL_DRIVERS_PATH=${pkgs.mesa}/lib/dri
+            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa}/share/glvnd/egl_vendor.d/
             # Wayland specific environment variables
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
           '';
