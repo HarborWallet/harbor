@@ -7,7 +7,7 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "nixpkgs/nixos-24.11";
   };
 
   outputs =
@@ -44,10 +44,6 @@
             pkgs.freetype.dev
             pkgs.libGL
             pkgs.pkg-config
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
             pkgs.diesel-cli
             pkgs.nixfmt-rfc-style
           ]
@@ -55,6 +51,12 @@
             pkgs.darwin.apple_sdk.frameworks.AppKit
             pkgs.darwin.apple_sdk.frameworks.CoreText
             pkgs.darwin.apple_sdk.frameworks.WebKit
+          ]
+          ++ lib.optionals pkgs.stdenv.isLinux [
+            pkgs.xorg.libX11
+            pkgs.xorg.libXcursor
+            pkgs.xorg.libXi
+            pkgs.xorg.libXrandr
           ];
       in
       {
@@ -100,8 +102,8 @@
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
             # Add important Mesa paths
-            export LIBGL_DRIVERS_PATH=${pkgs.mesa}/lib/dri
-            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa}/share/glvnd/egl_vendor.d/
+            export LIBGL_DRIVERS_PATH=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/lib/dri
+            export __EGL_VENDOR_LIBRARY_DIRS=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/share/glvnd/egl_vendor.d/
             # Wayland specific environment variables
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
           '';
