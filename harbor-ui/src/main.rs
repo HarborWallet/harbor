@@ -399,6 +399,9 @@ impl HarborWallet {
             }
             // Internal app state stuff like navigation and text inputs
             Message::Navigate(route) => {
+                // Hide the add_a_mint_cta as soon as the user navs anywhere
+                self.show_add_a_mint_cta = false;
+
                 match self.active_route {
                     // Reset the seed words state when we leave the settings screen
                     Route::Settings => {
@@ -419,7 +422,6 @@ impl HarborWallet {
                     _ => match route {
                         Route::Mints(_) => {
                             // Hide the add a mint cta when navigating to mints
-                            self.show_add_a_mint_cta = false;
                             self.has_navigated_to_mints = true;
                             self.active_route = route;
                         }
