@@ -24,7 +24,11 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
 /// Renders the view before an invoice/address is generated.
 fn render_receive_form(harbor: &HarborWallet) -> Element<Message> {
-    let header = if harbor.onchain_receive_enabled {
+    let header = if harbor.onchain_receive_enabled
+        || harbor
+            .active_federation()
+            .is_some_and(|x| x.on_chain_supported)
+    {
         h_header("Deposit", "Receive on-chain or via lightning.")
     } else {
         h_header("Deposit", "Receive via lightning.")

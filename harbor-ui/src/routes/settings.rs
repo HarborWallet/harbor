@@ -13,14 +13,14 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
 
     let onchain_receive_checkbox = h_checkbox(
         "On-chain Receive",
-        Some("Receive bitcoin on-chain. Advanced users only. Risky."),
+        Some("Receive bitcoin on-chain with all mints."),
         harbor.onchain_receive_enabled,
         |enabled| {
             // Only warn them if they're enabling it
             if enabled {
                 Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
                     title: "WARNING: Use at your own risk!".to_string(),
-                    description: "On-chain receive is not fully supported and CAN RESULT IN LOSS OF FUNDS. If you can't think of why that would happen, then this feature is not for you!".to_string(),
+                    description: "On-chain receive is not fully supported on older mints and CAN RESULT IN LOSS OF FUNDS. If you can't think of why that would happen, then this feature is not for you!".to_string(),
                     confirm_action: Box::new(Message::SetOnchainReceiveEnabled(enabled)),
                 cancel_action: Box::new(Message::SetConfirmModal(None)),
                     confirm_button_text: "YOLO".to_string(),

@@ -33,6 +33,7 @@ pub struct FederationItem {
     pub guardians: Option<Vec<String>>,
     pub module_kinds: Option<Vec<ModuleKind>>,
     pub metadata: FederationMeta,
+    pub on_chain_supported: bool,
     pub active: bool,
 }
 
@@ -45,6 +46,7 @@ impl FederationItem {
             guardians: None,
             module_kinds: None,
             metadata: FederationMeta::default(),
+            on_chain_supported: false,
             active: true,
         }
     }

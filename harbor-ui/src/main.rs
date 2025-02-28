@@ -1107,6 +1107,7 @@ impl HarborWallet {
                         guardians: Some(guardians),
                         module_kinds: Some(module_kinds),
                         metadata,
+                        on_chain_supported: false,
                         active: true,
                     };
 
