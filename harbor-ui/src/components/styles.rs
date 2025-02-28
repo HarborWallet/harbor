@@ -1,15 +1,14 @@
 use iced::{
+    Border, Color, Shadow, Theme,
     overlay::menu,
     widget::{checkbox, container::Style as ContainerStyle, pick_list, text::Style},
-    Border, Color, Shadow, Theme,
 };
 
 use super::{darken, lighten};
 
 use iced::{
-    font,
-    widget::{text, Text},
-    Font,
+    Font, font,
+    widget::{Text, text},
 };
 
 pub fn subtitle(theme: &Theme) -> Style {

@@ -1,6 +1,6 @@
 use iced::Element;
 
-use crate::components::{h_button, h_header, operation_status, SvgIcon};
+use crate::components::{SvgIcon, h_button, h_header, operation_status};
 use crate::components::{Toast, ToastStatus};
 use crate::{HarborWallet, Message};
 use iced::widget::column;

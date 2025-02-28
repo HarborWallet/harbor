@@ -1,22 +1,22 @@
-use crate::{db::DBConnection, db_models::NewFedimint};
 use crate::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
+use crate::{db::DBConnection, db_models::NewFedimint};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bip39::Mnemonic;
-use bitcoin::hashes::hex::FromHex;
 use bitcoin::Network;
+use bitcoin::hashes::hex::FromHex;
 use fedimint_bip39::Bip39RootSecretStrategy;
-use fedimint_client::oplog::UpdateStreamOrOutcome;
-use fedimint_client::secret::{get_default_client_secret, RootSecretStrategy};
 use fedimint_client::ClientHandleArc;
+use fedimint_client::oplog::UpdateStreamOrOutcome;
+use fedimint_client::secret::{RootSecretStrategy, get_default_client_secret};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
-use fedimint_core::db::mem_impl::MemDatabase;
-use fedimint_core::db::mem_impl::MemTransaction;
 use fedimint_core::db::IDatabaseTransactionOps;
 use fedimint_core::db::IRawDatabase;
 use fedimint_core::db::IRawDatabaseTransaction;
 use fedimint_core::db::PrefixStream;
+use fedimint_core::db::mem_impl::MemDatabase;
+use fedimint_core::db::mem_impl::MemTransaction;
 use fedimint_core::{db::IDatabaseTransactionOpsCore, invite_code::InviteCode};
 use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
@@ -52,14 +52,14 @@ pub enum FederationInviteOrId {
 impl FederationInviteOrId {
     pub fn federation_id(&self) -> FederationId {
         match self {
-            FederationInviteOrId::Invite(ref i) => i.federation_id(),
+            FederationInviteOrId::Invite(i) => i.federation_id(),
             FederationInviteOrId::Id(i) => *i,
         }
     }
 
     pub fn invite_code(&self) -> Option<InviteCode> {
         match self {
-            FederationInviteOrId::Invite(ref i) => Some(i.clone()),
+            FederationInviteOrId::Invite(i) => Some(i.clone()),
             FederationInviteOrId::Id(_) => None,
         }
     }
@@ -635,7 +635,9 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     btc_deposited,
                     btc_out_point,
                 } => {
-                    info!("Onchain receive waiting for confirmation: {btc_deposited} from {btc_out_point:?}");
+                    info!(
+                        "Onchain receive waiting for confirmation: {btc_deposited} from {btc_out_point:?}"
+                    );
 
                     let recv = storage.get_onchain_receive(operation_id).ok().flatten();
 

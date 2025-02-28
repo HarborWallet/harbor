@@ -1,4 +1,4 @@
-use iced::widget::{checkbox, text, Column};
+use iced::widget::{Column, checkbox, text};
 use iced::{Element, Length};
 
 use super::{styles, very_subtle};

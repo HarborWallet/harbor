@@ -2,13 +2,13 @@ use crate::{AddFederationStatus, HarborWallet, Message};
 use harbor_client::db_models::FederationItem;
 use harbor_client::metadata::FederationMeta;
 use iced::{
-    widget::{column, container, horizontal_space, row, text},
     Alignment, Element, Length,
+    widget::{column, container, horizontal_space, row, text},
 };
 
 use super::{
-    h_balance_display, h_small_button, light_container_style, map_icon, subtitle, tag_style,
-    ConfirmModalState, SvgIcon,
+    ConfirmModalState, SvgIcon, h_balance_display, h_small_button, light_container_style, map_icon,
+    subtitle, tag_style,
 };
 
 // Helper function to create the common mint info layout

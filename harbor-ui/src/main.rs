@@ -1,27 +1,27 @@
 use crate::bridge::run_core;
 use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
-use crate::config::{write_config, Config};
+use crate::config::{Config, write_config};
 use bitcoin::{Address, Network};
 use components::{MUTINY_GREEN, MUTINY_RED};
+use fedimint_core::Amount;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
-use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
-use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::db_models::FederationItem;
+use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
-    data_dir, CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
+    CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg, data_dir,
 };
-use iced::widget::qr_code::Data;
-use iced::widget::row;
 use iced::Font;
 use iced::Subscription;
 use iced::Task;
-use iced::{clipboard, Color};
-use iced::{window, Element};
+use iced::widget::qr_code::Data;
+use iced::widget::row;
+use iced::{Color, clipboard};
+use iced::{Element, window};
 use log::{debug, error, info, trace};
 use routes::Route;
 use std::collections::HashMap;
@@ -297,10 +297,13 @@ impl HarborWallet {
         F: FnOnce(Arc<bridge::UIHandle>) -> Fut,
         Fut: std::future::Future<Output = ()>,
     {
-        if let Some(ui_handle) = ui_handle {
-            f(ui_handle).await;
-        } else {
-            panic!("UI handle is None");
+        match ui_handle {
+            Some(ui_handle) => {
+                f(ui_handle).await;
+            }
+            _ => {
+                panic!("UI handle is None");
+            }
         }
     }
 
@@ -586,63 +589,73 @@ impl HarborWallet {
                         });
                         self.current_send_id = Some(id);
                         task
-                    } else if let Ok(lnurl) = parse_lnurl(&invoice_str) {
-                        // TODO: can we handle is_max somehow?
-                        let amount = if self.is_max {
-                            return Task::perform(async {}, |_| {
-                                Message::AddToast(Toast {
-                                    title: "Cannot send max with Lightning Address".to_string(),
-                                    body: Some("Please enter a specific amount".to_string()),
-                                    status: ToastStatus::Bad,
-                                })
-                            });
-                        } else {
-                            match self.send_amount_input_str.parse::<u64>() {
-                                Ok(amount) => amount,
-                                Err(e) => {
-                                    error!("Error parsing amount: {e}");
-                                    self.send_failure_reason = Some(e.to_string());
-                                    return Task::none();
-                                }
-                            }
-                        };
-                        let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
-                            federation_id,
-                            lnurl,
-                            amount_sats: amount,
-                        });
-                        self.current_send_id = Some(id);
-                        task
-                    } else if let Ok(address) = Address::from_str(&invoice_str) {
-                        let amount = if self.is_max {
-                            None
-                        } else {
-                            match self.send_amount_input_str.parse::<u64>() {
-                                Ok(amount) => Some(amount),
-                                Err(e) => {
-                                    error!("Error parsing amount: {e}");
-                                    self.send_failure_reason = Some(e.to_string());
-                                    return Task::none();
-                                }
-                            }
-                        };
-                        let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
-                            federation_id,
-                            address,
-                            amount_sats: amount,
-                        });
-                        self.current_send_id = Some(id);
-                        task
                     } else {
-                        error!("Invalid invoice or address");
-                        self.current_send_id = None;
-                        Task::perform(async {}, |_| {
-                            Message::AddToast(Toast {
-                                title: "Failed to send".to_string(),
-                                body: Some("Invalid invoice or address".to_string()),
-                                status: ToastStatus::Bad,
-                            })
-                        })
+                        match parse_lnurl(&invoice_str) {
+                            Ok(lnurl) => {
+                                // TODO: can we handle is_max somehow?
+                                let amount = if self.is_max {
+                                    return Task::perform(async {}, |_| {
+                                        Message::AddToast(Toast {
+                                            title: "Cannot send max with Lightning Address"
+                                                .to_string(),
+                                            body: Some(
+                                                "Please enter a specific amount".to_string(),
+                                            ),
+                                            status: ToastStatus::Bad,
+                                        })
+                                    });
+                                } else {
+                                    match self.send_amount_input_str.parse::<u64>() {
+                                        Ok(amount) => amount,
+                                        Err(e) => {
+                                            error!("Error parsing amount: {e}");
+                                            self.send_failure_reason = Some(e.to_string());
+                                            return Task::none();
+                                        }
+                                    }
+                                };
+                                let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
+                                    federation_id,
+                                    lnurl,
+                                    amount_sats: amount,
+                                });
+                                self.current_send_id = Some(id);
+                                task
+                            }
+                            _ => {
+                                if let Ok(address) = Address::from_str(&invoice_str) {
+                                    let amount = if self.is_max {
+                                        None
+                                    } else {
+                                        match self.send_amount_input_str.parse::<u64>() {
+                                            Ok(amount) => Some(amount),
+                                            Err(e) => {
+                                                error!("Error parsing amount: {e}");
+                                                self.send_failure_reason = Some(e.to_string());
+                                                return Task::none();
+                                            }
+                                        }
+                                    };
+                                    let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
+                                        federation_id,
+                                        address,
+                                        amount_sats: amount,
+                                    });
+                                    self.current_send_id = Some(id);
+                                    task
+                                } else {
+                                    error!("Invalid invoice or address");
+                                    self.current_send_id = None;
+                                    Task::perform(async {}, |_| {
+                                        Message::AddToast(Toast {
+                                            title: "Failed to send".to_string(),
+                                            body: Some("Invalid invoice or address".to_string()),
+                                            status: ToastStatus::Bad,
+                                        })
+                                    })
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -799,36 +812,38 @@ impl HarborWallet {
             },
             Message::AddFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
-                if let Ok(invite) = invite {
-                    self.add_federation_status = AddFederationStatus::Adding;
-                    let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
-                    self.current_add_id = Some(id);
-                    task
-                } else {
-                    Task::perform(async {}, |_| {
+                match invite {
+                    Ok(invite) => {
+                        self.add_federation_status = AddFederationStatus::Adding;
+                        let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
+                        self.current_add_id = Some(id);
+                        task
+                    }
+                    _ => Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Can't add mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
-                    })
+                    }),
                 }
             }
             Message::PeekFederation(invite_code) => {
                 let invite = InviteCode::from_str(&invite_code);
-                if let Ok(invite) = invite {
-                    self.peek_status = PeekStatus::Peeking;
-                    let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
-                    self.current_peek_id = Some(id);
-                    task
-                } else {
-                    Task::perform(async {}, |_| {
+                match invite {
+                    Ok(invite) => {
+                        self.peek_status = PeekStatus::Peeking;
+                        let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
+                        self.current_peek_id = Some(id);
+                        task
+                    }
+                    _ => Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Can't preview mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
-                    })
+                    }),
                 }
             }
             Message::RemoveFederation(federation_id) => {

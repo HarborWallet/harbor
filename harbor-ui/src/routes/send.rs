@@ -1,9 +1,9 @@
-use iced::widget::{column, row};
 use iced::Element;
+use iced::widget::{column, row};
 
 use crate::components::{
-    basic_layout, h_button, h_checkbox, h_header, h_input, h_screen_header,
-    operation_status_for_id, ConfirmModalState, InputArgs, SvgIcon,
+    ConfirmModalState, InputArgs, SvgIcon, basic_layout, h_button, h_checkbox, h_header, h_input,
+    h_screen_header, operation_status_for_id,
 };
 use crate::{HarborWallet, Message, SendStatus};
 

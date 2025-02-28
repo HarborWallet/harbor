@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 use iced::Color;
-use palette::{rgb::Rgb, FromColor, Hsl};
+use palette::{FromColor, Hsl, rgb::Rgb};
 
 pub fn darken(color: Color, amount: f32) -> Color {
     let mut hsl = to_hsl(color);

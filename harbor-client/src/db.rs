@@ -9,15 +9,15 @@ use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use bitcoin::{Address, Txid};
 use diesel::{
+    SqliteConnection,
     connection::SimpleConnection,
     r2d2::{ConnectionManager, Pool},
-    SqliteConnection,
 };
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+use fedimint_core::Amount;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
 use fedimint_core::invite_code::InviteCode;
-use fedimint_core::Amount;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use log::{error, info};
 use rusqlite::{Connection, OpenFlags};
@@ -154,7 +154,7 @@ pub trait DBConnection {
     ) -> anyhow::Result<()>;
 
     fn set_onchain_payment_txid(&self, operation_id: OperationId, txid: Txid)
-        -> anyhow::Result<()>;
+    -> anyhow::Result<()>;
 
     fn mark_onchain_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
 
@@ -642,9 +642,9 @@ mod tests {
     use bip39::{Language, Mnemonic};
     use bitcoin::hashes::Hash;
     use bitcoin::{Address, Txid};
+    use fedimint_core::Amount;
     use fedimint_core::config::FederationId;
     use fedimint_core::core::OperationId;
-    use fedimint_core::Amount;
     use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
     use std::str::FromStr;
     use tempdir::TempDir;

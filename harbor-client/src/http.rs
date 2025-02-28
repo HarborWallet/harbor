@@ -10,8 +10,8 @@ use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use once_cell::sync::OnceCell;
 use serde::de::DeserializeOwned;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::rustls::RootCertStore;
@@ -31,13 +31,14 @@ async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntim
 
 /// Get or initialize the Tor client
 async fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
-    if let Some(client) = TOR_CLIENT.get() {
-        Ok(client.clone())
-    } else {
-        let client = initialize_tor_client().await?;
-        // It's okay if another thread beat us to initialization
-        let _ = TOR_CLIENT.set(client.clone());
-        Ok(client)
+    match TOR_CLIENT.get() {
+        Some(client) => Ok(client.clone()),
+        _ => {
+            let client = initialize_tor_client().await?;
+            // It's okay if another thread beat us to initialization
+            let _ = TOR_CLIENT.set(client.clone());
+            Ok(client)
+        }
     }
 }
 
@@ -114,7 +115,7 @@ where
             return Err(anyhow!(
                 "Tor client bootstrap timed out after {} seconds",
                 bootstrap_timeout.as_secs()
-            ))
+            ));
         }
     }
 
@@ -170,7 +171,7 @@ where
                 return Err(anyhow!(
                     "Connection to onion service timed out after {} seconds",
                     connect_timeout.as_secs()
-                ))
+                ));
             }
         }
     } else {
@@ -193,7 +194,7 @@ where
                 return Err(anyhow!(
                     "Connection timed out after {} seconds",
                     connect_timeout.as_secs()
-                ))
+                ));
             }
         }
     };
@@ -233,7 +234,7 @@ where
             return Err(anyhow!(
                 "TLS handshake timed out after {} seconds",
                 tls_timeout.as_secs()
-            ))
+            ));
         }
     };
 

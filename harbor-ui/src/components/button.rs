@@ -1,14 +1,15 @@
 use iced::{
-    widget::{
-        button::{self, Status},
-        center, horizontal_space, rich_text, row, span, text, Button,
-    },
     Border, Color, Element, Length, Shadow, Theme,
+    widget::{
+        Button,
+        button::{self, Status},
+        center, horizontal_space, rich_text, row, span, text,
+    },
 };
 
 use crate::{Message, Route};
 
-use super::{darken, lighten, link, map_icon, the_spinner, SvgIcon};
+use super::{SvgIcon, darken, lighten, link, map_icon, the_spinner};
 
 pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Message, Theme> {
     let spinner: Element<'static, Message, Theme> = the_spinner();

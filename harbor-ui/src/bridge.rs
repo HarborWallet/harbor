@@ -1,24 +1,24 @@
+use crate::Message;
 use crate::config::read_config;
 use crate::keyring::{save_to_keyring, try_get_keyring_password};
-use crate::Message;
 use bitcoin::Network;
 use fedimint_core::config::FederationId;
-use harbor_client::db::{check_password, setup_db, DBConnection};
+use harbor_client::db::{DBConnection, check_password, setup_db};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
-use harbor_client::{data_dir, CoreUIMsg, CoreUIMsgPacket, HarborCore, UICoreMsg, UICoreMsgPacket};
+use harbor_client::{CoreUIMsg, CoreUIMsgPacket, HarborCore, UICoreMsg, UICoreMsgPacket, data_dir};
 use iced::futures::channel::mpsc::Sender;
 use iced::futures::{SinkExt, Stream, StreamExt};
-use log::{error, info, warn, LevelFilter};
+use log::{LevelFilter, error, info, warn};
 use simplelog::WriteLogger;
 use simplelog::{CombinedLogger, TermLogger, TerminalMode};
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tokio::task::spawn_blocking;
 use uuid::Uuid;
 
@@ -117,11 +117,15 @@ async fn setup_harbor_core(
     let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
     let mut tx_clone = tx.clone();
     tokio::spawn(async move {
-        while let Some(rev) = core_rx.next().await {
-            tx_clone
-                .send(Message::CoreMessage(rev))
-                .await
-                .expect("should send");
+        loop {
+            let next_result = core_rx.next().await;
+            match next_result {
+                Some(rev) => {
+                    let send_result = tx_clone.send(Message::CoreMessage(rev)).await;
+                    send_result.expect("should send");
+                }
+                None => break,
+            }
         }
     });
 
@@ -152,21 +156,24 @@ async fn try_auto_unlock(
     let db_path_str = db_path.to_str().unwrap().to_string();
 
     // First try to get password from keyring
-    if let Some(password) = try_get_keyring_password().await {
-        log::info!("Found password in keyring, attempting auto-unlock");
+    match try_get_keyring_password().await {
+        Some(password) => {
+            log::info!("Found password in keyring, attempting auto-unlock");
 
-        if check_password(&db_path_str, &password).is_ok() {
-            log::info!("Successfully unlocked wallet with keyring password");
-            let core = setup_harbor_core(&db_path_str, &password, network, tx).await?;
-            tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
-                .await
-                .expect("should send");
-            return Some(core);
-        } else {
-            log::warn!("Password from keyring is invalid");
+            if check_password(&db_path_str, &password).is_ok() {
+                log::info!("Successfully unlocked wallet with keyring password");
+                let core = setup_harbor_core(&db_path_str, &password, network, tx).await?;
+                tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
+                    .await
+                    .expect("should send");
+                return Some(core);
+            } else {
+                log::warn!("Password from keyring is invalid");
+            }
         }
-    } else {
-        log::info!("No password found in keyring or keyring not available");
+        _ => {
+            log::info!("No password found in keyring or keyring not available");
+        }
     }
 
     // Fall back to environment variable if keyring fails
@@ -326,20 +333,21 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     // Save password to keyring when successfully unlocked
                     save_to_keyring(&password).await;
 
-                    if let Some(core) =
-                        setup_harbor_core(&db_path, &password, network, &mut tx).await
-                    {
-                        tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
+                    match setup_harbor_core(&db_path, &password, network, &mut tx).await {
+                        Some(core) => {
+                            tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
+                                .await
+                                .expect("should send");
+                            process_core(&mut core_handle, &core).await;
+                        }
+                        _ => {
+                            tx.send(Message::core_msg(
+                                id,
+                                CoreUIMsg::UnlockFailed("Failed to setup wallet".to_string()),
+                            ))
                             .await
                             .expect("should send");
-                        process_core(&mut core_handle, &core).await;
-                    } else {
-                        tx.send(Message::core_msg(
-                            id,
-                            CoreUIMsg::UnlockFailed("Failed to setup wallet".to_string()),
-                        ))
-                        .await
-                        .expect("should send");
+                        }
                     }
                 }
                 Some(UICoreMsg::Init { password, seed }) => {
@@ -373,11 +381,16 @@ pub fn run_core() -> impl Stream<Item = Message> {
 
                     let mut tx_clone = tx.clone();
                     tokio::spawn(async move {
-                        while let Some(rev) = core_rx.next().await {
-                            tx_clone
-                                .send(Message::CoreMessage(rev))
-                                .await
-                                .expect("should send");
+                        loop {
+                            let next_result = core_rx.next().await;
+                            match next_result {
+                                Some(rev) => {
+                                    let send_result =
+                                        tx_clone.send(Message::CoreMessage(rev)).await;
+                                    send_result.expect("should send");
+                                }
+                                None => break,
+                            }
                         }
                     });
 
@@ -519,18 +532,21 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::AddFederation(invite_code) => {
-                        if let Err(e) = core.add_federation(msg.id, invite_code).await {
-                            error!("Error adding federation: {e}");
-                            core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                        match core.add_federation(msg.id, invite_code).await {
+                            Err(e) => {
+                                error!("Error adding federation: {e}");
+                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                    .await;
+                            }
+                            _ => {
+                                let new_federation_list = core.get_federation_items().await;
+                                core.msg(
+                                    msg.id,
+                                    CoreUIMsg::FederationListUpdated(new_federation_list),
+                                )
                                 .await;
-                        } else {
-                            let new_federation_list = core.get_federation_items().await;
-                            core.msg(
-                                msg.id,
-                                CoreUIMsg::FederationListUpdated(new_federation_list),
-                            )
-                            .await;
-                            core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
+                                core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
+                            }
                         }
                     }
                     UICoreMsg::RemoveFederation(id) => {
@@ -544,36 +560,42 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         )
                         .await;
 
-                        if let Err(e) = core.remove_federation(msg.id, id).await {
-                            error!("Error removing federation: {e}");
-                            core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string()))
-                                .await;
-                        } else {
-                            log::info!("Removed federation: {id}");
-                            let new_federation_list = core.get_federation_items().await;
-                            core.msg(
-                                msg.id,
-                                CoreUIMsg::FederationListUpdated(new_federation_list),
-                            )
-                            .await;
-                            core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
-                        }
-                    }
-                    UICoreMsg::RejoinFederation(id) => {
-                        if let Ok(Some(invite_code)) = core.storage.get_federation_invite_code(id) {
-                            if let Err(e) = core.add_federation(msg.id, invite_code).await {
-                                error!("Error adding federation: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                        match core.remove_federation(msg.id, id).await {
+                            Err(e) => {
+                                error!("Error removing federation: {e}");
+                                core.msg(msg.id, CoreUIMsg::RemoveFederationFailed(e.to_string()))
                                     .await;
-                            } else {
+                            }
+                            _ => {
+                                log::info!("Removed federation: {id}");
                                 let new_federation_list = core.get_federation_items().await;
                                 core.msg(
                                     msg.id,
                                     CoreUIMsg::FederationListUpdated(new_federation_list),
                                 )
                                 .await;
-                                core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
-                                info!("Rejoined federation: {id}");
+                                core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
+                            }
+                        }
+                    }
+                    UICoreMsg::RejoinFederation(id) => {
+                        if let Ok(Some(invite_code)) = core.storage.get_federation_invite_code(id) {
+                            match core.add_federation(msg.id, invite_code).await {
+                                Err(e) => {
+                                    error!("Error adding federation: {e}");
+                                    core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                        .await;
+                                }
+                                _ => {
+                                    let new_federation_list = core.get_federation_items().await;
+                                    core.msg(
+                                        msg.id,
+                                        CoreUIMsg::FederationListUpdated(new_federation_list),
+                                    )
+                                    .await;
+                                    core.msg(msg.id, CoreUIMsg::AddFederationSuccess).await;
+                                    info!("Rejoined federation: {id}");
+                                }
                             }
                         }
                     }
@@ -590,18 +612,24 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                     UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
-                        if let Err(e) = core.set_onchain_receive_enabled(enabled).await {
-                            error!("error setting onchain receive enabled: {e}");
-                        } else {
-                            core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
-                                .await;
+                        match core.set_onchain_receive_enabled(enabled).await {
+                            Err(e) => {
+                                error!("error setting onchain receive enabled: {e}");
+                            }
+                            _ => {
+                                core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
+                                    .await;
+                            }
                         }
                     }
                     UICoreMsg::SetTorEnabled(enabled) => {
-                        if let Err(e) = core.set_tor_enabled(enabled).await {
-                            error!("error setting tor enabled: {e}");
-                        } else {
-                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+                        match core.set_tor_enabled(enabled).await {
+                            Err(e) => {
+                                error!("error setting tor enabled: {e}");
+                            }
+                            _ => {
+                                core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+                            }
                         }
                     }
                     UICoreMsg::TestStatusUpdates => {

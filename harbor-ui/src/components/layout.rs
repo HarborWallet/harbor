@@ -1,5 +1,5 @@
-use iced::widget::{container, horizontal_space, row, scrollable, Column};
 use iced::Length;
+use iced::widget::{Column, container, horizontal_space, row, scrollable};
 use iced::{Element, Padding};
 
 use crate::Message;

@@ -1,9 +1,9 @@
-use iced::widget::{column, row};
 use iced::Element;
+use iced::widget::{column, row};
 
 use crate::components::{
-    basic_layout, h_button, h_federation_archived, h_federation_item, h_federation_item_preview,
-    h_header, h_input, operation_status_for_id, InputArgs, SvgIcon,
+    InputArgs, SvgIcon, basic_layout, h_button, h_federation_archived, h_federation_item,
+    h_federation_item_preview, h_header, h_input, operation_status_for_id,
 };
 use crate::{AddFederationStatus, HarborWallet, Message, PeekStatus};
 

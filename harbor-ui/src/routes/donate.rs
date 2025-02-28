@@ -1,12 +1,15 @@
-use iced::widget::{column, container, scrollable};
 use iced::Element;
+use iced::widget::{column, container, scrollable};
 use iced::{Length, Padding};
 
-use crate::components::{h_button, h_header, h_input, InputArgs, SvgIcon};
+use crate::components::{InputArgs, SvgIcon, h_button, h_header, h_input};
 use crate::{HarborWallet, Message};
 
 pub fn donate(harbor: &HarborWallet) -> Element<Message> {
-    let header = h_header("Donate", "Support Harbor development by donating to the Human Rights Foundation that supports the project.");
+    let header = h_header(
+        "Donate",
+        "Support Harbor development by donating to the Human Rights Foundation that supports the project.",
+    );
 
     let donate_input = h_input(InputArgs {
         label: "Amount",

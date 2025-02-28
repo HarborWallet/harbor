@@ -1,10 +1,9 @@
 use iced::{
-    widget::{
-        column, row, text,
-        text_input::{self, focus, Id},
-        TextInput,
-    },
     Background, Border, Color, Element, Task, Theme,
+    widget::{
+        TextInput, column, row, text,
+        text_input::{self, Id, focus},
+    },
 };
 
 use crate::Message;

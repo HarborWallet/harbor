@@ -5,8 +5,8 @@ use lnurl::{
     pay::{LnURLPayInvoice, PayResponse},
 };
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 pub fn parse_lnurl(address: &str) -> anyhow::Result<LnUrl> {
     match LightningAddress::from_str(address) {

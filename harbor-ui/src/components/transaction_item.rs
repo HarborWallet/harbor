@@ -1,14 +1,14 @@
 use super::{
-    darken, format_amount, format_timestamp, lighten, link, map_icon, MUTINY_GREEN, MUTINY_RED,
+    MUTINY_GREEN, MUTINY_RED, darken, format_amount, format_timestamp, lighten, link, map_icon,
 };
 use crate::Message;
+use harbor_client::db_models::PaymentStatus;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
-use harbor_client::db_models::PaymentStatus;
 use iced::{
-    widget::{button, column, row, svg, text, Button},
     Border, Color, Element,
+    widget::{Button, button, column, row, svg, text},
 };
 
 pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<Message> {

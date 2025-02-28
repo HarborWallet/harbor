@@ -1,14 +1,14 @@
 use iced::{
-    widget::{
-        button::{self, Status},
-        Button,
-    },
     Border, Color, Length, Shadow, Theme,
+    widget::{
+        Button,
+        button::{self, Status},
+    },
 };
 
 use crate::Message;
 
-use super::{darken, lighten, map_icon, SvgIcon};
+use super::{SvgIcon, darken, lighten, map_icon};
 
 pub fn mini_copy(text: String) -> Button<'static, Message, Theme> {
     let icon = map_icon(SvgIcon::Copy, 24., 24.);
