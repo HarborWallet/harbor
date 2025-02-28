@@ -46,11 +46,8 @@
             pkgs.pkg-config
             pkgs.diesel-cli
             pkgs.nixfmt-rfc-style
-            # Added dependencies for keyring on Linux
             pkgs.dbus
             pkgs.libsecret
-            pkgs.gnome.gnome-keyring
-            pkgs.gnome.libgnome-keyring
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
@@ -62,6 +59,8 @@
             pkgs.xorg.libXcursor
             pkgs.xorg.libXi
             pkgs.xorg.libXrandr
+            pkgs.gnome-keyring
+            pkgs.libgnome-keyring
           ];
       in
       {
@@ -116,17 +115,19 @@
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
             
             # Ensure DBus session is available for keyring
-            if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
-              eval $(dbus-launch --sh-syntax)
-              export DBUS_SESSION_BUS_ADDRESS
-            fi
-            
-            # Start gnome-keyring-daemon if not running
-            if ! pgrep -x "gnome-keyring-d" > /dev/null; then
-              eval $(gnome-keyring-daemon --start --components=secrets)
-              export GNOME_KEYRING_CONTROL
-              export SSH_AUTH_SOCK
-            fi
+            ${if pkgs.stdenv.isLinux then ''
+              if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+                eval $(dbus-launch --sh-syntax)
+                export DBUS_SESSION_BUS_ADDRESS
+              fi
+              
+              # Start gnome-keyring-daemon if not running
+              if ! pgrep -x "gnome-keyring-d" > /dev/null; then
+                eval $(gnome-keyring-daemon --start --components=secrets)
+                export GNOME_KEYRING_CONTROL
+                export SSH_AUTH_SOCK
+              fi
+            '' else ""}
           '';
         };
 
