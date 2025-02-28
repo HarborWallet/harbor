@@ -33,6 +33,7 @@ use uuid::Uuid;
 pub mod bridge;
 pub mod components;
 mod config;
+pub mod keyring;
 pub mod lock;
 pub mod routes;
 

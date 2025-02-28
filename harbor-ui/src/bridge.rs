@@ -1,4 +1,5 @@
 use crate::config::read_config;
+use crate::keyring::{save_to_keyring, try_get_keyring_password};
 use crate::Message;
 use bitcoin::Network;
 use fedimint_core::config::FederationId;
@@ -140,28 +141,55 @@ async fn setup_harbor_core(
     )
 }
 
-/// Attempts to auto-unlock the wallet using a password from the environment.
+/// Attempts to auto-unlock the wallet using a password from the environment or keyring.
 /// Returns Some(HarborCore) if successful, None if unsuccessful or no password found.
 async fn try_auto_unlock(
     path: &Path,
     network: Network,
     tx: &mut Sender<Message>,
 ) -> Option<HarborCore> {
-    let password = std::env::var("WALLET_PASSWORD").ok()?;
-    log::info!("Found password in environment, attempting auto-unlock");
-
     let db_path = path.join(HARBOR_FILE_NAME);
-    let db_path = db_path.to_str().unwrap().to_string();
+    let db_path_str = db_path.to_str().unwrap().to_string();
 
-    if check_password(&db_path, &password).is_err() {
-        return None;
+    // First try to get password from keyring
+    if let Some(password) = try_get_keyring_password().await {
+        log::info!("Found password in keyring, attempting auto-unlock");
+
+        if check_password(&db_path_str, &password).is_ok() {
+            log::info!("Successfully unlocked wallet with keyring password");
+            let core = setup_harbor_core(&db_path_str, &password, network, tx).await?;
+            tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
+                .await
+                .expect("should send");
+            return Some(core);
+        } else {
+            log::warn!("Password from keyring is invalid");
+        }
+    } else {
+        log::info!("No password found in keyring or keyring not available");
     }
 
-    let core = setup_harbor_core(&db_path, &password, network, tx).await?;
-    tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
-        .await
-        .expect("should send");
-    Some(core)
+    // Fall back to environment variable if keyring fails
+    if let Ok(password) = std::env::var("WALLET_PASSWORD") {
+        log::info!("Found password in environment, attempting auto-unlock");
+
+        if check_password(&db_path_str, &password).is_ok() {
+            log::info!("Successfully unlocked wallet with environment password");
+            let core = setup_harbor_core(&db_path_str, &password, network, tx).await?;
+            tx.send(Message::core_msg(None, CoreUIMsg::UnlockSuccess))
+                .await
+                .expect("should send");
+            return Some(core);
+        } else {
+            log::warn!("Password from environment is invalid");
+        }
+    } else {
+        log::info!("No password found in environment");
+    }
+
+    // If we get here, neither keyring nor environment password worked
+    log::info!("Auto-unlock failed, falling back to manual unlock");
+    None
 }
 
 pub fn run_core() -> impl Stream<Item = Message> {
@@ -292,6 +320,9 @@ pub fn run_core() -> impl Stream<Item = Message> {
                         continue;
                     }
 
+                    // Save password to keyring when successfully unlocked
+                    save_to_keyring(&password).await;
+
                     if let Some(core) =
                         setup_harbor_core(&db_path, &password, network, &mut tx).await
                     {
@@ -313,6 +344,9 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     tx.send(Message::core_msg(id, CoreUIMsg::Initing))
                         .await
                         .expect("should send");
+
+                    // Save password to keyring during initial setup
+                    save_to_keyring(&password).await;
 
                     // set up the DB with the provided password
                     let db_path = path.join(HARBOR_FILE_NAME);
