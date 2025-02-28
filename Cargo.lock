@@ -3310,7 +3310,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-client"
-version = "0.1.0"
+version = "1.0.0-beta.rc1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3356,7 +3356,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-ui"
-version = "0.1.0"
+version = "1.0.0-beta.rc1"
 dependencies = [
  "bip39",
  "bitcoin",
@@ -4421,7 +4421,7 @@ checksum = "56921558c465f33d51c6047b86b76764cd2a86b69b99653b43ba1f9a32965218"
 dependencies = [
  "keyring",
  "once_cell",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
