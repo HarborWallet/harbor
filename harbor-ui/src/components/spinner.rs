@@ -1,6 +1,7 @@
 // Stolen from https://github.com/iced-rs/iced/tree/master/examples/loading_spinners
 
 //! Show a circular progress indicator.
+use iced::Theme;
 use iced::advanced::layout;
 use iced::advanced::renderer;
 use iced::advanced::widget::tree::{self, Tree};
@@ -9,13 +10,12 @@ use iced::mouse;
 use iced::time::Instant;
 use iced::widget::canvas;
 use iced::window;
-use iced::Theme;
 use iced::{Background, Color, Element, Event, Length, Radians, Rectangle, Renderer, Size, Vector};
 
 use crate::Message;
 
-use super::easing::{self, Easing};
 use super::STANDARD;
+use super::easing::{self, Easing};
 
 use std::f32::consts::PI;
 use std::time::Duration;

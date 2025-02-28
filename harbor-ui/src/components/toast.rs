@@ -3,6 +3,7 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 use crate::Message;
+use iced::Border;
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::overlay;
 use iced::advanced::renderer;
@@ -11,12 +12,11 @@ use iced::advanced::{Clipboard, Shell, Widget};
 use iced::event::Event;
 use iced::widget::button::Status;
 use iced::widget::{button, column, container, horizontal_space, row, text};
-use iced::Border;
-use iced::{mouse, Color, Font};
-use iced::{window, Shadow};
 use iced::{Alignment, Element, Length, Point, Rectangle, Renderer, Size, Theme, Vector};
+use iced::{Color, Font, mouse};
+use iced::{Shadow, window};
 
-use super::{darken, lighten, map_icon, SvgIcon};
+use super::{SvgIcon, darken, lighten, map_icon};
 
 pub const DEFAULT_TIMEOUT: u64 = 5;
 
@@ -95,27 +95,31 @@ impl<'a> ToastManager<'a> {
 
                 let body = toast.body.clone().map(text);
 
-                container(column![container(
-                    column![row![
-                        text(toast.title.as_str()).font(Font {
-                            family: iced::font::Family::default(),
-                            weight: iced::font::Weight::Bold,
-                            stretch: iced::font::Stretch::Normal,
-                            style: iced::font::Style::Normal,
-                        }),
-                        horizontal_space(),
-                        close_button.on_press((on_close)(index))
-                    ]
-                    .align_y(Alignment::Center),]
-                    .push_maybe(body)
-                )
-                .width(Length::Fill)
-                .padding(16)
-                .style(match toast.status {
-                    ToastStatus::Neutral => neutral,
-                    ToastStatus::Good => good,
-                    ToastStatus::Bad => bad,
-                }),])
+                container(column![
+                    container(
+                        column![
+                            row![
+                                text(toast.title.as_str()).font(Font {
+                                    family: iced::font::Family::default(),
+                                    weight: iced::font::Weight::Bold,
+                                    stretch: iced::font::Stretch::Normal,
+                                    style: iced::font::Style::Normal,
+                                }),
+                                horizontal_space(),
+                                close_button.on_press((on_close)(index))
+                            ]
+                            .align_y(Alignment::Center),
+                        ]
+                        .push_maybe(body)
+                    )
+                    .width(Length::Fill)
+                    .padding(16)
+                    .style(match toast.status {
+                        ToastStatus::Neutral => neutral,
+                        ToastStatus::Good => good,
+                        ToastStatus::Bad => bad,
+                    }),
+                ])
                 .max_width(256)
                 .into()
             })

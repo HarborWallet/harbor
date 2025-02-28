@@ -1,11 +1,11 @@
 use crate::{HarborWallet, Message, ReceiveStatus};
 use harbor_client::db_models::FederationItem;
 use iced::widget::{column, container, horizontal_space, pick_list, rich_text, row, span, text};
-use iced::{never, Alignment, Color, Element, Length, Padding};
+use iced::{Alignment, Color, Element, Length, Padding, never};
 
 use super::{
-    borderless_pick_list_style, format_amount, gray, green, hr, map_icon, menu_style, red, vr,
-    SvgIcon,
+    SvgIcon, borderless_pick_list_style, format_amount, gray, green, hr, map_icon, menu_style, red,
+    vr,
 };
 
 pub fn h_screen_header(

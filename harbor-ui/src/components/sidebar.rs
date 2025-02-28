@@ -1,5 +1,5 @@
-use crate::components::indicator::Position;
 use crate::components::SvgIcon;
+use crate::components::indicator::Position;
 use crate::routes::MintSubroute;
 use iced::widget::container::Style;
 use iced::widget::{column, container, row, text, vertical_space};

@@ -1,4 +1,4 @@
-use keyring::{set_global_service_name, KeyringEntry};
+use keyring::{KeyringEntry, set_global_service_name};
 use log::{info, warn};
 
 const KEYRING_SERVICE: &str = "Harbor Wallet";

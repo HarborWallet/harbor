@@ -1,6 +1,6 @@
 use crate::components::{
-    basic_layout, font_mono, h_button, h_caption_text, h_header, h_input, h_screen_header,
-    h_small_button, operation_status_for_id, InputArgs, SvgIcon,
+    InputArgs, SvgIcon, basic_layout, font_mono, h_button, h_caption_text, h_header, h_input,
+    h_screen_header, h_small_button, operation_status_for_id,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
 use iced::widget::container::Style;

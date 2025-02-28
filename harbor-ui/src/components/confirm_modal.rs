@@ -3,7 +3,7 @@ use iced::{Color, Element, Length, Shadow, Theme, Vector};
 
 use crate::Message;
 
-use super::{h_small_button, light_container_style, SvgIcon};
+use super::{SvgIcon, h_small_button, light_container_style};
 
 #[derive(Debug, Clone)]
 pub struct ConfirmModalState {

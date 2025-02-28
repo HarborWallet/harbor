@@ -1,12 +1,12 @@
 use crate::{
-    components::{h_button, h_input, harbor_logo, InputArgs, SvgIcon},
     UnlockStatus,
-};
-use iced::{
-    widget::{center, column, container, text},
-    Color,
+    components::{InputArgs, SvgIcon, h_button, h_input, harbor_logo},
 };
 use iced::{Alignment, Element, Length};
+use iced::{
+    Color,
+    widget::{center, column, container, text},
+};
 
 use crate::{HarborWallet, Message};
 

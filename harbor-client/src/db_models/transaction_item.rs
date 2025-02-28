@@ -1,6 +1,6 @@
 use crate::db_models::PaymentStatus;
-use bitcoin::hashes::Hash;
 use bitcoin::Txid;
+use bitcoin::hashes::Hash;
 use fedimint_core::config::FederationId;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

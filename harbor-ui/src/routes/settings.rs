@@ -3,8 +3,8 @@ use iced::widget::{column, pick_list, text};
 use iced::{Element, Length, Padding};
 
 use crate::components::{
-    basic_layout, debug_stuff, h_button, h_checkbox, h_header, menu_style, pick_list_style,
-    regular_text, very_subtle, SvgIcon,
+    SvgIcon, basic_layout, debug_stuff, h_button, h_checkbox, h_header, menu_style,
+    pick_list_style, regular_text, very_subtle,
 };
 use crate::{HarborWallet, Message};
 

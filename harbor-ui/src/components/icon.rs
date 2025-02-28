@@ -1,6 +1,6 @@
 use iced::{
-    widget::{svg::Handle, Svg},
     Theme,
+    widget::{Svg, svg::Handle},
 };
 
 pub enum SvgIcon {
@@ -34,7 +34,7 @@ pub enum SvgIcon {
 }
 
 macro_rules! icon_handle {
-    ($icon:expr) => {
+    ($icon:expr_2021) => {
         Svg::new(Handle::from_memory(include_bytes!(concat!(
             "../../assets/icons/",
             $icon

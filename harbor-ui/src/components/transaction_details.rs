@@ -1,11 +1,11 @@
 use super::{format_amount, format_timestamp, side_panel_style, subtitle};
-use crate::components::{map_icon, text_link, SvgIcon};
 use crate::Message;
+use crate::components::{SvgIcon, map_icon, text_link};
 use bitcoin::Network;
+use harbor_client::db_models::FederationItem;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
-use harbor_client::db_models::FederationItem;
 use iced::widget::{column, container, row, text, vertical_space};
 use iced::{Alignment, Element, Length};
 

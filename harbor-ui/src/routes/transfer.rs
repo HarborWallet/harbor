@@ -1,9 +1,9 @@
-use iced::widget::{column, container, pick_list, row, scrollable, text, PickList};
+use iced::widget::{PickList, column, container, pick_list, row, scrollable, text};
 use iced::{Alignment, Element, Length, Padding};
 
 use crate::components::{
-    h_balance_display, h_button, h_header, h_input, menu_style, operation_status_for_id,
-    pick_list_style, ConfirmModalState, InputArgs, SvgIcon,
+    ConfirmModalState, InputArgs, SvgIcon, h_balance_display, h_button, h_header, h_input,
+    menu_style, operation_status_for_id, pick_list_style,
 };
 use crate::{HarborWallet, Message, SendStatus};
 

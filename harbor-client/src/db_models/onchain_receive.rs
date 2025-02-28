@@ -1,8 +1,8 @@
+use crate::db_models::PaymentStatus;
 use crate::db_models::schema::on_chain_receives;
 use crate::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
-use crate::db_models::PaymentStatus;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
 use diesel::prelude::*;

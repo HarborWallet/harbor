@@ -1,35 +1,35 @@
 use crate::db::DBConnection;
-use crate::db_models::transaction_item::TransactionItem;
 use crate::db_models::FederationItem;
+use crate::db_models::transaction_item::TransactionItem;
 use crate::fedimint_client::{
-    select_gateway, spawn_internal_payment_subscription, spawn_invoice_payment_subscription,
-    spawn_invoice_receive_subscription, spawn_onchain_payment_subscription,
-    spawn_onchain_receive_subscription, FederationInviteOrId, FedimintClient,
+    FederationInviteOrId, FedimintClient, select_gateway, spawn_internal_payment_subscription,
+    spawn_invoice_payment_subscription, spawn_invoice_receive_subscription,
+    spawn_onchain_payment_subscription, spawn_onchain_receive_subscription,
 };
-use crate::metadata::{get_federation_metadata, FederationData, FederationMeta, CACHE};
+use crate::metadata::{CACHE, FederationData, FederationMeta, get_federation_metadata};
 use ::fedimint_client::ClientHandleArc;
 use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
+use fedimint_core::Amount;
 use fedimint_core::config::{ClientConfig, FederationId};
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
-use fedimint_core::Amount;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
 use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
 use fedimint_wallet_client::WalletClientModule;
-use futures::{channel::mpsc::Sender, SinkExt};
+use futures::{SinkExt, channel::mpsc::Sender};
 use lightning_address::make_lnurl_request;
 use lnurl::lnurl::LnUrl;
 use log::{error, trace};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -541,7 +541,9 @@ impl HarborCore {
         is_transfer: bool,
     ) -> anyhow::Result<Bolt11Invoice> {
         let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
-        log::info!("Creating lightning invoice, amount: {amount} for federation: {federation_id}. Tor enabled: {tor_enabled}");
+        log::info!(
+            "Creating lightning invoice, amount: {amount} for federation: {federation_id}. Tor enabled: {tor_enabled}"
+        );
 
         self.status_update(msg_id, "Connecting to mint").await;
 
@@ -583,19 +585,22 @@ impl HarborCore {
         )?;
 
         // Create subscription to operation if it exists
-        if let Ok(subscription) = lightning_module.subscribe_ln_receive(op_id).await {
-            spawn_invoice_receive_subscription(
-                self.tx.clone(),
-                client.clone(),
-                self.storage.clone(),
-                op_id,
-                msg_id,
-                is_transfer,
-                subscription,
-            )
-            .await;
-        } else {
-            error!("Could not create subscription to lightning receive");
+        match lightning_module.subscribe_ln_receive(op_id).await {
+            Ok(subscription) => {
+                spawn_invoice_receive_subscription(
+                    self.tx.clone(),
+                    client.clone(),
+                    self.storage.clone(),
+                    op_id,
+                    msg_id,
+                    is_transfer,
+                    subscription,
+                )
+                .await;
+            }
+            _ => {
+                error!("Could not create subscription to lightning receive");
+            }
         }
 
         Ok(invoice)

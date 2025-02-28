@@ -1,5 +1,5 @@
-use iced::widget::{column, text};
 use iced::Element;
+use iced::widget::{column, text};
 
 use super::{format_amount, subtitle};
 use crate::Message;
