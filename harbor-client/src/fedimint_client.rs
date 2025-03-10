@@ -1,4 +1,4 @@
-use crate::{CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg};
+use crate::{CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg};
 use crate::{db::DBConnection, db_models::NewFedimint};
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -302,7 +302,9 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_ln_receive_as_failed(operation_id) {
+                    if let Err(e) =
+                        storage.mark_ln_receive_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning receive as failed: {e}");
                     }
                     break;
@@ -322,7 +324,9 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_ln_receive_as_success(operation_id) {
+                    if let Err(e) =
+                        storage.mark_ln_receive_as_success(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning receive as success: {e}");
                     }
 
@@ -330,8 +334,8 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::FederationBalanceUpdated {
-                                id: client.federation_id(),
+                            msg: CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Fedimint(client.federation_id()),
                                 balance: new_balance,
                             },
                         })
@@ -379,7 +383,9 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                    if let Err(e) = storage
+                        .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning payment as failed: {e}");
                     }
                     break;
@@ -398,7 +404,9 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                    if let Err(e) = storage
+                        .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning payment as failed: {e}");
                     }
                     break;
@@ -420,7 +428,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.set_lightning_payment_preimage(operation_id, preimage) {
+                    if let Err(e) = storage.set_lightning_payment_preimage(
+                        operation_id.fmt_full().to_string(),
+                        preimage,
+                    ) {
                         error!("Could not mark lightning payment as success: {e}");
                     }
 
@@ -428,8 +439,8 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::FederationBalanceUpdated {
-                                id: client.federation_id(),
+                            msg: CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Fedimint(client.federation_id()),
                                 balance: new_balance,
                             },
                         })
@@ -471,7 +482,9 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         })
                         .await
                         .unwrap();
-                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                    if let Err(e) = storage
+                        .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning payment as failed: {e}");
                     }
                     break;
@@ -485,7 +498,9 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         })
                         .await
                         .unwrap();
-                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                    if let Err(e) = storage
+                        .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark lightning payment as failed: {e}");
                     }
                     break;
@@ -503,8 +518,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.set_lightning_payment_preimage(operation_id, preimage.0)
-                    {
+                    if let Err(e) = storage.set_lightning_payment_preimage(
+                        operation_id.fmt_full().to_string(),
+                        preimage.0,
+                    ) {
                         error!("Could not mark lightning payment as success: {e}");
                     }
 
@@ -512,8 +529,8 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::FederationBalanceUpdated {
-                                id: client.federation_id(),
+                            msg: CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Fedimint(client.federation_id()),
                                 balance: new_balance,
                             },
                         })
@@ -556,7 +573,9 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                         })
                         .await
                         .unwrap();
-                    if let Err(e) = storage.mark_onchain_payment_as_failed(operation_id) {
+                    if let Err(e) =
+                        storage.mark_onchain_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark onchain payment as failed: {e}");
                     }
 
@@ -573,7 +592,9 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.set_onchain_payment_txid(operation_id, txid) {
+                    if let Err(e) =
+                        storage.set_onchain_payment_txid(operation_id.fmt_full().to_string(), txid)
+                    {
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
@@ -581,8 +602,8 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::FederationBalanceUpdated {
-                                id: client.federation_id(),
+                            msg: CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Fedimint(client.federation_id()),
                                 balance: new_balance,
                             },
                         })
@@ -625,7 +646,9 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_onchain_receive_as_failed(operation_id) {
+                    if let Err(e) =
+                        storage.mark_onchain_receive_as_failed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark onchain receive as failed: {e}");
                     }
 
@@ -639,7 +662,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                         "Onchain receive waiting for confirmation: {btc_deposited} from {btc_out_point:?}"
                     );
 
-                    let recv = storage.get_onchain_receive(operation_id).ok().flatten();
+                    let recv = storage
+                        .get_onchain_receive(operation_id.fmt_full().to_string())
+                        .ok()
+                        .flatten();
 
                     // only update txid and send notification, if txid isn't already set
                     // we don't want to do this multiple times
@@ -656,7 +682,7 @@ pub(crate) async fn spawn_onchain_receive_subscription(
 
                         let fee_sats = 0; // fees for receives may exist one day
                         if let Err(e) = storage.set_onchain_receive_txid(
-                            operation_id,
+                            operation_id.fmt_full().to_string(),
                             txid,
                             btc_deposited.to_sat(),
                             fee_sats,
@@ -682,15 +708,17 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     sender
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
-                            msg: CoreUIMsg::FederationBalanceUpdated {
-                                id: client.federation_id(),
+                            msg: CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Fedimint(client.federation_id()),
                                 balance: new_balance,
                             },
                         })
                         .await
                         .unwrap();
 
-                    if let Err(e) = storage.mark_onchain_receive_as_confirmed(operation_id) {
+                    if let Err(e) = storage
+                        .mark_onchain_receive_as_confirmed(operation_id.fmt_full().to_string())
+                    {
                         error!("Could not mark onchain payment txid: {e}");
                     }
 
