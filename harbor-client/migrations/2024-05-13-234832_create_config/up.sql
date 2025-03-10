@@ -14,6 +14,12 @@ CREATE TABLE fedimint
     active      INTEGER          NOT NULL DEFAULT 1
 );
 
+CREATE TABLE cashu_mint
+(
+    mint_url TEXT PRIMARY KEY NOT NULL,
+    active   INTEGER          NOT NULL DEFAULT 1
+);
+
 CREATE TABLE mint_metadata
 (
     id                          TEXT PRIMARY KEY NOT NULL,
@@ -29,56 +35,60 @@ CREATE TABLE mint_metadata
 
 CREATE TABLE lightning_payments
 (
-    operation_id TEXT PRIMARY KEY NOT NULL,
-    fedimint_id  TEXT             NOT NULL REFERENCES fedimint (id),
-    payment_hash TEXT             NOT NULL,
-    bolt11       TEXT             NOT NULL,
-    amount_msats BIGINT           NOT NULL,
-    fee_msats    BIGINT           NOT NULL,
-    preimage     TEXT,
-    status       INTEGER          NOT NULL,
-    created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+    operation_id   TEXT PRIMARY KEY NOT NULL,
+    fedimint_id    TEXT REFERENCES fedimint (id),
+    cashu_mint_url TEXT REFERENCES cashu_mint (mint_url),
+    payment_hash   TEXT             NOT NULL,
+    bolt11         TEXT             NOT NULL,
+    amount_msats   BIGINT           NOT NULL,
+    fee_msats      BIGINT           NOT NULL,
+    preimage       TEXT,
+    status         INTEGER          NOT NULL,
+    created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE lightning_receives
 (
-    operation_id TEXT PRIMARY KEY NOT NULL,
-    fedimint_id  TEXT             NOT NULL REFERENCES fedimint (id),
-    payment_hash TEXT             NOT NULL,
-    bolt11       TEXT             NOT NULL,
-    amount_msats BIGINT           NOT NULL,
-    fee_msats    BIGINT           NOT NULL,
-    preimage     TEXT             NOT NULL,
-    status       INTEGER          NOT NULL,
-    created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+    operation_id   TEXT PRIMARY KEY NOT NULL,
+    fedimint_id    TEXT REFERENCES fedimint (id),
+    cashu_mint_url TEXT REFERENCES cashu_mint (mint_url),
+    payment_hash   TEXT             NOT NULL,
+    bolt11         TEXT             NOT NULL,
+    amount_msats   BIGINT           NOT NULL,
+    fee_msats      BIGINT           NOT NULL,
+    preimage       TEXT             NOT NULL,
+    status         INTEGER          NOT NULL,
+    created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE on_chain_payments
 (
-    operation_id TEXT PRIMARY KEY NOT NULL,
-    fedimint_id  TEXT             NOT NULL REFERENCES fedimint (id),
-    address      TEXT             NOT NULL,
-    amount_sats  BIGINT           NOT NULL,
-    fee_sats     BIGINT           NOT NULL,
-    txid         TEXT,
-    status       INTEGER          NOT NULL,
-    created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+    operation_id   TEXT PRIMARY KEY NOT NULL,
+    fedimint_id    TEXT REFERENCES fedimint (id),
+    cashu_mint_url TEXT REFERENCES cashu_mint (mint_url),
+    address        TEXT             NOT NULL,
+    amount_sats    BIGINT           NOT NULL,
+    fee_sats       BIGINT           NOT NULL,
+    txid           TEXT,
+    status         INTEGER          NOT NULL,
+    created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE on_chain_receives
 (
-    operation_id TEXT PRIMARY KEY NOT NULL,
-    fedimint_id  TEXT             NOT NULL REFERENCES fedimint (id),
-    address      TEXT             NOT NULL,
-    amount_sats  BIGINT,
-    fee_sats     BIGINT,
-    txid         TEXT,
-    status       INTEGER          NOT NULL,
-    created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+    operation_id   TEXT PRIMARY KEY NOT NULL,
+    fedimint_id    TEXT REFERENCES fedimint (id),
+    cashu_mint_url TEXT REFERENCES cashu_mint (mint_url),
+    address        TEXT             NOT NULL,
+    amount_sats    BIGINT,
+    fee_sats       BIGINT,
+    txid           TEXT,
+    status         INTEGER          NOT NULL,
+    created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create triggers to set the updated_at timestamps on update
