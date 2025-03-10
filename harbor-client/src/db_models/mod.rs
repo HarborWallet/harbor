@@ -4,6 +4,9 @@ pub use profile::*;
 pub mod fedimint;
 pub use fedimint::*;
 
+pub mod cashu_mint;
+pub use cashu_mint::*;
+
 pub mod lightning_payment;
 pub use lightning_payment::*;
 
@@ -21,13 +24,14 @@ pub(crate) mod schema;
 pub mod mint_metadata;
 pub mod transaction_item;
 
+use crate::MintIdentifier;
 use crate::metadata::FederationMeta;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FederationItem {
-    pub id: FederationId,
+pub struct MintItem {
+    pub id: MintIdentifier,
     pub name: String,
     pub balance: u64,
     pub guardians: Option<Vec<String>>,
@@ -37,10 +41,10 @@ pub struct FederationItem {
     pub active: bool,
 }
 
-impl FederationItem {
+impl MintItem {
     pub fn unknown(id: FederationId) -> Self {
         Self {
-            id,
+            id: MintIdentifier::Fedimint(id),
             name: "Unknown".to_string(),
             balance: 0,
             guardians: None,
@@ -52,18 +56,19 @@ impl FederationItem {
     }
 }
 
-impl PartialOrd for FederationItem {
+impl PartialOrd for MintItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for FederationItem {
+impl Ord for MintItem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         other
             .balance
             .cmp(&self.balance)
             .then_with(|| self.id.cmp(&other.id))
+            .then_with(|| self.name.cmp(&other.name))
     }
 }
 
