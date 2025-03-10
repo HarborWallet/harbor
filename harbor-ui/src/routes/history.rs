@@ -31,8 +31,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
     let mut layers = stack![content];
 
     if let Some(selected_tx) = &harbor.selected_transaction {
-        let details =
-            h_transaction_details(selected_tx, &harbor.federation_list, harbor.config.network);
+        let details = h_transaction_details(selected_tx, &harbor.mint_list, harbor.config.network);
 
         layers = layers.push(row![
             horizontal_space(),

@@ -12,7 +12,7 @@ use super::{harbor_logo, indicator, lighten, map_icon, sidebar_button};
 
 pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
     // Transfers require at least 2 federations
-    let transfer_disabled = harbor.federation_list.len() < 2;
+    let transfer_disabled = harbor.mint_list.len() < 2;
     let transfer_button = sidebar_button(
         "Transfer",
         SvgIcon::LeftRight,

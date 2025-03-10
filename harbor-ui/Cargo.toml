@@ -18,7 +18,9 @@ lyon_algorithms = "1.0"
 tokio = { version = "1", features = ["full"] }
 palette = "0.7"
 chrono = "0.4.38"
-uuid = { version = "1.8", features = ["v4"] }
+uuid = { workspace = true }
+cdk = { workspace = true }
+cdk-redb = { workspace = true }
 
 bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
