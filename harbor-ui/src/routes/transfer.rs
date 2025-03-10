@@ -9,9 +9,9 @@ use crate::{HarborWallet, Message, SendStatus};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     // We have to have at least 2 federations to be on this screen!
-    assert!(harbor.federation_list.len() >= 2);
+    assert!(harbor.mint_list.len() >= 2);
     let federation_names: Vec<&str> = harbor
-        .federation_list
+        .mint_list
         .iter()
         .filter(|f| f.active)
         .map(|f| f.name.as_str())
@@ -36,11 +36,7 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
 
     // Show balance for source federation if selected
     if let Some(source_fed) = harbor.transfer_from_federation_selection.as_ref() {
-        if let Some(federation) = harbor
-            .federation_list
-            .iter()
-            .find(|f| f.name == *source_fed)
-        {
+        if let Some(federation) = harbor.mint_list.iter().find(|f| f.name == *source_fed) {
             source_row = source_row.push(h_balance_display(federation.balance));
         }
     }
@@ -64,7 +60,7 @@ pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
 
     // Show balance for destination federation if selected
     if let Some(dest_fed) = harbor.transfer_to_federation_selection.as_ref() {
-        if let Some(federation) = harbor.federation_list.iter().find(|f| f.name == *dest_fed) {
+        if let Some(federation) = harbor.mint_list.iter().find(|f| f.name == *dest_fed) {
             destination_row = destination_row.push(h_balance_display(federation.balance));
         }
     }

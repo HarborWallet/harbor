@@ -3,6 +3,7 @@ use crate::components::{
     h_screen_header, h_small_button, operation_status_for_id,
 };
 use crate::{HarborWallet, Message, ReceiveMethod, ReceiveStatus};
+use harbor_client::MintIdentifier;
 use iced::widget::container::Style;
 use iced::widget::{column, container, horizontal_space, qr_code, radio, row, text};
 use iced::{Border, Element};
@@ -24,10 +25,15 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
 /// Renders the view before an invoice/address is generated.
 fn render_receive_form(harbor: &HarborWallet) -> Element<Message> {
-    let header = if harbor.onchain_receive_enabled
+    // for on-chain to be shown, it needs to be a federation and either
+    // the user turned on on-chain receive or the federation supports it
+    let header = if matches!(
+        harbor.active_federation().as_ref().map(|a| a.id.clone()),
+        Some(MintIdentifier::Fedimint(_))
+    ) && (harbor.onchain_receive_enabled
         || harbor
             .active_federation()
-            .is_some_and(|x| x.on_chain_supported)
+            .is_some_and(|x| x.on_chain_supported))
     {
         h_header("Deposit", "Receive on-chain or via lightning.")
     } else {

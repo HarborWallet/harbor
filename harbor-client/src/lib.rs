@@ -1,5 +1,8 @@
+use crate::cashu_client::{
+    TorMintConnector, spawn_lightning_payment_thread, spawn_lightning_receive_thread,
+};
 use crate::db::DBConnection;
-use crate::db_models::FederationItem;
+use crate::db_models::MintItem;
 use crate::db_models::transaction_item::TransactionItem;
 use crate::fedimint_client::{
     FederationInviteOrId, FedimintClient, select_gateway, spawn_internal_payment_subscription,
@@ -12,6 +15,10 @@ use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
+use cdk::mint_url::MintUrl;
+use cdk::nuts::{CurrencyUnit, MintInfo};
+use cdk::wallet::WalletBuilder;
+use cdk_redb::WalletRedbDatabase;
 use fedimint_client::{spawn_lnv2_payment_subscription, spawn_lnv2_receive_subscription};
 use fedimint_core::Amount;
 use fedimint_core::config::{ClientConfig, FederationId};
@@ -25,6 +32,7 @@ use futures::{SinkExt, channel::mpsc::Sender};
 use lightning_address::make_lnurl_request;
 use lnurl::lnurl::LnUrl;
 use log::{error, trace};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -32,6 +40,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
+use tokio::spawn;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -55,12 +64,35 @@ pub fn data_dir(network: Option<Network>) -> PathBuf {
     }
 }
 
+pub mod cashu_client;
 pub mod db;
 pub mod db_models;
 pub mod fedimint_client;
 mod http;
 pub mod lightning_address;
 pub mod metadata;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum MintIdentifier {
+    Cashu(MintUrl),
+    Fedimint(FederationId),
+}
+
+impl MintIdentifier {
+    pub fn federation_id(&self) -> Option<FederationId> {
+        match self {
+            MintIdentifier::Fedimint(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    pub fn mint_url(&self) -> Option<MintUrl> {
+        match self {
+            MintIdentifier::Cashu(url) => Some(url.clone()),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct UICoreMsgPacket {
@@ -71,35 +103,37 @@ pub struct UICoreMsgPacket {
 #[derive(Debug, Clone)]
 pub enum UICoreMsg {
     SendLightning {
-        federation_id: FederationId,
+        mint: MintIdentifier,
         invoice: Bolt11Invoice,
     },
     SendLnurlPay {
-        federation_id: FederationId,
+        mint: MintIdentifier,
         lnurl: LnUrl,
         amount_sats: u64,
     },
     ReceiveLightning {
-        federation_id: FederationId,
+        mint: MintIdentifier,
         amount: Amount,
     },
     SendOnChain {
+        mint: MintIdentifier,
         address: Address<NetworkUnchecked>,
-        federation_id: FederationId,
         amount_sats: Option<u64>,
     },
     ReceiveOnChain {
-        federation_id: FederationId,
+        mint: MintIdentifier,
     },
     Transfer {
-        to: FederationId,
-        from: FederationId,
+        to: MintIdentifier,
+        from: MintIdentifier,
         amount: Amount,
     },
     GetFederationInfo(InviteCode),
+    GetCashuMintInfo(MintUrl),
     AddFederation(InviteCode),
-    RemoveFederation(FederationId),
-    RejoinFederation(FederationId),
+    AddCashuMint(MintUrl),
+    RemoveMint(MintIdentifier),
+    RejoinMint(MintIdentifier),
     FederationListNeedsUpdate,
     Unlock(String),
     Init {
@@ -144,20 +178,21 @@ pub enum CoreUIMsg {
     ReceiveFailed(String),
     TransferFailure(String),
     TransactionHistoryUpdated(Vec<TransactionItem>),
-    FederationBalanceUpdated {
-        id: FederationId,
+    MintBalanceUpdated {
+        id: MintIdentifier,
         balance: Amount,
     },
     AddFederationFailed(String),
     RemoveFederationFailed(String),
-    FederationInfo {
-        config: ClientConfig,
+    MintInfo {
+        id: MintIdentifier,
+        config: Option<ClientConfig>,
         metadata: FederationMeta,
     },
-    AddFederationSuccess,
+    AddMintSuccess(MintIdentifier),
     RemoveFederationSuccess,
     FederationListNeedsUpdate,
-    FederationListUpdated(Vec<FederationItem>),
+    MintListUpdated(Vec<MintItem>),
     NeedsInit,
     Initing,
     InitSuccess,
@@ -185,21 +220,28 @@ pub enum CoreUIMsg {
 pub struct HarborCore {
     pub network: Network,
     pub mnemonic: Mnemonic,
+    pub data_dir: PathBuf,
     pub tx: Sender<CoreUIMsgPacket>,
     pub clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+    pub cashu_clients: Arc<RwLock<HashMap<MintUrl, cdk::Wallet>>>,
     pub storage: Arc<dyn DBConnection + Send + Sync>,
+    pub cashu_storage: Arc<WalletRedbDatabase>,
     pub stop: Arc<AtomicBool>,
     pub tor_enabled: Arc<AtomicBool>,
     pub metadata_fetch_cancel: Arc<AtomicBool>,
 }
 
 impl HarborCore {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         network: Network,
         mnemonic: Mnemonic,
+        data_dir: PathBuf,
         tx: Sender<CoreUIMsgPacket>,
         clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
+        cashu_clients: Arc<RwLock<HashMap<MintUrl, cdk::Wallet>>>,
         storage: Arc<dyn DBConnection + Send + Sync>,
+        cashu_storage: Arc<WalletRedbDatabase>,
         stop: Arc<AtomicBool>,
         tor_enabled: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
@@ -209,107 +251,172 @@ impl HarborCore {
         let pending_lightning_recv = storage.get_pending_lightning_receives()?;
         let pending_lightning_payments = storage.get_pending_lightning_payments()?;
 
-        let c = clients.clone();
-        let fed_clients = c.read().await;
-        for item in pending_onchain_recv {
-            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
-                let onchain = client
-                    .fedimint_client
-                    .get_first_module::<WalletClientModule>()
-                    .expect("must have wallet module");
+        let fed = clients.clone();
+        let fed_clients = fed.read().await;
 
-                let op_id = item.operation_id();
-                if let Ok(sub) = onchain.subscribe_deposit(op_id).await {
-                    spawn_onchain_receive_subscription(
-                        tx.clone(),
-                        client.fedimint_client.clone(),
-                        storage.clone(),
-                        op_id,
-                        Uuid::nil(),
-                        sub,
-                    )
-                    .await;
+        let cashu = cashu_clients.clone();
+        let cashus = cashu.read().await;
+
+        for item in pending_onchain_recv {
+            if let Some(federation_id) = item.fedimint_id() {
+                if let Some(client) = fed_clients.get(&federation_id) {
+                    let onchain = client
+                        .fedimint_client
+                        .get_first_module::<WalletClientModule>()
+                        .expect("must have wallet module");
+
+                    let op_id = item.operation_id();
+                    if let Ok(sub) = onchain.subscribe_deposit(op_id).await {
+                        spawn_onchain_receive_subscription(
+                            tx.clone(),
+                            client.fedimint_client.clone(),
+                            storage.clone(),
+                            op_id,
+                            Uuid::nil(),
+                            sub,
+                        )
+                        .await;
+                    }
                 }
             }
         }
 
         for item in pending_onchain_payments {
-            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
-                let onchain = client
-                    .fedimint_client
-                    .get_first_module::<WalletClientModule>()
-                    .expect("must have wallet module");
+            if let Some(federation_id) = item.fedimint_id() {
+                if let Some(client) = fed_clients.get(&federation_id) {
+                    let onchain = client
+                        .fedimint_client
+                        .get_first_module::<WalletClientModule>()
+                        .expect("must have wallet module");
 
-                let op_id = item.operation_id();
-                if let Ok(sub) = onchain.subscribe_withdraw_updates(op_id).await {
-                    spawn_onchain_payment_subscription(
-                        tx.clone(),
-                        client.fedimint_client.clone(),
-                        storage.clone(),
-                        op_id,
-                        Uuid::nil(),
-                        sub,
-                    )
-                    .await;
+                    let op_id = item.operation_id();
+                    if let Ok(sub) = onchain.subscribe_withdraw_updates(op_id).await {
+                        spawn_onchain_payment_subscription(
+                            tx.clone(),
+                            client.fedimint_client.clone(),
+                            storage.clone(),
+                            op_id,
+                            Uuid::nil(),
+                            sub,
+                        )
+                        .await;
+                    }
                 }
             }
         }
 
         for item in pending_lightning_recv {
-            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
-                let lightning_module = client
-                    .fedimint_client
-                    .get_first_module::<LightningClientModule>()
-                    .expect("must have ln module");
+            match item.mint_identifier() {
+                MintIdentifier::Fedimint(federation_id) => {
+                    if let Some(client) = fed_clients.get(&federation_id) {
+                        let lightning_module = client
+                            .fedimint_client
+                            .get_first_module::<LightningClientModule>()
+                            .expect("must have ln module");
 
-                let op_id = item.operation_id();
+                        let op_id = item.operation_id();
 
-                if let Ok(sub) = lightning_module.subscribe_ln_receive(op_id).await {
-                    spawn_invoice_receive_subscription(
-                        tx.clone(),
-                        client.fedimint_client.clone(),
-                        storage.clone(),
-                        op_id,
-                        Uuid::nil(),
-                        false,
-                        sub,
-                    )
-                    .await;
+                        if let Ok(sub) = lightning_module.subscribe_ln_receive(op_id).await {
+                            spawn_invoice_receive_subscription(
+                                tx.clone(),
+                                client.fedimint_client.clone(),
+                                storage.clone(),
+                                op_id,
+                                Uuid::nil(),
+                                false,
+                                sub,
+                            )
+                            .await;
+                        } else {
+                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                        }
+                    } else {
+                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                    }
+                }
+                MintIdentifier::Cashu(mint_url) => {
+                    if let Some(client) = cashus.get(&mint_url) {
+                        if let Ok(Some(quote)) =
+                            client.localstore.get_mint_quote(&item.operation_id).await
+                        {
+                            spawn_lightning_receive_thread(
+                                tx.clone(),
+                                client.clone(),
+                                storage.clone(),
+                                quote,
+                                Uuid::nil(),
+                                false,
+                            );
+                        } else {
+                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                        }
+                    } else {
+                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                    }
                 }
             }
         }
 
         for item in pending_lightning_payments {
-            if let Some(client) = fed_clients.get(&item.fedimint_id()) {
-                let lightning_module = client
-                    .fedimint_client
-                    .get_first_module::<LightningClientModule>()
-                    .expect("must have ln module");
+            match item.mint_identifier() {
+                MintIdentifier::Fedimint(federation_id) => {
+                    if let Some(client) = fed_clients.get(&federation_id) {
+                        let lightning_module = client
+                            .fedimint_client
+                            .get_first_module::<LightningClientModule>()
+                            .expect("must have ln module");
 
-                let op_id = item.operation_id();
+                        let op_id = item.operation_id();
 
-                // need to attempt for internal and external subscriptions for lightning payments
-                if let Ok(sub) = lightning_module.subscribe_ln_pay(op_id).await {
-                    spawn_invoice_payment_subscription(
-                        tx.clone(),
-                        client.fedimint_client.clone(),
-                        storage.clone(),
-                        op_id,
-                        Uuid::nil(),
-                        false,
-                        sub,
-                    )
-                    .await;
-                } else if let Ok(sub) = lightning_module.subscribe_internal_pay(op_id).await {
-                    spawn_internal_payment_subscription(
-                        tx.clone(),
-                        client.fedimint_client.clone(),
-                        storage.clone(),
-                        op_id,
-                        Uuid::nil(),
-                        sub,
-                    )
-                    .await;
+                        // need to attempt for internal and external subscriptions for lightning payments
+                        if let Ok(sub) = lightning_module.subscribe_ln_pay(op_id).await {
+                            spawn_invoice_payment_subscription(
+                                tx.clone(),
+                                client.fedimint_client.clone(),
+                                storage.clone(),
+                                op_id,
+                                Uuid::nil(),
+                                false,
+                                sub,
+                            )
+                            .await;
+                        } else if let Ok(sub) = lightning_module.subscribe_internal_pay(op_id).await
+                        {
+                            spawn_internal_payment_subscription(
+                                tx.clone(),
+                                client.fedimint_client.clone(),
+                                storage.clone(),
+                                op_id,
+                                Uuid::nil(),
+                                sub,
+                            )
+                            .await;
+                        } else {
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        }
+                    } else {
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                    }
+                }
+                MintIdentifier::Cashu(mint_url) => {
+                    if let Some(client) = cashus.get(&mint_url) {
+                        if let Ok(Some(quote)) =
+                            client.localstore.get_melt_quote(&item.operation_id).await
+                        {
+                            spawn_lightning_payment_thread(
+                                tx.clone(),
+                                client.clone(),
+                                storage.clone(),
+                                quote,
+                                Uuid::nil(),
+                                false,
+                            );
+                        } else {
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        }
+                    } else {
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                    }
                 }
             }
         }
@@ -317,9 +424,12 @@ impl HarborCore {
         Ok(Self {
             network,
             mnemonic,
+            data_dir,
             tx,
             clients,
+            cashu_clients,
             storage,
+            cashu_storage,
             stop,
             tor_enabled,
             metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
@@ -360,15 +470,24 @@ impl HarborCore {
 
     // Sends updates to the UI to reflect the initial state
     pub async fn init_ui_state(&self) -> anyhow::Result<()> {
-        let federation_items = self.get_federation_items().await;
-        self.send_system_msg(CoreUIMsg::FederationListUpdated(federation_items))
+        let federation_items = self.get_mint_items().await?;
+        self.send_system_msg(CoreUIMsg::MintListUpdated(federation_items))
             .await;
 
         for client in self.clients.read().await.values() {
             let fed_balance = client.fedimint_client.get_balance().await;
-            self.send_system_msg(CoreUIMsg::FederationBalanceUpdated {
-                id: client.fedimint_client.federation_id(),
+            self.send_system_msg(CoreUIMsg::MintBalanceUpdated {
+                id: MintIdentifier::Fedimint(client.fedimint_client.federation_id()),
                 balance: fed_balance,
+            })
+            .await;
+        }
+
+        for client in self.cashu_clients.read().await.values() {
+            let bal: u64 = client.total_balance().await?.into();
+            self.send_system_msg(CoreUIMsg::MintBalanceUpdated {
+                id: MintIdentifier::Cashu(client.mint_url.clone()),
+                balance: Amount::from_sats(bal),
             })
             .await;
         }
@@ -399,6 +518,14 @@ impl HarborCore {
             .clone()
     }
 
+    async fn get_cashu_client(&self, mint_url: &MintUrl) -> cdk::Wallet {
+        let clients = self.cashu_clients.read().await;
+        clients
+            .get(mint_url)
+            .expect("No client found for mint url")
+            .clone()
+    }
+
     async fn send_lnv2(
         &self,
         client: &ClientHandleArc,
@@ -422,17 +549,84 @@ impl HarborCore {
     pub async fn send_lightning(
         &self,
         msg_id: Uuid,
+        from: MintIdentifier,
+        invoice: Bolt11Invoice,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        if invoice.amount_milli_satoshis().is_none() {
+            return Err(anyhow!("Invoice must have an amount"));
+        }
+
+        self.status_update(msg_id, "Preparing to send lightning payment")
+            .await;
+
+        match from {
+            MintIdentifier::Cashu(mint_url) => {
+                self.send_lightning_from_cashu(msg_id, mint_url, invoice, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(id) => {
+                self.send_lightning_from_fedimint(msg_id, id, invoice, is_transfer)
+                    .await
+            }
+        }
+    }
+
+    pub async fn send_lightning_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint_url: MintUrl,
+        invoice: Bolt11Invoice,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        log::info!("Paying lightning invoice: {invoice} from cashu mint: {mint_url}");
+        let amount = Amount::from_msats(invoice.amount_milli_satoshis().expect("must have amount"));
+
+        let client = self.get_cashu_client(&mint_url).await;
+
+        self.status_update(msg_id, "Getting quote").await;
+
+        let quote = client.melt_quote(invoice.to_string(), None).await?;
+
+        log::info!("Sending lightning invoice: {invoice}");
+
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+
+        self.storage.create_lightning_payment(
+            quote.id.clone(),
+            None,
+            Some(mint_url),
+            invoice,
+            amount,
+            Amount::from_msats(quote.fee_reserve.into()),
+        )?;
+
+        spawn_lightning_payment_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
+
+        log::info!("Payment sent");
+
+        Ok(())
+    }
+
+    pub async fn send_lightning_from_fedimint(
+        &self,
+        msg_id: Uuid,
         federation_id: FederationId,
         invoice: Bolt11Invoice,
         is_transfer: bool,
     ) -> anyhow::Result<()> {
-        self.status_update(msg_id, "Preparing to send lightning payment")
-            .await;
-
         log::info!("Paying lightning invoice: {invoice} from federation: {federation_id}");
-        if invoice.amount_milli_satoshis().is_none() {
-            return Err(anyhow!("Invoice must have an amount"));
-        }
         let amount = Amount::from_msats(invoice.amount_milli_satoshis().expect("must have amount"));
 
         let client = self.get_client(federation_id).await.fedimint_client;
@@ -460,8 +654,9 @@ impl HarborCore {
                     .checked_sub(amount)
                     .expect("Fees should never be negative");
                 self.storage.create_lightning_payment(
-                    operation_id,
-                    client.federation_id(),
+                    operation_id.fmt_full().to_string(),
+                    Some(client.federation_id()),
+                    None,
                     invoice,
                     amount,
                     fees,
@@ -519,8 +714,9 @@ impl HarborCore {
                     .await;
 
                 self.storage.create_lightning_payment(
-                    outgoing.payment_type.operation_id(),
-                    client.federation_id(),
+                    outgoing.payment_type.operation_id().fmt_full().to_string(),
+                    Some(client.federation_id()),
+                    None,
                     invoice,
                     amount,
                     fees,
@@ -564,13 +760,13 @@ impl HarborCore {
     pub async fn send_lnurl_pay(
         &self,
         msg_id: Uuid,
-        federation_id: FederationId,
+        mint_identifier: MintIdentifier,
         lnurl: LnUrl,
         amount_sats: u64,
     ) -> anyhow::Result<()> {
         self.status_update(msg_id, "Starting LNURL-pay flow").await;
 
-        log::info!("Sending lnurl pay: {lnurl} from federation: {federation_id}");
+        log::info!("Sending lnurl pay: {lnurl} from mint: {mint_identifier:?}");
 
         let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
         self.status_update(msg_id, "Fetching payment details from recipient")
@@ -597,7 +793,7 @@ impl HarborCore {
             fedimint_ln_common::lightning_invoice::Bolt11Invoice::from_str(&invoice_response.pr)?;
 
         // Now we'll let send_lightning handle the rest of the status updates
-        self.send_lightning(msg_id, federation_id, invoice, false)
+        self.send_lightning(msg_id, mint_identifier, invoice, false)
             .await?;
 
         Ok(())
@@ -634,6 +830,25 @@ impl HarborCore {
     pub async fn receive_lightning(
         &self,
         msg_id: Uuid,
+        mint_identifier: MintIdentifier,
+        amount: Amount,
+        is_transfer: bool,
+    ) -> anyhow::Result<Bolt11Invoice> {
+        match mint_identifier {
+            MintIdentifier::Cashu(mint_url) => {
+                self.receive_lightning_from_cashu(msg_id, mint_url, amount, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(id) => {
+                self.receive_lightning_from_fedimint(msg_id, id, amount, is_transfer)
+                    .await
+            }
+        }
+    }
+
+    pub async fn receive_lightning_from_fedimint(
+        &self,
+        msg_id: Uuid,
         federation_id: FederationId,
         amount: Amount,
         is_transfer: bool,
@@ -664,8 +879,9 @@ impl HarborCore {
                 log::info!("LNv2 Invoice created: {invoice}");
 
                 self.storage.create_ln_receive(
-                    operation_id,
-                    client.federation_id(),
+                    operation_id.fmt_full().to_string(),
+                    Some(client.federation_id()),
+                    None,
                     invoice.clone(),
                     amount,
                     fees,
@@ -722,8 +938,9 @@ impl HarborCore {
                 log::info!("Invoice created: {invoice}");
 
                 self.storage.create_ln_receive(
-                    op_id,
-                    client.federation_id(),
+                    op_id.fmt_full().to_string(),
+                    Some(client.federation_id()),
+                    None,
                     invoice.clone(),
                     amount,
                     Amount::ZERO, // todo one day there will be receive fees
@@ -754,14 +971,61 @@ impl HarborCore {
         }
     }
 
+    pub async fn receive_lightning_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint: MintUrl,
+        amount: Amount,
+        is_transfer: bool,
+    ) -> anyhow::Result<Bolt11Invoice> {
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        log::info!(
+            "Creating lightning invoice, amount: {amount} for mint: {mint}. Tor enabled: {tor_enabled}"
+        );
+
+        self.status_update(msg_id, "Connecting to mint").await;
+
+        let client = self.get_cashu_client(&mint).await;
+
+        self.status_update(msg_id, "Generating invoice").await;
+
+        let quote = client
+            .mint_quote(cdk::Amount::from(amount.msats / 1000), None)
+            .await?;
+
+        let invoice = Bolt11Invoice::from_str(&quote.request)?;
+
+        log::info!("Invoice created: {invoice}");
+
+        self.storage.create_ln_receive(
+            quote.id.clone(),
+            None,
+            Some(mint),
+            invoice.clone(),
+            amount,
+            Amount::ZERO, // todo one day there will be receive fees
+            [0_u8; 32],   //fixme
+        )?;
+
+        spawn_lightning_receive_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+        Ok(invoice)
+    }
+
     pub async fn transfer(
         &self,
         msg_id: Uuid,
-        to: FederationId,
-        from: FederationId,
+        to: MintIdentifier,
+        from: MintIdentifier,
         amount: Amount,
     ) -> anyhow::Result<()> {
-        log::info!("Transferring {amount} from {from} to {to}");
+        log::info!("Transferring {amount} from {from:?} to {to:?}");
 
         self.status_update(msg_id, "Generating invoice on destination mint")
             .await;
@@ -840,8 +1104,9 @@ impl HarborCore {
         let op_id = onchain.withdraw(&address, amount, fees, ()).await?;
 
         self.storage.create_onchain_payment(
-            op_id,
-            client.federation_id(),
+            op_id.fmt_full().to_string(),
+            Some(client.federation_id()),
+            None,
             address,
             amount.to_sat(),
             fees.amount().to_sat(),
@@ -886,8 +1151,12 @@ impl HarborCore {
 
         let (op_id, address, _) = onchain.allocate_deposit_address_expert_only(()).await?;
 
-        self.storage
-            .create_onchain_receive(op_id, client.federation_id(), address.clone())?;
+        self.storage.create_onchain_receive(
+            op_id.fmt_full().to_string(),
+            Some(client.federation_id()),
+            None,
+            address.clone(),
+        )?;
 
         let sub = onchain.subscribe_deposit(op_id).await?;
 
@@ -902,6 +1171,40 @@ impl HarborCore {
         .await;
 
         Ok(address)
+    }
+
+    pub async fn get_cashu_mint_info(
+        &self,
+        msg_id: Uuid,
+        mint_url: MintUrl,
+    ) -> anyhow::Result<Option<MintInfo>> {
+        log::info!("Getting cashu mint info for: {mint_url}");
+
+        self.status_update(msg_id, "Connecting to mint").await;
+
+        let seed = self.mnemonic.to_seed_normalized("");
+
+        let builder = WalletBuilder::new()
+            .mint_url(mint_url.clone())
+            .unit(CurrencyUnit::Sat)
+            .localstore(self.cashu_storage.clone())
+            .seed(&seed);
+
+        let builder = if self.tor_enabled.load(Ordering::Relaxed) {
+            builder.client(TorMintConnector::new(
+                mint_url,
+                Arc::new(AtomicBool::new(false)),
+            ))
+        } else {
+            builder
+        };
+
+        let wallet = builder.build()?;
+
+        self.status_update(msg_id, "Retrieving mint metadata").await;
+
+        let info = wallet.get_mint_info().await?;
+        Ok(info)
     }
 
     pub async fn get_federation_info(
@@ -1005,6 +1308,52 @@ impl HarborCore {
         Ok(())
     }
 
+    pub async fn add_cashu_mint(&self, msg_id: Uuid, mint_url: MintUrl) -> anyhow::Result<()> {
+        log::info!("Adding cashu mint: {mint_url}");
+        let url = mint_url.to_string();
+
+        self.status_update(msg_id, "Starting mint setup").await;
+
+        let mut clients = self.cashu_clients.write().await;
+        if clients.get(&mint_url).is_some() {
+            return Err(anyhow!("Mint already added"));
+        }
+
+        self.status_update(msg_id, "Initializing mint connection")
+            .await;
+
+        let seed = self.mnemonic.to_seed_normalized("");
+
+        let builder = WalletBuilder::new()
+            .mint_url(mint_url.clone())
+            .unit(CurrencyUnit::Sat)
+            .localstore(self.cashu_storage.clone())
+            .seed(&seed);
+
+        let builder = if self.tor_enabled.load(Ordering::Relaxed) {
+            builder.client(TorMintConnector::new(
+                mint_url.clone(),
+                Arc::new(AtomicBool::new(false)),
+            ))
+        } else {
+            builder
+        };
+
+        let wallet = builder.build()?;
+
+        self.status_update(msg_id, "Registering with mint").await;
+
+        clients.insert(mint_url, wallet);
+
+        self.status_update(msg_id, "Saving to database").await;
+
+        self.storage.insert_new_cashu_mint(url)?;
+
+        self.status_update(msg_id, "Mint setup complete!").await;
+
+        Ok(())
+    }
+
     pub async fn remove_federation(&self, _msg_id: Uuid, id: FederationId) -> anyhow::Result<()> {
         log::info!("Removing federation with id: {id}");
 
@@ -1035,15 +1384,46 @@ impl HarborCore {
         Ok(())
     }
 
-    pub async fn get_federation_items(&self) -> Vec<FederationItem> {
+    pub async fn remove_cashu_mint(&self, _msg_id: Uuid, url: &MintUrl) -> anyhow::Result<()> {
+        log::info!("Removing cashu mint: {url}");
+
+        // Cancel any ongoing metadata fetch
+        self.metadata_fetch_cancel.store(true, Ordering::Relaxed);
+
+        // Small delay to allow any in-progress operations to complete
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut clients = self.cashu_clients.write().await;
+
+        // Check if federation exists before attempting removal
+        if !clients.contains_key(url) {
+            return Err(anyhow!("Cashu mint doesn't exist"));
+        }
+
+        // Remove from clients first
+        clients.remove(url);
+        drop(clients);
+
+        // Then remove from storage
+        self.storage.remove_cashu_mint(url)?;
+
+        // Reset cancellation flag
+        self.metadata_fetch_cancel.store(false, Ordering::Relaxed);
+
+        log::info!("Successfully removed cashu mint: {url}");
+        Ok(())
+    }
+
+    pub async fn get_mint_items(&self) -> anyhow::Result<Vec<MintItem>> {
         let clients = self.clients.read().await;
+        let cashu_clients = self.cashu_clients.read().await;
 
         let metadata_cache = CACHE.read().await;
 
         let mut needs_metadata = vec![];
 
         // Tell the UI about any clients we have
-        let mut res = Vec::with_capacity(clients.len());
+        let mut res = Vec::with_capacity(clients.len() + cashu_clients.len());
         for c in clients.values() {
             let balance = c.fedimint_client.get_balance().await;
             let config = c.fedimint_client.config().await;
@@ -1080,8 +1460,8 @@ impl HarborCore {
                     Err(_) => false,
                 };
 
-            res.push(FederationItem {
-                id: c.fedimint_client.federation_id(),
+            res.push(MintItem {
+                id: MintIdentifier::Fedimint(c.fedimint_client.federation_id()),
                 name: c
                     .fedimint_client
                     .get_config_meta("federation_name")
@@ -1095,6 +1475,41 @@ impl HarborCore {
             });
         }
 
+        for c in cashu_clients.values() {
+            let balance: u64 = c.total_balance().await?.into();
+
+            let info = c.get_mint_info().await?;
+
+            let metadata = FederationMeta {
+                federation_name: info
+                    .as_ref()
+                    .and_then(|i| i.name.clone())
+                    .or(Some(c.mint_url.to_string())),
+                federation_expiry_timestamp: None,
+                welcome_message: None,
+                vetted_gateways: None,
+                federation_icon_url: info.as_ref().and_then(|i| i.icon_url.clone()),
+                meta_external_url: None,
+                preview_message: info.as_ref().and_then(|i| i.description.clone()),
+                popup_end_timestamp: None,
+                popup_countdown_message: None,
+            };
+
+            res.push(MintItem {
+                id: MintIdentifier::Cashu(c.mint_url.clone()),
+                name: metadata
+                    .federation_name
+                    .clone()
+                    .unwrap_or("Unknown".to_string()),
+                balance,
+                guardians: None,
+                module_kinds: None,
+                metadata,
+                on_chain_supported: false,
+                active: true,
+            });
+        }
+
         drop(metadata_cache);
 
         // if we're missing metadata for federations, start background task to populate it
@@ -1103,7 +1518,7 @@ impl HarborCore {
             let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
             let metadata_fetch_cancel = self.metadata_fetch_cancel.clone();
             let storage = self.storage.clone();
-            tokio::task::spawn(async move {
+            spawn(async move {
                 Self::update_mint_metadata(
                     needs_metadata,
                     metadata_fetch_cancel,
@@ -1116,10 +1531,11 @@ impl HarborCore {
         }
 
         // get archived mints
+        // todo archived cashu mints
         let archived = self.storage.get_archived_mints().expect("archived mints");
         for m in archived {
-            let item = FederationItem {
-                id: FederationId::from_str(&m.id).unwrap(),
+            let item = MintItem {
+                id: MintIdentifier::Fedimint(FederationId::from_str(&m.id).unwrap()),
                 name: m.name.clone().unwrap_or("Unknown".to_string()),
                 balance: 0,
                 guardians: None,
@@ -1131,7 +1547,7 @@ impl HarborCore {
             res.push(item);
         }
 
-        res
+        Ok(res)
     }
 
     async fn update_mint_metadata(

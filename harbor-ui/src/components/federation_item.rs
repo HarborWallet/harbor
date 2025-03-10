@@ -1,5 +1,5 @@
 use crate::{AddFederationStatus, HarborWallet, Message};
-use harbor_client::db_models::FederationItem;
+use harbor_client::db_models::MintItem;
 use harbor_client::metadata::FederationMeta;
 use iced::{
     Alignment, Element, Length,
@@ -25,10 +25,11 @@ fn mint_info<'a>(
 
     if let Some(guardians) = guardians {
         let count = guardians.len();
-        let guardian_text = if count == 1 {
+        // handle 0 as 1, these are cashu mints
+        let guardian_text = if count <= 1 {
             "1 guardian".to_string()
         } else {
-            format!("{} guardians", count)
+            format!("{count} guardians")
         };
         column = column.push(text(guardian_text).size(18).style(subtitle));
     }
@@ -40,7 +41,7 @@ fn mint_info<'a>(
     column
 }
 
-pub fn h_federation_item_preview(item: &FederationItem) -> Element<Message> {
+pub fn h_federation_item_preview(item: &MintItem) -> Element<Message> {
     let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
 
     let preview_tag = container(text("Preview").size(18).style(subtitle))
@@ -55,7 +56,7 @@ pub fn h_federation_item_preview(item: &FederationItem) -> Element<Message> {
         .into()
 }
 
-pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
+pub fn h_federation_item(item: &MintItem) -> Element<Message> {
     let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
 
     column = column.push(h_balance_display(item.balance));
@@ -64,7 +65,7 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
         Message::SetConfirmModal(Some(ConfirmModalState {
             title: "Are you sure?".to_string(),
             description: format!("This will remove {} from your list of mints.", item.name),
-            confirm_action: Box::new(Message::RemoveFederation(item.id)),
+            confirm_action: Box::new(Message::RemoveMint(item.id.clone())),
             cancel_action: Box::new(Message::SetConfirmModal(None)),
             confirm_button_text: "Remove Mint".to_string(),
         })),
@@ -82,16 +83,16 @@ pub fn h_federation_item(item: &FederationItem) -> Element<Message> {
 }
 
 pub fn h_federation_archived<'a>(
-    item: &'a FederationItem,
+    item: &'a MintItem,
     harbor: &'a HarborWallet,
 ) -> Element<'a, Message> {
     let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
 
     let is_joining = harbor.add_federation_status == AddFederationStatus::Adding
-        && harbor.current_rejoin_id == Some(item.id);
+        && harbor.current_rejoin_id == Some(item.id.clone());
 
     let readd_button = h_small_button("", SvgIcon::Restart, is_joining)
-        .on_press(Message::RejoinFederation(item.id));
+        .on_press(Message::RejoinMint(item.id.clone()));
 
     column = column.push(row![
         horizontal_space().width(Length::Fill),

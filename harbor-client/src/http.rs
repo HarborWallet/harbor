@@ -2,13 +2,14 @@ use anyhow::anyhow;
 use arti_client::{TorAddr, TorClient};
 use fedimint_core::util::SafeUrl;
 use http_body_util::Empty;
-use hyper::body::Bytes;
+use hyper::body::{Body, Bytes};
 use hyper::header::LOCATION;
 use hyper::{Request, Uri};
 use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use once_cell::sync::OnceCell;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,11 +78,31 @@ async fn check_cancel(cancel_handle: Arc<AtomicBool>) {
 /// The request can be cancelled at any time using the cancel_handle.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
-pub(crate) async fn make_get_request_tor<T>(
+pub async fn make_get_request_tor<T>(url: &str, cancel_handle: Arc<AtomicBool>) -> anyhow::Result<T>
+where
+    T: DeserializeOwned + Send + 'static,
+{
+    make_tor_request::<T, ()>(url, None, cancel_handle).await
+}
+
+/// Make a GET request through the Tor network.
+///
+/// This provides enhanced privacy by:
+/// - Routing all traffic through the Tor network
+/// - Supporting .onion addresses
+/// - Enforcing HTTPS-only connections
+/// - Using fresh circuits for each request
+///
+/// The request can be cancelled at any time using the cancel_handle.
+///
+/// Note: This is slower than direct requests due to Tor routing.
+pub(crate) async fn make_tor_request<T, P>(
     url: &str,
+    payload: Option<P>,
     cancel_handle: Arc<AtomicBool>,
 ) -> anyhow::Result<T>
 where
+    P: Serialize + Sized,
     T: DeserializeOwned + Send + 'static,
 {
     log::debug!("Making get request to tor: {}", url);
@@ -238,16 +259,18 @@ where
         }
     };
 
-    make_request_tor(host, path, tls_stream, cancel_handle).await
+    make_request_tor(host, path, payload, tls_stream, cancel_handle).await
 }
 
-async fn make_request_tor<T, S>(
+async fn make_request_tor<T, S, P>(
     host: String,
     path: String,
+    payload: Option<P>,
     stream: S,
     cancel_handle: Arc<AtomicBool>,
 ) -> anyhow::Result<T>
 where
+    P: Serialize + Sized,
     T: DeserializeOwned + Send + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -260,37 +283,63 @@ where
     log::debug!("Creating TokioIo wrapper for stream");
     let io = hyper_util::rt::TokioIo::new(stream);
 
-    log::debug!("Starting HTTP/1.1 handshake");
-    let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
-    log::debug!("HTTP/1.1 handshake successful");
-
-    // Spawn the connection driver task
-    tokio::spawn(async move {
-        if let Err(err) = conn.await {
-            log::error!("Connection driver failed: {:?}", err);
-        }
-    });
-
     // For single connections, we need to use relative paths and set the Host header
     log::debug!("Building request for path: {} with host: {}", path, host);
-    let request = build_request(path, Some(host))?;
+    match payload {
+        None => {
+            log::debug!("Starting HTTP/1.1 handshake");
+            let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+            log::debug!("HTTP/1.1 handshake successful");
 
-    // Log the full request for debugging
-    log::debug!(
-        "Sending request: {} {} {:?}",
-        request.method(),
-        request.uri(),
-        request.headers()
-    );
+            // Spawn the connection driver task
+            tokio::spawn(async move {
+                if let Err(err) = conn.await {
+                    log::error!("Connection driver failed: {:?}", err);
+                }
+            });
 
-    handle_http_request(request, sender).await
+            let request = build_get_request(path, Some(host))?;
+            // Log the full request for debugging
+            log::debug!(
+                "Sending request: {} {} {:?}",
+                request.method(),
+                request.uri(),
+                request.headers()
+            );
+
+            handle_http_request(request, sender).await
+        }
+        Some(payload) => {
+            log::debug!("Starting HTTP/1.1 handshake");
+            let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+            log::debug!("HTTP/1.1 handshake successful");
+
+            // Spawn the connection driver task
+            tokio::spawn(async move {
+                if let Err(err) = conn.await {
+                    log::error!("Connection driver failed: {:?}", err);
+                }
+            });
+
+            let request = build_post_request(path, Some(host), payload)?;
+            // Log the full request for debugging
+            log::debug!(
+                "Sending request: {} {} {:?}",
+                request.method(),
+                request.uri(),
+                request.headers()
+            );
+
+            handle_http_request(request, sender).await
+        }
+    }
 }
 
 // Create a new Hyper client with TLS support and reasonable defaults
 fn create_https_client() -> anyhow::Result<
     Client<
         hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
-        http_body_util::Empty<Bytes>,
+        Empty<Bytes>,
     >,
 > {
     let https = HttpsConnectorBuilder::new()
@@ -383,11 +432,12 @@ where
 }
 
 /// Common HTTP request/response handling logic for single connections
-async fn handle_http_request<T>(
-    request: Request<Empty<Bytes>>,
-    mut sender: hyper::client::conn::http1::SendRequest<Empty<Bytes>>,
+async fn handle_http_request<T, P>(
+    request: Request<P>,
+    mut sender: hyper::client::conn::http1::SendRequest<P>,
 ) -> anyhow::Result<T>
 where
+    P: Body + 'static,
     T: DeserializeOwned + Send + 'static,
 {
     log::debug!("Sending request to server");
@@ -400,8 +450,8 @@ where
     handle_response(response, 0, None).await
 }
 
-/// Build a request with common headers
-fn build_request(
+/// Build a GET request with common headers
+fn build_get_request(
     uri: impl AsRef<str>,
     host: Option<String>,
 ) -> anyhow::Result<Request<Empty<Bytes>>> {
@@ -422,10 +472,35 @@ fn build_request(
         .map_err(|e| anyhow!("Failed to build request: {}", e))
 }
 
+/// Build a POST request with common headers
+fn build_post_request<P: Serialize + Sized>(
+    uri: impl AsRef<str>,
+    host: Option<String>,
+    payload: P,
+) -> anyhow::Result<Request<String>> {
+    let uri_str = uri.as_ref();
+    let mut builder = Request::builder()
+        .uri(uri_str)
+        .header("User-Agent", "harbor-client/0.1.0")
+        .method("POST");
+
+    // Only set Host header if we're not using an absolute URL
+    if let Some(host) = host {
+        if !uri_str.starts_with("http://") && !uri_str.starts_with("https://") {
+            builder = builder.header("Host", host);
+        }
+    }
+
+    let body = serde_json::to_string(&payload)?;
+    builder
+        .body(body)
+        .map_err(|e| anyhow!("Failed to build request: {}", e))
+}
+
 fn make_get_request_direct_internal<T>(
     url: String,
     redirect_count: u8,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send>>
+) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send>>
 where
     T: DeserializeOwned + Send + 'static,
 {
@@ -447,7 +522,7 @@ where
             .parse()
             .map_err(|e| anyhow!("Invalid URL '{}': {}", url, e))?;
 
-        let request = build_request(uri.to_string(), None)?;
+        let request = build_get_request(uri.to_string(), None)?;
 
         let response = client.request(request).await.map_err(|e| {
             if e.to_string().contains("rustls") {

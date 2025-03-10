@@ -3,17 +3,18 @@ use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{Config, write_config};
 use bitcoin::{Address, Network};
+use cdk::mint_url::MintUrl;
 use components::{MUTINY_GREEN, MUTINY_RED};
 use fedimint_core::Amount;
-use fedimint_core::config::FederationId;
 use fedimint_core::core::ModuleKind;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
-use harbor_client::db_models::FederationItem;
+use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
-    CoreUIMsg, CoreUIMsgPacket, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg, data_dir,
+    CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
+    data_dir,
 };
 use iced::Font;
 use iced::Subscription;
@@ -175,11 +176,11 @@ pub enum Message {
     GenerateAddress,
     Unlock(String),
     Init(String), // TODO add seed option
-    AddFederation(String),
-    RejoinFederation(FederationId),
-    PeekFederation(String),
-    RemoveFederation(FederationId),
-    ChangeFederation(FederationId),
+    AddMint(String),
+    RejoinMint(MintIdentifier),
+    PeekMint(String),
+    RemoveMint(MintIdentifier),
+    ChangeFederation(MintIdentifier),
     Donate,
     SetOnchainReceiveEnabled(bool),
     // Core messages we get from core
@@ -209,8 +210,8 @@ pub struct HarborWallet {
     // Globals
     transaction_history: Vec<TransactionItem>,
     selected_transaction: Option<TransactionItem>,
-    federation_list: Vec<FederationItem>,
-    active_federation_id: Option<FederationId>,
+    mint_list: Vec<MintItem>,
+    active_mint: Option<MintIdentifier>,
     // Modal
     confirm_modal: Option<components::ConfirmModalState>,
     // Welcome screen
@@ -242,13 +243,13 @@ pub struct HarborWallet {
     receive_qr_data: Option<Data>,
     receive_method: ReceiveMethod,
     // Mints
-    peek_federation_item: Option<FederationItem>,
+    peek_federation_item: Option<MintItem>,
     mint_invite_code_str: String,
     peek_status: PeekStatus,
     add_federation_status: AddFederationStatus,
     current_peek_id: Option<Uuid>,
     current_add_id: Option<Uuid>,
-    current_rejoin_id: Option<FederationId>,
+    current_rejoin_id: Option<MintIdentifier>,
     // Transfer
     transfer_from_federation_selection: Option<String>,
     transfer_to_federation_selection: Option<String>,
@@ -269,19 +270,19 @@ pub struct HarborWallet {
 }
 
 impl HarborWallet {
-    fn active_federation(&self) -> Option<&FederationItem> {
-        self.active_federation_id
+    fn active_federation(&self) -> Option<&MintItem> {
+        self.active_mint
             .as_ref()
-            .and_then(|id| self.federation_list.iter().find(|f| f.id == *id))
+            .and_then(|id| self.mint_list.iter().find(|f| &f.id == id))
     }
 
-    fn next_federation(&self, name: &str) -> FederationItem {
+    fn next_federation(&self, name: &str) -> MintItem {
         let fed = self
-            .federation_list
+            .mint_list
             .iter()
             .find(|f| f.name == name)
             .expect("Federation not found");
-        self.federation_list
+        self.mint_list
             .iter()
             .find(|f| f.id != fed.id && fed.active)
             .expect("No next federation found")
@@ -437,7 +438,7 @@ impl HarborWallet {
                             {
                                 // Get first two federation names
                                 let fed_names: Vec<String> = self
-                                    .federation_list
+                                    .mint_list
                                     .iter()
                                     .filter(|f| f.active)
                                     .map(|f| f.name.clone())
@@ -527,10 +528,10 @@ impl HarborWallet {
                 self.remove_toast(index);
                 Task::none()
             }
-            Message::RejoinFederation(id) => {
-                info!("Rejoining federation: {id}");
+            Message::RejoinMint(id) => {
+                info!("Rejoining mint: {id:?}");
                 self.add_federation_status = AddFederationStatus::Adding;
-                let (_, task) = self.send_from_ui(UICoreMsg::RejoinFederation(id));
+                let (_, task) = self.send_from_ui(UICoreMsg::RejoinMint(id.clone()));
                 // We need to know which federation we're rejoining so we use the federation id
                 self.current_rejoin_id = Some(id);
                 task
@@ -581,10 +582,10 @@ impl HarborWallet {
                 SendStatus::Sending => Task::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    let federation_id = match self.active_federation_id {
+                    let mint = match self.active_mint.clone() {
                         Some(f) => f,
                         None => {
-                            error!("No active federation");
+                            error!("No active mint");
                             return Task::perform(async {}, |_| {
                                 Message::AddToast(Toast {
                                     title: "Cannot send".to_string(),
@@ -596,10 +597,8 @@ impl HarborWallet {
                     };
 
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
-                        let (id, task) = self.send_from_ui(UICoreMsg::SendLightning {
-                            federation_id,
-                            invoice,
-                        });
+                        let (id, task) =
+                            self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
                         self.current_send_id = Some(id);
                         task
                     } else {
@@ -628,7 +627,7 @@ impl HarborWallet {
                                     }
                                 };
                                 let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
-                                    federation_id,
+                                    mint,
                                     lnurl,
                                     amount_sats: amount,
                                 });
@@ -650,7 +649,7 @@ impl HarborWallet {
                                         }
                                     };
                                     let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
-                                        federation_id,
+                                        mint,
                                         address,
                                         amount_sats: amount,
                                     });
@@ -674,21 +673,23 @@ impl HarborWallet {
             },
             Message::Transfer => {
                 let from = if let Some(name) = &self.transfer_from_federation_selection {
-                    self.federation_list
+                    self.mint_list
                         .iter()
                         .find(|f| &f.name == name)
                         .unwrap()
                         .id
+                        .clone()
                 } else {
                     error!("No source federation selected");
                     return Task::none();
                 };
                 let to = if let Some(name) = &self.transfer_to_federation_selection {
-                    self.federation_list
+                    self.mint_list
                         .iter()
                         .find(|f| &f.name == name)
                         .unwrap()
                         .id
+                        .clone()
                 } else {
                     error!("No destination federation selected");
                     return Task::none();
@@ -731,7 +732,7 @@ impl HarborWallet {
             Message::GenerateInvoice => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let federation_id = match self.active_federation_id {
+                    let mint = match self.active_mint.clone() {
                         Some(f) => f,
                         None => {
                             // This should be unreachable yeah?
@@ -741,7 +742,7 @@ impl HarborWallet {
                     match self.receive_amount_str.parse::<u64>() {
                         Ok(amount) => {
                             let (id, task) = self.send_from_ui(UICoreMsg::ReceiveLightning {
-                                federation_id,
+                                mint,
                                 amount: Amount::from_sats(amount),
                             });
                             self.current_receive_id = Some(id);
@@ -765,7 +766,7 @@ impl HarborWallet {
             Message::GenerateAddress => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let federation_id = match self.active_federation_id {
+                    let mint = match self.active_mint.clone() {
                         Some(f) => f,
                         None => {
                             // todo show error
@@ -773,7 +774,7 @@ impl HarborWallet {
                             return Task::none();
                         }
                     };
-                    let (id, task) = self.send_from_ui(UICoreMsg::ReceiveOnChain { federation_id });
+                    let (id, task) = self.send_from_ui(UICoreMsg::ReceiveOnChain { mint });
                     self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
                     task
@@ -781,7 +782,7 @@ impl HarborWallet {
             },
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
                 Ok(amount_sats) => {
-                    let federation_id = match self.active_federation_id {
+                    let mint = match self.active_mint.clone() {
                         Some(f) => f,
                         None => {
                             // todo show error
@@ -791,7 +792,7 @@ impl HarborWallet {
                     };
 
                     let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
-                        federation_id,
+                        mint,
                         amount_sats,
                         lnurl: parse_lnurl("hrf@btcpay.hrf.org").expect("this is valid"),
                     });
@@ -833,45 +834,81 @@ impl HarborWallet {
                     }
                 }
             },
-            Message::AddFederation(invite_code) => {
-                let invite = InviteCode::from_str(&invite_code);
-                match invite {
-                    Ok(invite) => {
+            Message::AddMint(string) => match InviteCode::from_str(&string) {
+                Ok(invite) => {
+                    self.add_federation_status = AddFederationStatus::Adding;
+                    let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
+                    self.current_add_id = Some(id);
+                    task
+                }
+                Err(_) => match MintUrl::from_str(&string) {
+                    Ok(mint_url) => {
                         self.add_federation_status = AddFederationStatus::Adding;
-                        let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
+                        let (id, task) = self.send_from_ui(UICoreMsg::AddCashuMint(mint_url));
                         self.current_add_id = Some(id);
                         task
                     }
-                    _ => Task::perform(async {}, |_| {
+                    Err(_) => Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Can't add mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
                     }),
+                },
+            },
+            Message::PeekMint(string) => match InviteCode::from_str(&string) {
+                Ok(invite) => {
+                    if self.mint_list.iter().any(|m| {
+                        m.id.federation_id()
+                            .is_some_and(|f| f == invite.federation_id())
+                    }) {
+                        return Task::perform(async {}, |_| {
+                            Message::AddToast(Toast {
+                                title: "Mint already added".to_string(),
+                                body: None,
+                                status: ToastStatus::Bad,
+                            })
+                        });
+                    }
+
+                    self.peek_status = PeekStatus::Peeking;
+                    let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
+                    self.current_peek_id = Some(id);
+                    task
                 }
-            }
-            Message::PeekFederation(invite_code) => {
-                let invite = InviteCode::from_str(&invite_code);
-                match invite {
-                    Ok(invite) => {
+                Err(_) => match MintUrl::from_str(&string) {
+                    Ok(mint) => {
+                        if self
+                            .mint_list
+                            .iter()
+                            .any(|m| m.id.mint_url().is_some_and(|u| u == mint))
+                        {
+                            return Task::perform(async {}, |_| {
+                                Message::AddToast(Toast {
+                                    title: "Mint already added".to_string(),
+                                    body: None,
+                                    status: ToastStatus::Bad,
+                                })
+                            });
+                        }
                         self.peek_status = PeekStatus::Peeking;
-                        let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
+                        let (id, task) = self.send_from_ui(UICoreMsg::GetCashuMintInfo(mint));
                         self.current_peek_id = Some(id);
                         task
                     }
-                    _ => Task::perform(async {}, |_| {
+                    Err(_) => Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Can't preview mint".to_string(),
                             body: Some("Invalid invite code".to_string()),
                             status: ToastStatus::Bad,
                         })
                     }),
-                }
-            }
-            Message::RemoveFederation(federation_id) => {
+                },
+            },
+            Message::RemoveMint(mint) => {
                 // Check if the federation still exists before trying to remove it
-                if !self.federation_list.iter().any(|f| f.id == federation_id) {
+                if !self.mint_list.iter().any(|f| f.id == mint) {
                     return Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Federation already removed".to_string(),
@@ -880,11 +917,11 @@ impl HarborWallet {
                         })
                     });
                 }
-                let (_, task) = self.send_from_ui(UICoreMsg::RemoveFederation(federation_id));
+                let (_, task) = self.send_from_ui(UICoreMsg::RemoveMint(mint));
                 task
             }
-            Message::ChangeFederation(id) => {
-                self.active_federation_id = Some(id);
+            Message::ChangeFederation(mint) => {
+                self.active_mint = Some(mint);
                 Task::none()
             }
             Message::CopyToClipboard(s) => Task::batch([
@@ -1061,14 +1098,14 @@ impl HarborWallet {
                     self.transaction_history = history;
                     Task::none()
                 }
-                CoreUIMsg::FederationBalanceUpdated { id, balance } => {
+                CoreUIMsg::MintBalanceUpdated { id, balance } => {
                     debug!(
                         "Balance update received - ID: {:?}, Balance: {:?}",
                         id, balance
                     );
 
                     // Update the balance in the federation list
-                    if let Some(federation) = self.federation_list.iter_mut().find(|f| f.id == id) {
+                    if let Some(federation) = self.mint_list.iter_mut().find(|f| f.id == id) {
                         federation.balance = balance.sats_round_down();
                     }
 
@@ -1117,28 +1154,39 @@ impl HarborWallet {
                     let (_, task) = self.send_from_ui(UICoreMsg::FederationListNeedsUpdate);
                     task
                 }
-                CoreUIMsg::FederationInfo { config, metadata } => {
-                    let id = config.calculate_federation_id();
-                    let name = config.meta::<String>("federation_name");
-                    let guardians: Vec<String> = config
-                        .global
-                        .api_endpoints
-                        .values()
-                        .map(|url| url.name.clone())
-                        .collect();
+                CoreUIMsg::MintInfo {
+                    id,
+                    config,
+                    metadata,
+                } => {
+                    let name = metadata.federation_name.clone().unwrap_or_else(|| {
+                        match config.as_ref().map(|c| c.meta::<String>("federation_name")) {
+                            Some(Ok(Some(n))) => n,
+                            _ => "Unknown".to_string(),
+                        }
+                    });
 
-                    let module_kinds = config
-                        .modules
-                        .into_values()
-                        .map(|module_config| module_config.kind().to_owned())
-                        .collect::<Vec<ModuleKind>>();
+                    let (guardians, module_kinds) = match config {
+                        None => (vec![], vec![]),
+                        Some(config) => {
+                            let guardians: Vec<String> = config
+                                .global
+                                .api_endpoints
+                                .values()
+                                .map(|url| url.name.clone())
+                                .collect();
 
-                    let name = match name {
-                        Ok(Some(n)) => n,
-                        _ => "Unknown".to_string(),
+                            let module_kinds = config
+                                .modules
+                                .into_values()
+                                .map(|module_config| module_config.kind().to_owned())
+                                .collect::<Vec<ModuleKind>>();
+
+                            (guardians, module_kinds)
+                        }
                     };
 
-                    let item = FederationItem {
+                    let item = MintItem {
                         id,
                         name,
                         balance: 0,
@@ -1153,10 +1201,11 @@ impl HarborWallet {
                     self.peek_status = PeekStatus::Idle;
                     Task::none()
                 }
-                CoreUIMsg::AddFederationSuccess => {
+                CoreUIMsg::AddMintSuccess(id) => {
                     self.clear_add_federation_state();
                     // Route to the mints list
                     self.active_route = Route::Mints(routes::MintSubroute::List);
+                    self.active_mint = Some(id);
                     Task::perform(async {}, |_| {
                         Message::AddToast(Toast {
                             title: "Mint added".to_string(),
@@ -1179,19 +1228,19 @@ impl HarborWallet {
                         })
                     })
                 }
-                CoreUIMsg::FederationListUpdated(mut list) => {
+                CoreUIMsg::MintListUpdated(mut list) => {
                     list.sort();
                     trace!("Updated federation list: {:#?}", list);
 
                     // if we don't have an active federation, set it to the first one
-                    if self.active_federation_id.is_none() {
-                        self.active_federation_id = list.iter().find(|f| f.active).map(|f| f.id);
+                    if self.active_mint.is_none() {
+                        self.active_mint = list.iter().find(|f| f.active).map(|f| f.id.clone());
                     }
 
                     // Show the CTA if we have no federations and we haven't navigated to the mints page yet
                     self.show_add_a_mint_cta = list.is_empty() && !self.has_navigated_to_mints;
 
-                    self.federation_list = list;
+                    self.mint_list = list;
                     Task::none()
                 }
                 CoreUIMsg::ReceiveAddressGenerated(address) => {
