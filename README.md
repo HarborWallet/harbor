@@ -88,7 +88,7 @@ Note: The build script will compile Harbor for Apple Silicon (M1/M2/M3) Macs. In
 Reset local DB (for init, schema generation, etc.)
 
 ```
-just reset-db
+just clear-signet
 ```
 
 ## Feedback & Support
