@@ -480,9 +480,9 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                         .send(CoreUIMsgPacket {
                             id: Some(msg_id),
                             msg: if is_transfer {
-                                CoreUIMsg::TransferFailure("Refunded".to_string())
+                                CoreUIMsg::TransferFailure("Payment failed".to_string())
                             } else {
-                                CoreUIMsg::SendFailure("Refunded".to_string())
+                                CoreUIMsg::SendFailure("Payment failed".to_string())
                             },
                         })
                         .await
