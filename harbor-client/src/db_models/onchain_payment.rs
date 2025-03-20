@@ -1,3 +1,4 @@
+use crate::MintIdentifier;
 use crate::db_models::PaymentStatus;
 use crate::db_models::schema::on_chain_payments;
 use crate::db_models::transaction_item::{
@@ -5,6 +6,7 @@ use crate::db_models::transaction_item::{
 };
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Txid};
+use cdk::mint_url::MintUrl;
 use diesel::prelude::*;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
@@ -14,7 +16,8 @@ use std::str::FromStr;
 #[diesel(table_name = on_chain_payments)]
 pub struct OnChainPayment {
     operation_id: String,
-    fedimint_id: String,
+    fedimint_id: Option<String>,
+    cashu_mint_url: Option<String>,
     address: String,
     pub amount_sats: i64,
     pub fee_sats: i64,
@@ -28,7 +31,8 @@ pub struct OnChainPayment {
 #[diesel(table_name = on_chain_payments)]
 struct NewOnChainPayment {
     operation_id: String,
-    fedimint_id: String,
+    fedimint_id: Option<String>,
+    cashu_mint_url: Option<String>,
     address: String,
     amount_sats: i64,
     fee_sats: i64,
@@ -40,8 +44,23 @@ impl OnChainPayment {
         OperationId::from_str(&self.operation_id).expect("invalid operation id")
     }
 
-    pub fn fedimint_id(&self) -> FederationId {
-        FederationId::from_str(&self.fedimint_id).expect("invalid fedimint id")
+    pub fn fedimint_id(&self) -> Option<FederationId> {
+        self.fedimint_id
+            .as_ref()
+            .map(|f| FederationId::from_str(f).expect("invalid fedimint_id"))
+    }
+
+    pub fn mint_url(&self) -> Option<MintUrl> {
+        self.cashu_mint_url
+            .as_ref()
+            .map(|url| MintUrl::from_str(url).expect("invalid mint url"))
+    }
+
+    pub fn mint_identifier(&self) -> MintIdentifier {
+        match self.fedimint_id() {
+            Some(f) => MintIdentifier::Fedimint(f),
+            None => MintIdentifier::Cashu(self.mint_url().expect("missing mint url")),
+        }
     }
 
     pub fn address(&self) -> Address<NetworkUnchecked> {
@@ -60,15 +79,17 @@ impl OnChainPayment {
 
     pub fn create(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         address: Address,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()> {
         let new = NewOnChainPayment {
-            operation_id: operation_id.fmt_full().to_string(),
-            fedimint_id: fedimint_id.to_string(),
+            operation_id,
+            fedimint_id: fedimint_id.map(|f| f.to_string()),
+            cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
             address: address.to_string(),
             amount_sats: amount_sats as i64,
             fee_sats: fee_sats as i64,
@@ -84,22 +105,21 @@ impl OnChainPayment {
 
     pub fn get_by_operation_id(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<Self>> {
         Ok(on_chain_payments::table
-            .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string()))
+            .filter(on_chain_payments::operation_id.eq(operation_id))
             .first::<Self>(conn)
             .optional()?)
     }
 
     pub fn set_txid(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
+        operation_id: String,
         txid: Txid,
     ) -> anyhow::Result<()> {
         diesel::update(
-            on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
+            on_chain_payments::table.filter(on_chain_payments::operation_id.eq(operation_id)),
         )
         .set((
             on_chain_payments::txid.eq(Some(txid.to_string())),
@@ -111,13 +131,9 @@ impl OnChainPayment {
         Ok(())
     }
 
-    pub fn mark_as_failed(
-        conn: &mut SqliteConnection,
-        operation_id: OperationId,
-    ) -> anyhow::Result<()> {
+    pub fn mark_as_failed(conn: &mut SqliteConnection, operation_id: String) -> anyhow::Result<()> {
         diesel::update(
-            on_chain_payments::table
-                .filter(on_chain_payments::operation_id.eq(operation_id.fmt_full().to_string())),
+            on_chain_payments::table.filter(on_chain_payments::operation_id.eq(operation_id)),
         )
         .set(on_chain_payments::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;
@@ -151,7 +167,7 @@ impl From<OnChainPayment> for TransactionItem {
                 .as_ref()
                 .map(|t| Txid::from_str(t).expect("invalid txid")),
             direction: TransactionDirection::Outgoing,
-            federation_id: payment.fedimint_id(),
+            mint_identifier: payment.mint_identifier(),
             status: payment.status(),
             timestamp: payment.updated_at.and_utc().timestamp() as u64,
         }

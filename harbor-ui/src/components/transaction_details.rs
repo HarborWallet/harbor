@@ -2,7 +2,8 @@ use super::{format_amount, format_timestamp, side_panel_style, subtitle};
 use crate::Message;
 use crate::components::{SvgIcon, map_icon, text_link};
 use bitcoin::Network;
-use harbor_client::db_models::FederationItem;
+use fedimint_core::config::FederationId;
+use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
@@ -11,15 +12,15 @@ use iced::{Alignment, Element, Length};
 
 pub fn h_transaction_details<'a>(
     item: &'a TransactionItem,
-    federation_list: &'a [FederationItem],
+    federation_list: &'a [MintItem],
     network: Network,
 ) -> Element<'a, Message> {
     let TransactionItem {
         kind,
         amount,
         direction,
+        mint_identifier,
         timestamp,
-        federation_id,
         status: _,
         txid,
     } = item;
@@ -43,9 +44,13 @@ pub fn h_transaction_details<'a>(
 
     let mint = federation_list
         .iter()
-        .find(|f| f.id == *federation_id)
+        .find(|f| &f.id == mint_identifier)
         .cloned()
-        .unwrap_or(FederationItem::unknown(*federation_id));
+        .unwrap_or(MintItem::unknown(
+            mint_identifier
+                .federation_id()
+                .unwrap_or(FederationId::dummy()),
+        ));
 
     let mint_section = column![
         text(mint_label).size(16).style(subtitle),

@@ -1,12 +1,11 @@
-use crate::{HarborWallet, Message, ReceiveStatus};
-use harbor_client::db_models::FederationItem;
-use iced::widget::{column, container, horizontal_space, pick_list, rich_text, row, span, text};
-use iced::{Alignment, Color, Element, Length, Padding, never};
-
 use super::{
     SvgIcon, borderless_pick_list_style, format_amount, gray, green, hr, map_icon, menu_style, red,
     vr,
 };
+use crate::{HarborWallet, Message, ReceiveStatus};
+use harbor_client::db_models::MintItem;
+use iced::widget::{column, container, horizontal_space, pick_list, rich_text, row, span, text};
+use iced::{Alignment, Color, Element, Length, Padding, never};
 
 pub fn h_screen_header(
     harbor: &HarborWallet,
@@ -14,26 +13,18 @@ pub fn h_screen_header(
     disable_switcher: bool,
 ) -> Element<Message> {
     if let Some(item) = harbor.active_federation() {
-        let FederationItem { name, .. } = item;
+        let MintItem { name, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
 
-        let federation_names: Vec<String> = harbor
-            .federation_list
-            .iter()
-            .map(|f| f.name.clone())
-            .collect();
+        let mint_names: Vec<String> = harbor.mint_list.iter().map(|f| f.name.clone()).collect();
 
         let is_generating = harbor.receive_status == ReceiveStatus::Generating;
         let show_picker = !is_generating && !disable_switcher;
 
         let federation_element: Element<Message> = if show_picker {
-            pick_list(federation_names, Some(name.clone()), move |selected_name| {
-                if let Some(federation) = harbor
-                    .federation_list
-                    .iter()
-                    .find(|f| f.name == selected_name)
-                {
-                    Message::ChangeFederation(federation.id)
+            pick_list(mint_names, Some(name.clone()), move |selected_name| {
+                if let Some(mint) = harbor.mint_list.iter().find(|f| f.name == selected_name) {
+                    Message::ChangeFederation(mint.id.clone())
                 } else {
                     Message::Noop
                 }
