@@ -22,6 +22,7 @@ use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
 };
 use fedimint_ln_common::LightningGateway;
+use fedimint_lnv2_client::{ReceiveOperationState, SendOperationState};
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
 use futures::channel::mpsc::Sender;
@@ -96,6 +97,7 @@ impl FedimintClient {
         client_builder.with_module(WalletClientInit(None));
         client_builder.with_module(MintClientInit);
         client_builder.with_module(LightningClientInit::default());
+        client_builder.with_module(fedimint_lnv2_client::LightningClientInit::default());
 
         client_builder.with_primary_module_kind(fedimint_mint_client::KIND);
 
@@ -324,6 +326,192 @@ pub(crate) async fn spawn_invoice_receive_subscription(
 
                     if let Err(e) = storage.mark_ln_receive_as_success(operation_id) {
                         error!("Could not mark lightning receive as success: {e}");
+                    }
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
+                        })
+                        .await
+                        .unwrap();
+
+                    update_history(storage.clone(), msg_id, &mut sender).await;
+
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_lnv2_receive_subscription(
+    mut sender: Sender<CoreUIMsgPacket>,
+    client: ClientHandleArc,
+    storage: Arc<dyn DBConnection + Send + Sync>,
+    operation_id: OperationId,
+    msg_id: Uuid,
+    is_transfer: bool,
+    subscription: UpdateStreamOrOutcome<ReceiveOperationState>,
+) {
+    info!(
+        "Spawning LNv2 receive subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                ReceiveOperationState::Claimed => {
+                    info!("Payment claimed");
+                    let params = if is_transfer {
+                        ReceiveSuccessMsg::Transfer
+                    } else {
+                        ReceiveSuccessMsg::Lightning
+                    };
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveSuccess(params),
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.mark_ln_receive_as_success(operation_id) {
+                        error!("Could not mark lightning receive as success: {e}");
+                    }
+
+                    let new_balance = client.get_balance().await;
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::FederationBalanceUpdated {
+                                id: client.federation_id(),
+                                balance: new_balance,
+                            },
+                        })
+                        .await
+                        .unwrap();
+
+                    update_history(storage.clone(), msg_id, &mut sender).await;
+
+                    break;
+                }
+                ReceiveOperationState::Expired => {
+                    error!("Payment expired");
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveFailed("Invoice expired".to_string()),
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.mark_ln_receive_as_failed(operation_id) {
+                        error!("Could not mark lightning receive as failed: {e}");
+                    }
+                    break;
+                }
+                ReceiveOperationState::Failure => {
+                    error!("Payment failed");
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::ReceiveFailed("Unexpected error".to_string()),
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.mark_ln_receive_as_failed(operation_id) {
+                        error!("Could not mark lightning receive as failed: {e}");
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+}
+
+pub(crate) async fn spawn_lnv2_payment_subscription(
+    mut sender: Sender<CoreUIMsgPacket>,
+    client: ClientHandleArc,
+    storage: Arc<dyn DBConnection + Send + Sync>,
+    operation_id: OperationId,
+    msg_id: Uuid,
+    is_transfer: bool,
+    subscription: UpdateStreamOrOutcome<SendOperationState>,
+) {
+    info!(
+        "Spawning LNv2 payment subscription for operation id: {}",
+        operation_id.fmt_full()
+    );
+    spawn(async move {
+        let mut stream = subscription.into_stream();
+        while let Some(op_state) = stream.next().await {
+            match op_state {
+                SendOperationState::Failure => {
+                    error!("Unexpected payment error");
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: if is_transfer {
+                                CoreUIMsg::TransferFailure("Unexpected failure".to_string())
+                            } else {
+                                CoreUIMsg::SendFailure("Unexpected failure".to_string())
+                            },
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                        error!("Could not mark lightning payment as failed: {e}");
+                    }
+                    break;
+                }
+                SendOperationState::Refunded => {
+                    error!("Payment refunded");
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: if is_transfer {
+                                CoreUIMsg::TransferFailure("Refunded".to_string())
+                            } else {
+                                CoreUIMsg::SendFailure("Refunded".to_string())
+                            },
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.mark_lightning_payment_as_failed(operation_id) {
+                        error!("Could not mark lightning payment as failed: {e}");
+                    }
+                    break;
+                }
+                SendOperationState::Success => {
+                    info!("Payment success");
+                    // TODO: Get preimage from state
+                    let preimage: [u8; 32] = [0; 32];
+                    let params = if is_transfer {
+                        SendSuccessMsg::Transfer
+                    } else {
+                        SendSuccessMsg::Lightning { preimage }
+                    };
+                    sender
+                        .send(CoreUIMsgPacket {
+                            id: Some(msg_id),
+                            msg: CoreUIMsg::SendSuccess(params),
+                        })
+                        .await
+                        .unwrap();
+
+                    if let Err(e) = storage.set_lightning_payment_preimage(operation_id, preimage) {
+                        error!("Could not mark lightning payment as success: {e}");
                     }
 
                     let new_balance = client.get_balance().await;
