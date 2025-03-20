@@ -161,6 +161,7 @@ pub fn tag_style(theme: &Theme) -> ContainerStyle {
 
 pub fn checkbox_style(theme: &Theme, status: checkbox::Status) -> checkbox::Style {
     let background = theme.palette().background;
+    let gray = lighten(theme.palette().background, 0.5);
 
     let background = match status {
         checkbox::Status::Hovered { is_checked: _ } => lighten(background, 0.1),
@@ -168,12 +169,18 @@ pub fn checkbox_style(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
         checkbox::Status::Disabled { is_checked: _ } => background,
     };
 
+    let text_color = match status {
+        checkbox::Status::Disabled { .. } => gray,
+        checkbox::Status::Active { is_checked: _ } => Color::WHITE,
+        checkbox::Status::Hovered { is_checked: _ } => Color::WHITE,
+    };
+
     checkbox::Style {
         icon_color: theme.palette().primary,
-        text_color: Some(Color::WHITE),
+        text_color: Some(text_color),
         background: background.into(),
         border: Border {
-            color: Color::WHITE,
+            color: text_color,
             width: 2.0,
             radius: (8.0).into(),
         },

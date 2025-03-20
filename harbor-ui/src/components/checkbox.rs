@@ -7,12 +7,14 @@ pub fn h_checkbox<'a, Message: 'a + Clone>(
     label: &'static str,
     description: Option<&'static str>,
     is_checked: bool,
+    is_disabled: bool,
     on_toggle: impl Fn(bool) -> Message + 'a,
 ) -> Element<'a, Message> {
     let mut content = Column::new().spacing(8).width(Length::Fill);
 
+    let on_toggle = if is_disabled { None } else { Some(on_toggle) };
     let checkbox = checkbox(label, is_checked)
-        .on_toggle(on_toggle)
+        .on_toggle_maybe(on_toggle)
         .size(24)
         .text_size(24)
         .style(styles::checkbox_style);

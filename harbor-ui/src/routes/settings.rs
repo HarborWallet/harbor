@@ -15,6 +15,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
         "On-chain Receive",
         Some("Receive bitcoin on-chain with all mints."),
         harbor.onchain_receive_enabled,
+        false,
         |enabled| {
             // Only warn them if they're enabling it
             if enabled {
@@ -73,6 +74,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
         "Tor",
         Some("Use Tor for enhanced privacy. Requires restart."),
         harbor.tor_enabled,
+        false,
         |enabled| {
             Message::SetConfirmModal(Some(crate::components::ConfirmModalState {
                 title: "Are you sure?".to_string(),

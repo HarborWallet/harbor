@@ -228,6 +228,7 @@ pub struct HarborWallet {
     send_dest_input_str: String,
     send_amount_input_str: String,
     is_max: bool,
+    input_has_amount: bool,
     current_send_id: Option<Uuid>,
     current_receive_id: Option<Uuid>,
     current_transfer_id: Option<Uuid>,
@@ -335,6 +336,7 @@ impl HarborWallet {
         self.send_dest_input_str = String::new();
         self.send_amount_input_str = String::new();
         self.is_max = false;
+        self.input_has_amount = false;
         self.confirm_modal = None;
         self.current_send_id = None;
         // We dont' clear the success msg so the history screen can show the most recent
@@ -465,6 +467,15 @@ impl HarborWallet {
                 Task::none()
             }
             Message::SendDestInputChanged(input) => {
+                let msats = Bolt11Invoice::from_str(&input)
+                    .ok()
+                    .and_then(|i| i.amount_milli_satoshis());
+                self.input_has_amount = msats.is_some();
+                if let Some(amt) = msats {
+                    self.send_amount_input_str = (amt / 1_000).to_string();
+                } else {
+                    self.send_amount_input_str = String::from("");
+                }
                 self.send_dest_input_str = input;
                 Task::none()
             }
