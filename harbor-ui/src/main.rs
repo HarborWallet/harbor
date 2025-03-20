@@ -815,12 +815,22 @@ impl HarborWallet {
             Message::Init(password) => match self.unlock_status {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
-                    self.unlock_failure_reason = None;
-                    let (_, task) = self.send_from_ui(UICoreMsg::Init {
-                        password,
-                        seed: None, // FIXME: Use this
-                    });
-                    task
+                    if password.is_empty() {
+                        Task::perform(async {}, |_| {
+                            Message::AddToast(Toast {
+                                title: "Error".to_string(),
+                                body: Some("Password cannot be empty".to_string()),
+                                status: ToastStatus::Bad,
+                            })
+                        })
+                    } else {
+                        self.unlock_failure_reason = None;
+                        let (_, task) = self.send_from_ui(UICoreMsg::Init {
+                            password,
+                            seed: None, // FIXME: Use this
+                        });
+                        task
+                    }
                 }
             },
             Message::AddFederation(invite_code) => {
