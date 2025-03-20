@@ -12,9 +12,10 @@ use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
+use fedimint_client::{spawn_lnv2_payment_subscription, spawn_lnv2_receive_subscription};
 use fedimint_core::Amount;
 use fedimint_core::config::{ClientConfig, FederationId};
-use fedimint_core::core::ModuleKind;
+use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::invite_code::InviteCode;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
@@ -398,6 +399,21 @@ impl HarborCore {
             .clone()
     }
 
+    async fn send_lnv2(
+        &self,
+        client: &ClientHandleArc,
+        msg_id: Uuid,
+        invoice: Bolt11Invoice,
+    ) -> anyhow::Result<OperationId> {
+        log::info!("Trying to pay {invoice} with LNv2...");
+        let lnv2_module =
+            client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
+        let operation_id = lnv2_module.send(invoice.clone(), None, ().into()).await?;
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+        Ok(operation_id)
+    }
+
     pub async fn send_lightning(
         &self,
         msg_id: Uuid,
@@ -415,74 +431,123 @@ impl HarborCore {
         let amount = Amount::from_msats(invoice.amount_milli_satoshis().expect("must have amount"));
 
         let client = self.get_client(federation_id).await.fedimint_client;
-        let lightning_module = client
-            .get_first_module::<LightningClientModule>()
-            .expect("must have ln module");
 
-        self.status_update(msg_id, "Selecting gateway and calculating fees")
-            .await;
+        // Try sending using LNv2 first, if that doesn't work fall back to using LNv1
+        match self.send_lnv2(&client, msg_id, invoice.clone()).await {
+            Ok(operation_id) => {
+                let lnv2_module = client
+                    .get_first_module::<fedimint_lnv2_client::LightningClientModule>()
+                    .expect("LNv2 should be available");
+                let operation = client
+                    .operation_log()
+                    .get_operation(operation_id)
+                    .await
+                    .expect("Should have started operation");
+                let fedimint_lnv2_client::LightningOperationMeta::Send(meta) =
+                    operation.meta::<fedimint_lnv2_client::LightningOperationMeta>()
+                else {
+                    anyhow::bail!("Operation is not a Lightning payment");
+                };
 
-        let gateway = select_gateway(&client)
-            .await
-            .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
+                let fees = meta
+                    .contract
+                    .amount
+                    .checked_sub(amount)
+                    .expect("Fees should never be negative");
+                self.storage.create_lightning_payment(
+                    operation_id,
+                    client.federation_id(),
+                    invoice,
+                    amount,
+                    fees,
+                )?;
 
-        let fees = gateway.fees.to_amount(&amount);
-        let total = fees + amount;
-        let balance = client.get_balance().await;
-        if total > balance {
-            return Err(anyhow!(
-                "Insufficient balance: Cannot pay {} sats, current balance is only {} sats",
-                total.sats_round_down(),
-                balance.sats_round_down()
-            ));
-        }
-
-        log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
-
-        // Send another update
-        self.status_update(msg_id, "Creating payment transaction")
-            .await;
-
-        let outgoing = lightning_module
-            .pay_bolt11_invoice(Some(gateway), invoice.clone(), ())
-            .await?;
-
-        self.status_update(msg_id, "Waiting for payment confirmation")
-            .await;
-
-        self.storage.create_lightning_payment(
-            outgoing.payment_type.operation_id(),
-            client.federation_id(),
-            invoice,
-            amount,
-            fees,
-        )?;
-
-        match outgoing.payment_type {
-            PayType::Internal(op_id) => {
-                let sub = lightning_module.subscribe_internal_pay(op_id).await?;
-                spawn_internal_payment_subscription(
+                let sub = lnv2_module
+                    .subscribe_send_operation_state_updates(operation_id)
+                    .await?;
+                spawn_lnv2_payment_subscription(
                     self.tx.clone(),
                     client,
                     self.storage.clone(),
-                    op_id,
-                    msg_id,
-                    sub,
-                )
-                .await;
-            }
-            PayType::Lightning(op_id) => {
-                let sub = lightning_module.subscribe_ln_pay(op_id).await?;
-                spawn_invoice_payment_subscription(
-                    self.tx.clone(),
-                    client,
-                    self.storage.clone(),
-                    op_id,
+                    operation_id,
                     msg_id,
                     is_transfer,
                     sub,
                 )
                 .await;
+            }
+            Err(err) => {
+                log::warn!("LNv2 payment failed, trying LNv1. {err}");
+                let lightning_module = client
+                    .get_first_module::<LightningClientModule>()
+                    .expect("must have ln module");
+
+                self.status_update(msg_id, "Selecting gateway and calculating fees")
+                    .await;
+
+                let gateway = select_gateway(&client)
+                    .await
+                    .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
+
+                let fees = gateway.fees.to_amount(&amount);
+                let total = fees + amount;
+                let balance = client.get_balance().await;
+                if total > balance {
+                    return Err(anyhow!(
+                        "Insufficient balance: Cannot pay {} sats, current balance is only {} sats",
+                        total.sats_round_down(),
+                        balance.sats_round_down()
+                    ));
+                }
+
+                log::info!("Sending lightning invoice: {invoice}, paying fees: {fees}");
+
+                // Send another update
+                self.status_update(msg_id, "Creating payment transaction")
+                    .await;
+
+                let outgoing = lightning_module
+                    .pay_bolt11_invoice(Some(gateway), invoice.clone(), ())
+                    .await?;
+
+                self.status_update(msg_id, "Waiting for payment confirmation")
+                    .await;
+
+                self.storage.create_lightning_payment(
+                    outgoing.payment_type.operation_id(),
+                    client.federation_id(),
+                    invoice,
+                    amount,
+                    fees,
+                )?;
+
+                match outgoing.payment_type {
+                    PayType::Internal(op_id) => {
+                        let sub = lightning_module.subscribe_internal_pay(op_id).await?;
+                        spawn_internal_payment_subscription(
+                            self.tx.clone(),
+                            client,
+                            self.storage.clone(),
+                            op_id,
+                            msg_id,
+                            sub,
+                        )
+                        .await;
+                    }
+                    PayType::Lightning(op_id) => {
+                        let sub = lightning_module.subscribe_ln_pay(op_id).await?;
+                        spawn_invoice_payment_subscription(
+                            self.tx.clone(),
+                            client,
+                            self.storage.clone(),
+                            op_id,
+                            msg_id,
+                            is_transfer,
+                            sub,
+                        )
+                        .await;
+                    }
+                }
             }
         }
 
@@ -533,6 +598,29 @@ impl HarborCore {
         Ok(())
     }
 
+    async fn receive_lnv2(
+        &self,
+        client: &ClientHandleArc,
+        msg_id: Uuid,
+        amount: Amount,
+    ) -> anyhow::Result<(Bolt11Invoice, OperationId)> {
+        log::info!("Trying to pay receive {amount} with LNv2...");
+        let lnv2_module =
+            client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
+        const DEFAULT_EXPIRY_TIME_SECS: u32 = 86400;
+        self.status_update(msg_id, "Generating invoice").await;
+        let receive = lnv2_module
+            .receive(
+                amount,
+                DEFAULT_EXPIRY_TIME_SECS,
+                fedimint_lnv2_common::Bolt11InvoiceDescription::Direct(String::new()),
+                None,
+                ().into(),
+            )
+            .await?;
+        Ok(receive)
+    }
+
     pub async fn receive_lightning(
         &self,
         msg_id: Uuid,
@@ -545,65 +633,115 @@ impl HarborCore {
             "Creating lightning invoice, amount: {amount} for federation: {federation_id}. Tor enabled: {tor_enabled}"
         );
 
-        self.status_update(msg_id, "Connecting to mint").await;
-
         let client = self.get_client(federation_id).await.fedimint_client;
-        let lightning_module = client
-            .get_first_module::<LightningClientModule>()
-            .expect("must have ln module");
-        log::info!("Lightning module: {:?}", lightning_module.id);
+        match self.receive_lnv2(&client, msg_id, amount).await {
+            Ok((invoice, operation_id)) => {
+                let operation = client
+                    .operation_log()
+                    .get_operation(operation_id)
+                    .await
+                    .expect("Should have started operation");
+                let fedimint_lnv2_client::LightningOperationMeta::Receive(meta) =
+                    operation.meta::<fedimint_lnv2_client::LightningOperationMeta>()
+                else {
+                    anyhow::bail!("Operation is not a Lightning payment");
+                };
 
-        self.status_update(msg_id, "Selecting gateway").await;
+                let fees = amount
+                    .checked_sub(meta.contract.commitment.amount)
+                    .expect("Fees should not be negative");
 
-        let gateway = select_gateway(&client)
-            .await
-            .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
-        log::info!("Gateway: {gateway:?}");
+                log::info!("LNv2 Invoice created: {invoice}");
 
-        self.status_update(msg_id, "Generating invoice").await;
+                self.storage.create_ln_receive(
+                    operation_id,
+                    client.federation_id(),
+                    invoice.clone(),
+                    amount,
+                    fees,
+                    [0; 32], // We don't know the preimage because the gateway generated the invoice
+                )?;
 
-        let desc = Description::new(String::new()).expect("empty string is valid");
-        let (op_id, invoice, preimage) = lightning_module
-            .create_bolt11_invoice(
-                amount,
-                Bolt11InvoiceDescription::Direct(&desc),
-                None,
-                (),
-                Some(gateway),
-            )
-            .await?;
-
-        log::info!("Invoice created: {invoice}");
-
-        self.storage.create_ln_receive(
-            op_id,
-            client.federation_id(),
-            invoice.clone(),
-            amount,
-            Amount::ZERO, // todo one day there will be receive fees
-            preimage,
-        )?;
-
-        // Create subscription to operation if it exists
-        match lightning_module.subscribe_ln_receive(op_id).await {
-            Ok(subscription) => {
-                spawn_invoice_receive_subscription(
+                let lnv2_module = client
+                    .get_first_module::<fedimint_lnv2_client::LightningClientModule>()
+                    .expect("Should have LNv2 module");
+                let sub = lnv2_module
+                    .subscribe_receive_operation_state_updates(operation_id)
+                    .await?;
+                spawn_lnv2_receive_subscription(
                     self.tx.clone(),
                     client.clone(),
                     self.storage.clone(),
-                    op_id,
+                    operation_id,
                     msg_id,
                     is_transfer,
-                    subscription,
+                    sub,
                 )
                 .await;
+                Ok(invoice)
             }
-            _ => {
-                error!("Could not create subscription to lightning receive");
+            Err(err) => {
+                log::warn!("LNv2 invoice generation failed, trying LNv1. {err}");
+                self.status_update(msg_id, "Connecting to mint").await;
+
+                let lightning_module = client
+                    .get_first_module::<LightningClientModule>()
+                    .expect("must have ln module");
+                log::info!("Lightning module: {:?}", lightning_module.id);
+
+                self.status_update(msg_id, "Selecting gateway").await;
+
+                let gateway = select_gateway(&client)
+                    .await
+                    .ok_or(anyhow!("Internal error: No gateway found for federation"))?;
+                log::info!("Gateway: {gateway:?}");
+
+                self.status_update(msg_id, "Generating invoice").await;
+
+                let desc = Description::new(String::new()).expect("empty string is valid");
+                let (op_id, invoice, preimage) = lightning_module
+                    .create_bolt11_invoice(
+                        amount,
+                        Bolt11InvoiceDescription::Direct(&desc),
+                        None,
+                        (),
+                        Some(gateway),
+                    )
+                    .await?;
+
+                log::info!("Invoice created: {invoice}");
+
+                self.storage.create_ln_receive(
+                    op_id,
+                    client.federation_id(),
+                    invoice.clone(),
+                    amount,
+                    Amount::ZERO, // todo one day there will be receive fees
+                    preimage,
+                )?;
+
+                // Create subscription to operation if it exists
+                match lightning_module.subscribe_ln_receive(op_id).await {
+                    Ok(subscription) => {
+                        spawn_invoice_receive_subscription(
+                            self.tx.clone(),
+                            client.clone(),
+                            self.storage.clone(),
+                            op_id,
+                            msg_id,
+                            is_transfer,
+                            subscription,
+                        )
+                        .await;
+                    }
+                    _ => {
+                        error!("Could not create subscription to lightning receive");
+                    }
+                }
+
+                Ok(invoice)
             }
         }
-
-        Ok(invoice)
     }
 
     pub async fn transfer(

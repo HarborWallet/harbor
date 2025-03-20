@@ -2500,6 +2500,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-lnv2-client"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c0f2bd24070d94e484d20e60890a3197c228b734ffaba0c08fff5cc1f91d32b"
+dependencies = [
+ "anyhow",
+ "aquamarine",
+ "async-stream",
+ "async-trait",
+ "bitcoin",
+ "erased-serde",
+ "fedimint-api-client",
+ "fedimint-client",
+ "fedimint-core",
+ "fedimint-lnv2-common",
+ "fedimint-logging",
+ "fedimint-tpe",
+ "futures",
+ "itertools 0.13.0",
+ "lightning-invoice",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fedimint-lnv2-common"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f6ca85ca7aa1e58b91362b6d6dd278420d60132e9362e4a989b9cce7bfb4fa0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bitcoin",
+ "fedimint-core",
+ "fedimint-ln-common",
+ "fedimint-tpe",
+ "group",
+ "lightning-invoice",
+ "rand 0.8.5",
+ "reqwest 0.12.12",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+]
+
+[[package]]
 name = "fedimint-logging"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2650,6 +2700,22 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tracing",
+]
+
+[[package]]
+name = "fedimint-tpe"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f62a76c9943873d952ca37914812d293a4f8d95eb962afc47d992fcc403d361"
+dependencies = [
+ "bitcoin_hashes 0.14.0",
+ "bls12_381",
+ "fedimint-core",
+ "group",
+ "rand 0.8.5",
+ "rand_chacha",
+ "serde",
+ "serde-big-array",
 ]
 
 [[package]]
@@ -3328,6 +3394,8 @@ dependencies = [
  "fedimint-core",
  "fedimint-ln-client",
  "fedimint-ln-common",
+ "fedimint-lnv2-client",
+ "fedimint-lnv2-common",
  "fedimint-mint-client",
  "fedimint-wallet-client",
  "futures",
