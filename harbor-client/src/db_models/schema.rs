@@ -41,7 +41,6 @@ diesel::table! {
         bolt11 -> Text,
         amount_msats -> BigInt,
         fee_msats -> BigInt,
-        preimage -> Text,
         status -> Integer,
         created_at -> Timestamp,
         updated_at -> Timestamp,

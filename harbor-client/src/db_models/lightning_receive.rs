@@ -23,7 +23,6 @@ pub struct LightningReceive {
     bolt11: String,
     amount_msats: i64,
     fee_msats: i64,
-    preimage: String,
     status: i32,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
@@ -39,7 +38,6 @@ struct NewLightningReceive {
     bolt11: String,
     amount_msats: i64,
     fee_msats: i64,
-    preimage: String,
     status: i32,
 }
 
@@ -83,10 +81,6 @@ impl LightningReceive {
         Amount::from_msats(self.fee_msats as u64)
     }
 
-    pub fn preimage(&self) -> [u8; 32] {
-        FromHex::from_hex(&self.preimage).expect("invalid preimage")
-    }
-
     pub fn status(&self) -> PaymentStatus {
         PaymentStatus::from_i32(self.status)
     }
@@ -100,7 +94,6 @@ impl LightningReceive {
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()> {
         // Make sure the amount matches
         if bolt11
@@ -119,7 +112,6 @@ impl LightningReceive {
             bolt11: bolt11.to_string(),
             amount_msats: amount.msats as i64,
             fee_msats: fee.msats as i64,
-            preimage: hex::encode(preimage),
             status: PaymentStatus::Pending as i32,
         };
 

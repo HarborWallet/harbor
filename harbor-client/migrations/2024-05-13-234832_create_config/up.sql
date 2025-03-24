@@ -57,7 +57,6 @@ CREATE TABLE lightning_receives
     bolt11         TEXT             NOT NULL,
     amount_msats   BIGINT           NOT NULL,
     fee_msats      BIGINT           NOT NULL,
-    preimage       TEXT             NOT NULL,
     status         INTEGER          NOT NULL,
     created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP

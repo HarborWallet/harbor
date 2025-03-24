@@ -131,7 +131,6 @@ pub trait DBConnection {
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()>;
 
     fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()>;
@@ -305,7 +304,6 @@ impl DBConnection for SQLConnection {
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
@@ -317,7 +315,6 @@ impl DBConnection for SQLConnection {
             bolt11,
             amount,
             fee,
-            preimage,
         )?;
 
         Ok(())
@@ -824,7 +821,6 @@ mod tests {
 
         let operation_id = OperationId::new_random();
         let invoice = Bolt11Invoice::from_str("lntbs10u1pny86cupp52lkv666juacc9evu0fpfmduac6l6qp0qypxr0yk9wfpze2u5sngshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5nnhtrhvyfh077g6rdfrs7ml9hqks4mj6f0e50nyeejc73ee7gl3q9qyyssq3urmp6hy3c95rtddevae0djrfn8au0rumgd05zvddzshg8krwupzc4htl38kqufp27el5ev5l8ea4736y3a3rpq5cewxwftsdk2v52cp9w25a0").unwrap();
-        let preimage: [u8; 32] = [0; 32];
 
         LightningReceive::create(
             &mut conn,
@@ -834,7 +830,6 @@ mod tests {
             invoice.clone(),
             Amount::from_sats(1_000),
             Amount::from_sats(1),
-            preimage,
         )
         .unwrap();
 
@@ -855,7 +850,6 @@ mod tests {
         assert_eq!(receive.bolt11(), invoice);
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));
-        assert_eq!(receive.preimage(), preimage);
         assert_eq!(receive.status(), PaymentStatus::Pending);
 
         // sleep for a second to make sure the timestamps are different
@@ -869,7 +863,6 @@ mod tests {
                 .unwrap();
 
         assert_eq!(failed.status(), PaymentStatus::Failed);
-        assert_eq!(failed.preimage(), preimage);
         assert_ne!(failed.updated_at, failed.created_at);
         assert_ne!(failed.updated_at, receive.updated_at);
     }

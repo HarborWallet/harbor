@@ -885,7 +885,6 @@ impl HarborCore {
                     invoice.clone(),
                     amount,
                     fees,
-                    [0; 32], // We don't know the preimage because the gateway generated the invoice
                 )?;
 
                 let lnv2_module = client
@@ -925,7 +924,7 @@ impl HarborCore {
                 self.status_update(msg_id, "Generating invoice").await;
 
                 let desc = Description::new(String::new()).expect("empty string is valid");
-                let (op_id, invoice, preimage) = lightning_module
+                let (op_id, invoice, _) = lightning_module
                     .create_bolt11_invoice(
                         amount,
                         Bolt11InvoiceDescription::Direct(&desc),
@@ -944,7 +943,6 @@ impl HarborCore {
                     invoice.clone(),
                     amount,
                     Amount::ZERO, // todo one day there will be receive fees
-                    preimage,
                 )?;
 
                 // Create subscription to operation if it exists
@@ -1004,7 +1002,6 @@ impl HarborCore {
             invoice.clone(),
             amount,
             Amount::ZERO, // todo one day there will be receive fees
-            [0_u8; 32],   //fixme
         )?;
 
         spawn_lightning_receive_thread(
