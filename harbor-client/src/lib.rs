@@ -405,6 +405,11 @@ impl HarborCore {
         msg_id: Uuid,
         invoice: Bolt11Invoice,
     ) -> anyhow::Result<OperationId> {
+        let enable_lnv2 = cfg!(feature = "lnv2");
+        if !enable_lnv2 {
+            return Err(anyhow::anyhow!("LNv2 is not enabled"));
+        }
+
         log::info!("Trying to pay {invoice} with LNv2...");
         let lnv2_module =
             client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
@@ -604,6 +609,11 @@ impl HarborCore {
         msg_id: Uuid,
         amount: Amount,
     ) -> anyhow::Result<(Bolt11Invoice, OperationId)> {
+        let enable_lnv2 = cfg!(feature = "lnv2");
+        if !enable_lnv2 {
+            return Err(anyhow::anyhow!("LNv2 is not enabled"));
+        }
+
         log::info!("Trying to pay receive {amount} with LNv2...");
         let lnv2_module =
             client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
