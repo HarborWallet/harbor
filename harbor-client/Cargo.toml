@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 default = []
 vendored = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+lnv2 = []
 
 [dependencies]
 anyhow = "1.0.89"
