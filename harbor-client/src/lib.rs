@@ -1201,6 +1201,25 @@ impl HarborCore {
         self.status_update(msg_id, "Retrieving mint metadata").await;
 
         let info = wallet.get_mint_info().await?;
+
+        self.status_update(msg_id, "Checking mint network").await;
+
+        let quote = wallet.mint_quote(cdk::Amount::ONE, None).await?;
+        let invoice = Bolt11Invoice::from_str(&quote.request)?;
+
+        if invoice.network() != self.network {
+            error!(
+                "Cashu mint on different network {}, expected: {}",
+                invoice.network(),
+                self.network
+            );
+
+            return Err(anyhow::anyhow!(
+                "Network mismatch, expected: {}",
+                self.network
+            ));
+        }
+
         Ok(info)
     }
 
