@@ -24,17 +24,24 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
 
 /// Renders the view before an invoice/address is generated.
 fn render_receive_form(harbor: &HarborWallet) -> Element<Message> {
-    let header = if harbor.onchain_receive_enabled
-        || harbor
-            .active_federation()
-            .is_some_and(|x| x.on_chain_supported)
-    {
+    // for on-chain to be shown, it needs to be a federation and either
+    // the user turned on on-chain receive or the federation supports it
+    let on_chain_enabled = harbor
+        .active_mint
+        .as_ref()
+        .is_some_and(|a| a.federation_id().is_some())
+        && (harbor.onchain_receive_enabled
+            || harbor
+                .active_federation()
+                .is_some_and(|x| x.on_chain_supported));
+
+    let header = if on_chain_enabled {
         h_header("Deposit", "Receive on-chain or via lightning.")
     } else {
         h_header("Deposit", "Receive via lightning.")
     };
 
-    let content = if harbor.onchain_receive_enabled {
+    let content = if on_chain_enabled {
         let method_choice = render_method_choice(harbor);
         match harbor.receive_method {
             ReceiveMethod::Lightning => {

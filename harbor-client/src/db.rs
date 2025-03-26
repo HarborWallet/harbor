@@ -1,13 +1,16 @@
+#![allow(clippy::too_many_arguments)]
+
 use crate::db_models::mint_metadata::MintMetadata;
 use crate::db_models::transaction_item::TransactionItem;
 use crate::db_models::{
-    Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile, OnChainPayment,
-    OnChainReceive, Profile,
+    CashuMint, Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile,
+    OnChainPayment, OnChainReceive, Profile,
 };
 use crate::metadata::FederationMeta;
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use bitcoin::{Address, Txid};
+use cdk::mint_url::MintUrl;
 use diesel::{
     SqliteConnection,
     connection::SimpleConnection,
@@ -16,7 +19,6 @@ use diesel::{
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use fedimint_core::Amount;
 use fedimint_core::config::FederationId;
-use fedimint_core::core::OperationId;
 use fedimint_core::invite_code::InviteCode;
 use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 use log::{error, info};
@@ -96,6 +98,8 @@ pub trait DBConnection {
     // Removes a federation from the DB
     fn remove_federation(&self, f: FederationId) -> anyhow::Result<()>;
 
+    fn remove_cashu_mint(&self, f: &MintUrl) -> anyhow::Result<()>;
+
     // Sets a federation as active
     fn set_federation_active(&self, f: FederationId) -> anyhow::Result<()>;
 
@@ -110,27 +114,34 @@ pub trait DBConnection {
 
     fn get_archived_mints(&self) -> anyhow::Result<Vec<MintMetadata>>;
 
+    fn list_cashu_mints(&self) -> anyhow::Result<Vec<String>>;
+
+    fn insert_new_cashu_mint(&self, url: String) -> anyhow::Result<()>;
+
+    fn set_cashu_mint_active(&self, url: String) -> anyhow::Result<()>;
+
     // updates the federation data
     fn update_fedimint_data(&self, id: String, value: Vec<u8>) -> anyhow::Result<()>;
 
     fn create_ln_receive(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()>;
 
-    fn mark_ln_receive_as_success(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()>;
 
-    fn mark_ln_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_ln_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn create_lightning_payment(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
@@ -138,44 +149,45 @@ pub trait DBConnection {
 
     fn set_lightning_payment_preimage(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
         preimage: [u8; 32],
     ) -> anyhow::Result<()>;
 
-    fn mark_lightning_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_lightning_payment_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn create_onchain_payment(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         address: Address,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()>;
 
-    fn set_onchain_payment_txid(&self, operation_id: OperationId, txid: Txid)
-    -> anyhow::Result<()>;
+    fn set_onchain_payment_txid(&self, operation_id: String, txid: Txid) -> anyhow::Result<()>;
 
-    fn mark_onchain_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_onchain_payment_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn create_onchain_receive(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         address: Address,
     ) -> anyhow::Result<()>;
 
-    fn mark_onchain_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_onchain_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn set_onchain_receive_txid(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
         txid: Txid,
         amount_sats: u64,
         fee_sats: u64,
     ) -> anyhow::Result<()>;
 
-    fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()>;
+    fn mark_onchain_receive_as_confirmed(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn get_transaction_history(&self) -> anyhow::Result<Vec<TransactionItem>>;
 
@@ -187,24 +199,18 @@ pub trait DBConnection {
 
     fn get_pending_lightning_payments(&self) -> anyhow::Result<Vec<LightningPayment>>;
 
-    fn get_onchain_receive(
-        &self,
-        operation_id: OperationId,
-    ) -> anyhow::Result<Option<OnChainReceive>>;
+    fn get_onchain_receive(&self, operation_id: String) -> anyhow::Result<Option<OnChainReceive>>;
 
-    fn get_onchain_payment(
-        &self,
-        operation_id: OperationId,
-    ) -> anyhow::Result<Option<OnChainPayment>>;
+    fn get_onchain_payment(&self, operation_id: String) -> anyhow::Result<Option<OnChainPayment>>;
 
     fn get_lightning_receive(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<LightningReceive>>;
 
     fn get_lightning_payment(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<LightningPayment>>;
 
     fn get_federation_metadata(&self, id: FederationId) -> anyhow::Result<Option<FederationMeta>>;
@@ -275,14 +281,29 @@ impl DBConnection for SQLConnection {
         Fedimint::set_active(conn, f.to_string())
     }
 
+    fn list_cashu_mints(&self) -> anyhow::Result<Vec<String>> {
+        let conn = &mut self.db.get()?;
+        CashuMint::get_mints(conn)
+    }
+
+    fn insert_new_cashu_mint(&self, url: String) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        CashuMint::insert(conn, url)
+    }
+
+    fn set_cashu_mint_active(&self, url: String) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        CashuMint::set_active(conn, &url)
+    }
+
     fn create_ln_receive(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
@@ -290,16 +311,16 @@ impl DBConnection for SQLConnection {
             conn,
             operation_id,
             fedimint_id,
+            cashu_mint_url,
             bolt11,
             amount,
             fee,
-            preimage,
         )?;
 
         Ok(())
     }
 
-    fn mark_ln_receive_as_success(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         LightningReceive::mark_as_success(conn, operation_id)?;
@@ -307,7 +328,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_ln_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_ln_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         LightningReceive::mark_as_failed(conn, operation_id)?;
@@ -317,22 +338,31 @@ impl DBConnection for SQLConnection {
 
     fn create_lightning_payment(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        LightningPayment::create(conn, operation_id, fedimint_id, bolt11, amount, fee)?;
+        LightningPayment::create(
+            conn,
+            operation_id,
+            fedimint_id,
+            cashu_mint_url,
+            bolt11,
+            amount,
+            fee,
+        )?;
 
         Ok(())
     }
 
     fn set_lightning_payment_preimage(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
         preimage: [u8; 32],
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
@@ -342,7 +372,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_lightning_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_lightning_payment_as_failed(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         LightningPayment::mark_as_failed(conn, operation_id)?;
@@ -352,21 +382,23 @@ impl DBConnection for SQLConnection {
 
     fn create_onchain_receive(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         address: Address,
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        OnChainReceive::create(conn, operation_id, fedimint_id, address)?;
+        OnChainReceive::create(conn, operation_id, fedimint_id, cashu_mint_url, address)?;
 
         Ok(())
     }
 
     fn create_onchain_payment(
         &self,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         address: Address,
         amount_sats: u64,
         fee_sats: u64,
@@ -377,6 +409,7 @@ impl DBConnection for SQLConnection {
             conn,
             operation_id,
             fedimint_id,
+            cashu_mint_url,
             address,
             amount_sats,
             fee_sats,
@@ -385,11 +418,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn set_onchain_payment_txid(
-        &self,
-        operation_id: OperationId,
-        txid: Txid,
-    ) -> anyhow::Result<()> {
+    fn set_onchain_payment_txid(&self, operation_id: String, txid: Txid) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         OnChainPayment::set_txid(conn, operation_id, txid)?;
@@ -397,7 +426,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_onchain_payment_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_onchain_payment_as_failed(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         OnChainPayment::mark_as_failed(conn, operation_id)?;
@@ -405,7 +434,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_onchain_receive_as_failed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_onchain_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         OnChainReceive::mark_as_failed(conn, operation_id)?;
@@ -415,7 +444,7 @@ impl DBConnection for SQLConnection {
 
     fn set_onchain_receive_txid(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
         txid: Txid,
         amount_sats: u64,
         fee_sats: u64,
@@ -427,7 +456,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_onchain_receive_as_confirmed(&self, operation_id: OperationId) -> anyhow::Result<()> {
+    fn mark_onchain_receive_as_confirmed(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
         OnChainReceive::mark_as_confirmed(conn, operation_id)?;
@@ -475,6 +504,12 @@ impl DBConnection for SQLConnection {
     fn remove_federation(&self, f: FederationId) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
         Fedimint::remove_federation(conn, f.to_string())?;
+        Ok(())
+    }
+
+    fn remove_cashu_mint(&self, f: &MintUrl) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        CashuMint::remove_mint(conn, f.to_string())?;
         Ok(())
     }
 
@@ -526,25 +561,19 @@ impl DBConnection for SQLConnection {
         LightningPayment::get_pending(conn)
     }
 
-    fn get_onchain_receive(
-        &self,
-        operation_id: OperationId,
-    ) -> anyhow::Result<Option<OnChainReceive>> {
+    fn get_onchain_receive(&self, operation_id: String) -> anyhow::Result<Option<OnChainReceive>> {
         let conn = &mut self.db.get()?;
         OnChainReceive::get_by_operation_id(conn, operation_id)
     }
 
-    fn get_onchain_payment(
-        &self,
-        operation_id: OperationId,
-    ) -> anyhow::Result<Option<OnChainPayment>> {
+    fn get_onchain_payment(&self, operation_id: String) -> anyhow::Result<Option<OnChainPayment>> {
         let conn = &mut self.db.get()?;
         OnChainPayment::get_by_operation_id(conn, operation_id)
     }
 
     fn get_lightning_receive(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<LightningReceive>> {
         let conn = &mut self.db.get()?;
         LightningReceive::get_by_operation_id(conn, operation_id)
@@ -552,7 +581,7 @@ impl DBConnection for SQLConnection {
 
     fn get_lightning_payment(
         &self,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<LightningPayment>> {
         let conn = &mut self.db.get()?;
         LightningPayment::get_by_operation_id(conn, operation_id)
@@ -739,22 +768,24 @@ mod tests {
 
         LightningPayment::create(
             &mut conn,
-            operation_id,
-            FederationId::from_str(FEDERATION_ID).unwrap(),
+            operation_id.fmt_full().to_string(),
+            FederationId::from_str(FEDERATION_ID).ok(),
+            None,
             invoice.clone(),
             Amount::from_sats(1_000),
             Amount::from_sats(1),
         )
         .unwrap();
 
-        let payment = LightningPayment::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let payment =
+            LightningPayment::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(payment.operation_id(), operation_id);
         assert_eq!(
             payment.fedimint_id(),
-            FederationId::from_str(FEDERATION_ID).unwrap()
+            FederationId::from_str(FEDERATION_ID).ok()
         );
         assert_eq!(
             payment.payment_hash(),
@@ -769,11 +800,12 @@ mod tests {
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        LightningPayment::mark_as_failed(&mut conn, operation_id).unwrap();
+        LightningPayment::mark_as_failed(&mut conn, operation_id.fmt_full().to_string()).unwrap();
 
-        let failed = LightningPayment::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let failed =
+            LightningPayment::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(failed.status(), PaymentStatus::Failed);
         assert_eq!(failed.preimage(), None);
@@ -789,27 +821,27 @@ mod tests {
 
         let operation_id = OperationId::new_random();
         let invoice = Bolt11Invoice::from_str("lntbs10u1pny86cupp52lkv666juacc9evu0fpfmduac6l6qp0qypxr0yk9wfpze2u5sngshp57t8sp5tcchfv0y29yg46nqujktk2ufwcjcc7zvyd8rteadd7rjyscqzzsxqyz5vqsp5nnhtrhvyfh077g6rdfrs7ml9hqks4mj6f0e50nyeejc73ee7gl3q9qyyssq3urmp6hy3c95rtddevae0djrfn8au0rumgd05zvddzshg8krwupzc4htl38kqufp27el5ev5l8ea4736y3a3rpq5cewxwftsdk2v52cp9w25a0").unwrap();
-        let preimage: [u8; 32] = [0; 32];
 
         LightningReceive::create(
             &mut conn,
-            operation_id,
-            FederationId::from_str(FEDERATION_ID).unwrap(),
+            operation_id.fmt_full().to_string(),
+            FederationId::from_str(FEDERATION_ID).ok(),
+            None,
             invoice.clone(),
             Amount::from_sats(1_000),
             Amount::from_sats(1),
-            preimage,
         )
         .unwrap();
 
-        let receive = LightningReceive::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let receive =
+            LightningReceive::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(receive.operation_id(), operation_id);
         assert_eq!(
             receive.fedimint_id(),
-            FederationId::from_str(FEDERATION_ID).unwrap()
+            FederationId::from_str(FEDERATION_ID).ok()
         );
         assert_eq!(
             receive.payment_hash(),
@@ -818,20 +850,19 @@ mod tests {
         assert_eq!(receive.bolt11(), invoice);
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));
-        assert_eq!(receive.preimage(), preimage);
         assert_eq!(receive.status(), PaymentStatus::Pending);
 
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        LightningReceive::mark_as_failed(&mut conn, operation_id).unwrap();
+        LightningReceive::mark_as_failed(&mut conn, operation_id.fmt_full().to_string()).unwrap();
 
-        let failed = LightningReceive::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let failed =
+            LightningReceive::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(failed.status(), PaymentStatus::Failed);
-        assert_eq!(failed.preimage(), preimage);
         assert_ne!(failed.updated_at, failed.created_at);
         assert_ne!(failed.updated_at, receive.updated_at);
     }
@@ -850,22 +881,24 @@ mod tests {
 
         OnChainPayment::create(
             &mut conn,
-            operation_id,
-            FederationId::from_str(FEDERATION_ID).unwrap(),
+            operation_id.fmt_full().to_string(),
+            FederationId::from_str(FEDERATION_ID).ok(),
+            None,
             address.clone().assume_checked(),
             amount,
             fee,
         )
         .unwrap();
 
-        let payment = OnChainPayment::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let payment =
+            OnChainPayment::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(payment.operation_id(), operation_id);
         assert_eq!(
             payment.fedimint_id(),
-            FederationId::from_str(FEDERATION_ID).unwrap()
+            FederationId::from_str(FEDERATION_ID).ok()
         );
         assert_eq!(payment.address(), address);
         assert_eq!(payment.amount_sats as u64, amount);
@@ -876,11 +909,17 @@ mod tests {
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        OnChainPayment::set_txid(&mut conn, operation_id, Txid::all_zeros()).unwrap();
+        OnChainPayment::set_txid(
+            &mut conn,
+            operation_id.fmt_full().to_string(),
+            Txid::all_zeros(),
+        )
+        .unwrap();
 
-        let with_txid = OnChainPayment::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let with_txid =
+            OnChainPayment::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(with_txid.status(), PaymentStatus::Success);
         assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
@@ -904,20 +943,22 @@ mod tests {
 
         OnChainReceive::create(
             &mut conn,
-            operation_id,
-            FederationId::from_str(FEDERATION_ID).unwrap(),
+            operation_id.fmt_full().to_string(),
+            FederationId::from_str(FEDERATION_ID).ok(),
+            None,
             address.clone(),
         )
         .unwrap();
 
-        let payment = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let payment =
+            OnChainReceive::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(payment.operation_id(), operation_id);
         assert_eq!(
             payment.fedimint_id(),
-            FederationId::from_str(FEDERATION_ID).unwrap()
+            FederationId::from_str(FEDERATION_ID).ok()
         );
         assert_eq!(payment.address().assume_checked(), address);
         assert!(payment.amount_sats.is_none());
@@ -928,11 +969,19 @@ mod tests {
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        OnChainReceive::set_txid(&mut conn, operation_id, Txid::all_zeros(), amount, fee).unwrap();
+        OnChainReceive::set_txid(
+            &mut conn,
+            operation_id.fmt_full().to_string(),
+            Txid::all_zeros(),
+            amount,
+            fee,
+        )
+        .unwrap();
 
-        let with_txid = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let with_txid =
+            OnChainReceive::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(with_txid.status(), PaymentStatus::WaitingConfirmation);
         assert_eq!(with_txid.txid(), Some(Txid::all_zeros()));
@@ -944,11 +993,12 @@ mod tests {
         // sleep for a second to make sure the timestamps are different
         std::thread::sleep(Duration::from_secs(1));
 
-        OnChainReceive::mark_as_confirmed(&mut conn, operation_id).unwrap();
+        OnChainReceive::mark_as_confirmed(&mut conn, operation_id.fmt_full().to_string()).unwrap();
 
-        let confirmed = OnChainReceive::get_by_operation_id(&mut conn, operation_id)
-            .unwrap()
-            .unwrap();
+        let confirmed =
+            OnChainReceive::get_by_operation_id(&mut conn, operation_id.fmt_full().to_string())
+                .unwrap()
+                .unwrap();
 
         assert_eq!(confirmed.status(), PaymentStatus::Success);
         assert_eq!(confirmed.txid(), Some(Txid::all_zeros()));

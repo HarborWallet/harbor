@@ -17,7 +17,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         amount,
         direction,
         timestamp,
-        federation_id: _,
+        mint_identifier: _,
         status,
         txid: _,
     } = item;
@@ -59,7 +59,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
     let col = column![row, timestamp].spacing(8);
 
     Button::new(col)
-        .on_press(Message::SelectTransaction(Some(*item)))
+        .on_press(Message::SelectTransaction(Some(item.clone())))
         .style(move |theme, status| {
             let background = if is_selected {
                 lighten(theme.palette().background, 0.05)

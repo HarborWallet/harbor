@@ -5,3 +5,8 @@ members = [
     "harbor-client",
     "harbor-ui",
 ]
+
+[workspace.dependencies]
+cdk = { version = "0.8.1", default-features = false, features = ["wallet"] }
+cdk-redb = { version = "0.8.1", default-features = false, features = ["wallet"] }
+uuid = { version = "1.12", features = ["v4"] }

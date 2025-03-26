@@ -1,9 +1,11 @@
+use crate::MintIdentifier;
 use crate::db_models::PaymentStatus;
 use crate::db_models::schema::lightning_receives;
 use crate::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use bitcoin::hashes::hex::FromHex;
+use cdk::mint_url::MintUrl;
 use diesel::prelude::*;
 use fedimint_core::Amount;
 use fedimint_core::config::FederationId;
@@ -14,13 +16,13 @@ use std::str::FromStr;
 #[derive(QueryableByName, Queryable, Debug, Clone, PartialEq, Eq)]
 #[diesel(table_name = lightning_receives)]
 pub struct LightningReceive {
-    operation_id: String,
-    fedimint_id: String,
+    pub operation_id: String,
+    fedimint_id: Option<String>,
+    cashu_mint_url: Option<String>,
     payment_hash: String,
     bolt11: String,
     amount_msats: i64,
     fee_msats: i64,
-    preimage: String,
     status: i32,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
@@ -30,12 +32,12 @@ pub struct LightningReceive {
 #[diesel(table_name = lightning_receives)]
 struct NewLightningReceive {
     operation_id: String,
-    fedimint_id: String,
+    fedimint_id: Option<String>,
+    cashu_mint_url: Option<String>,
     payment_hash: String,
     bolt11: String,
     amount_msats: i64,
     fee_msats: i64,
-    preimage: String,
     status: i32,
 }
 
@@ -44,8 +46,23 @@ impl LightningReceive {
         OperationId::from_str(&self.operation_id).expect("invalid operation id")
     }
 
-    pub fn fedimint_id(&self) -> FederationId {
-        FederationId::from_str(&self.fedimint_id).expect("invalid fedimint id")
+    pub fn fedimint_id(&self) -> Option<FederationId> {
+        self.fedimint_id
+            .as_ref()
+            .map(|f| FederationId::from_str(f).expect("invalid fedimint_id"))
+    }
+
+    pub fn mint_url(&self) -> Option<MintUrl> {
+        self.cashu_mint_url
+            .as_ref()
+            .map(|url| MintUrl::from_str(url).expect("invalid mint url"))
+    }
+
+    pub fn mint_identifier(&self) -> MintIdentifier {
+        match self.fedimint_id() {
+            Some(f) => MintIdentifier::Fedimint(f),
+            None => MintIdentifier::Cashu(self.mint_url().expect("missing mint url")),
+        }
     }
 
     pub fn payment_hash(&self) -> [u8; 32] {
@@ -64,22 +81,19 @@ impl LightningReceive {
         Amount::from_msats(self.fee_msats as u64)
     }
 
-    pub fn preimage(&self) -> [u8; 32] {
-        FromHex::from_hex(&self.preimage).expect("invalid preimage")
-    }
-
     pub fn status(&self) -> PaymentStatus {
         PaymentStatus::from_i32(self.status)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
-        fedimint_id: FederationId,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
         amount: Amount,
         fee: Amount,
-        preimage: [u8; 32],
     ) -> anyhow::Result<()> {
         // Make sure the amount matches
         if bolt11
@@ -91,13 +105,13 @@ impl LightningReceive {
 
         let payment_hash = bolt11.payment_hash().to_string();
         let new = NewLightningReceive {
-            operation_id: operation_id.fmt_full().to_string(),
-            fedimint_id: fedimint_id.to_string(),
+            operation_id,
+            fedimint_id: fedimint_id.map(|f| f.to_string()),
+            cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
             payment_hash,
             bolt11: bolt11.to_string(),
             amount_msats: amount.msats as i64,
             fee_msats: fee.msats as i64,
-            preimage: hex::encode(preimage),
             status: PaymentStatus::Pending as i32,
         };
 
@@ -110,21 +124,20 @@ impl LightningReceive {
 
     pub fn get_by_operation_id(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<Option<Self>> {
         Ok(lightning_receives::table
-            .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string()))
+            .filter(lightning_receives::operation_id.eq(operation_id))
             .first::<Self>(conn)
             .optional()?)
     }
 
     pub fn mark_as_success(
         conn: &mut SqliteConnection,
-        operation_id: OperationId,
+        operation_id: String,
     ) -> anyhow::Result<()> {
         diesel::update(
-            lightning_receives::table
-                .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string())),
+            lightning_receives::table.filter(lightning_receives::operation_id.eq(operation_id)),
         )
         .set(lightning_receives::status.eq(PaymentStatus::Success as i32))
         .execute(conn)?;
@@ -132,13 +145,9 @@ impl LightningReceive {
         Ok(())
     }
 
-    pub fn mark_as_failed(
-        conn: &mut SqliteConnection,
-        operation_id: OperationId,
-    ) -> anyhow::Result<()> {
+    pub fn mark_as_failed(conn: &mut SqliteConnection, operation_id: String) -> anyhow::Result<()> {
         diesel::update(
-            lightning_receives::table
-                .filter(lightning_receives::operation_id.eq(operation_id.fmt_full().to_string())),
+            lightning_receives::table.filter(lightning_receives::operation_id.eq(operation_id)),
         )
         .set(lightning_receives::status.eq(PaymentStatus::Failed as i32))
         .execute(conn)?;
@@ -169,7 +178,7 @@ impl From<LightningReceive> for TransactionItem {
             amount: payment.amount().sats_round_down(),
             txid: None,
             direction: TransactionDirection::Incoming,
-            federation_id: payment.fedimint_id(),
+            mint_identifier: payment.mint_identifier(),
             status: payment.status(),
             timestamp: payment.updated_at.and_utc().timestamp() as u64,
         }
