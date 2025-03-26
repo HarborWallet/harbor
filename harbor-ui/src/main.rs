@@ -180,7 +180,7 @@ pub enum Message {
     RejoinMint(MintIdentifier),
     PeekMint(String),
     RemoveMint(MintIdentifier),
-    ChangeFederation(MintIdentifier),
+    ChangeMint(MintIdentifier),
     Donate,
     SetOnchainReceiveEnabled(bool),
     // Core messages we get from core
@@ -920,8 +920,11 @@ impl HarborWallet {
                 let (_, task) = self.send_from_ui(UICoreMsg::RemoveMint(mint));
                 task
             }
-            Message::ChangeFederation(mint) => {
+            Message::ChangeMint(mint) => {
                 self.active_mint = Some(mint);
+                self.clear_receive_state();
+                self.clear_send_state();
+                self.clear_transfer_state();
                 Task::none()
             }
             Message::CopyToClipboard(s) => Task::batch([
