@@ -1,5 +1,5 @@
 use harbor_client::bitcoin::Network;
-use iced::widget::{column, pick_list, text};
+use iced::widget::{column, pick_list, row, text};
 use iced::{Element, Length, Padding};
 
 use crate::components::{
@@ -89,39 +89,65 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
         },
     );
 
-    let column = match (harbor.settings_show_seed_words, &harbor.seed_words) {
-        (true, Some(s)) => {
-            let button = h_button("Hide Seed Words", SvgIcon::EyeClosed, false)
-                .on_press(Message::ShowSeedWords(false));
+    let show_seed_words_button =
+        h_button("Show Seed Words", SvgIcon::Eye, false).on_press(Message::ShowSeedWords(true));
 
-            let words = text(s).size(24);
-
-            let copy_button = h_button("Copy Seed Words", SvgIcon::Copy, false)
-                .on_press(Message::CopyToClipboard(s.clone()));
-
-            column![header, button, words, copy_button]
-        }
-        _ => {
-            let button = h_button("Show Seed Words", SvgIcon::Eye, false)
-                .on_press(Message::ShowSeedWords(true));
-
-            let debug_stuff = if cfg!(debug_assertions) {
-                Some(debug_stuff(harbor))
-            } else {
-                None
-            };
-
-            column![
-                header,
-                onchain_receive_checkbox,
-                tor_enabled_checkbox,
-                network_column,
-                button,
-                open_data_dir_button,
-            ]
-            .push_maybe(debug_stuff)
-        }
+    let debug_stuff = if cfg!(debug_assertions) {
+        Some(debug_stuff(harbor))
+    } else {
+        None
     };
 
+    let column = column![
+        header,
+        onchain_receive_checkbox,
+        tor_enabled_checkbox,
+        network_column,
+        show_seed_words_button,
+        open_data_dir_button,
+    ]
+    .push_maybe(debug_stuff);
+
     basic_layout(column.spacing(48))
+}
+
+// Function to format seed words in a two-column layout
+pub fn render_seed_words(seed_words: &str) -> Element<'static, Message> {
+    let words: Vec<&str> = seed_words.split_whitespace().collect();
+
+    // Create left column (words 1-6)
+    let left_column = column(
+        words
+            .iter()
+            .take(6)
+            .enumerate()
+            .map(|(i, word)| text(format!("{}. {}", i + 1, word)).into())
+            .collect::<Vec<Element<'_, Message>>>(),
+    )
+    .spacing(10);
+
+    // Create right column (words 7-12)
+    let right_column = column(
+        words
+            .iter()
+            .skip(6)
+            .take(6)
+            .enumerate()
+            .map(|(i, word)| text(format!("{}. {}", i + 7, word)).into())
+            .collect::<Vec<Element<'_, Message>>>(),
+    )
+    .spacing(10);
+
+    // Create a container for the words with some spacing
+    let words_container = column![
+        row![left_column, right_column].spacing(40),
+        // Add copy button at the bottom
+        row![
+            h_button("Copy Seed Words", SvgIcon::Copy, false)
+                .on_press(Message::CopyToClipboard(seed_words.to_string()))
+        ]
+    ]
+    .spacing(20);
+
+    words_container.into()
 }

@@ -60,7 +60,7 @@ pub use indicator::*;
 mod balance_display;
 pub use balance_display::*;
 
-mod confirm_modal;
+pub mod confirm_modal;
 pub use confirm_modal::*;
 
 mod debug_stuff;
