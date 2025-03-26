@@ -2,15 +2,15 @@ use crate::bridge::run_core;
 use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{Config, write_config};
-use bitcoin::{Address, Network};
-use cdk::mint_url::MintUrl;
 use components::{MUTINY_GREEN, MUTINY_RED};
-use fedimint_core::Amount;
-use fedimint_core::core::ModuleKind;
-use fedimint_core::invite_code::InviteCode;
-use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
+use harbor_client::Bolt11Invoice;
+use harbor_client::bitcoin::{Address, Network};
+use harbor_client::cdk::mint_url::MintUrl;
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::TransactionItem;
+use harbor_client::fedimint_core::Amount;
+use harbor_client::fedimint_core::core::ModuleKind;
+use harbor_client::fedimint_core::invite_code::InviteCode;
 use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
     CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,

@@ -1,15 +1,15 @@
 use crate::Message;
 use crate::config::read_config;
 use crate::keyring::{save_to_keyring, try_get_keyring_password};
-use bitcoin::Network;
-use cdk::mint_url::MintUrl;
-use cdk::nuts::CurrencyUnit;
-use cdk::wallet::WalletBuilder;
-use cdk_redb::WalletRedbDatabase;
-use fedimint_core::config::FederationId;
+use harbor_client::bitcoin::Network;
 use harbor_client::cashu_client::TorMintConnector;
+use harbor_client::cdk::mint_url::MintUrl;
+use harbor_client::cdk::nuts::CurrencyUnit;
+use harbor_client::cdk::wallet::WalletBuilder;
+use harbor_client::cdk_redb::WalletRedbDatabase;
 use harbor_client::db::{DBConnection, check_password, setup_db};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
+use harbor_client::fedimint_core::config::FederationId;
 use harbor_client::metadata::FederationMeta;
 use harbor_client::{
     CoreUIMsg, CoreUIMsgPacket, HarborCore, MintIdentifier, UICoreMsg, UICoreMsgPacket, data_dir,

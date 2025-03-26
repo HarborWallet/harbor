@@ -1,4 +1,4 @@
-use bitcoin::Network;
+use harbor_client::bitcoin::Network;
 use iced::widget::{column, pick_list, text};
 use iced::{Element, Length, Padding};
 
