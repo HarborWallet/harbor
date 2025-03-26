@@ -7,7 +7,6 @@ members = [
 ]
 
 [workspace.dependencies]
-anyhow = "1.0.89"
 chrono = "0.4.38"
 log = "0.4"
 serde = { version = "1.0.217", features = ["derive"] }

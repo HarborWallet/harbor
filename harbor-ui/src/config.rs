@@ -1,7 +1,41 @@
 use harbor_client::bitcoin::Network;
 use harbor_client::data_dir;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fmt;
+use std::io;
 use std::path::PathBuf;
+
+#[derive(Debug)]
+pub enum ConfigError {
+    InvalidConfig,
+    IoError(io::Error),
+    SerdeError(serde_json::Error),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigError::InvalidConfig => write!(f, "Config file is invalid"),
+            ConfigError::IoError(e) => write!(f, "IO error: {}", e),
+            ConfigError::SerdeError(e) => write!(f, "JSON error: {}", e),
+        }
+    }
+}
+
+impl Error for ConfigError {}
+
+impl From<io::Error> for ConfigError {
+    fn from(error: io::Error) -> Self {
+        ConfigError::IoError(error)
+    }
+}
+
+impl From<serde_json::Error> for ConfigError {
+    fn from(error: serde_json::Error) -> Self {
+        ConfigError::SerdeError(error)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -16,7 +50,7 @@ impl Default for Config {
     }
 }
 
-pub fn read_config() -> anyhow::Result<Config> {
+pub fn read_config() -> Result<Config, ConfigError> {
     // Create the datadir if it doesn't exist
     let root = PathBuf::from(&data_dir(None));
     std::fs::create_dir_all(&root).expect("Could not create datadir");
@@ -32,7 +66,7 @@ pub fn read_config() -> anyhow::Result<Config> {
         return Ok(config);
     } else if !config_path.is_file() {
         // if config is not a file, throw an error
-        anyhow::bail!("Config file is invalid");
+        return Err(ConfigError::InvalidConfig);
     }
 
     // read the config file
@@ -40,7 +74,7 @@ pub fn read_config() -> anyhow::Result<Config> {
     Ok(serde_json::from_str(&data)?)
 }
 
-pub fn write_config(config: &Config) -> anyhow::Result<()> {
+pub fn write_config(config: &Config) -> Result<(), ConfigError> {
     let root = PathBuf::from(&data_dir(None));
     let config_path = root.join("harbor.config.json");
 

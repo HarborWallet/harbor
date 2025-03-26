@@ -9,7 +9,7 @@ vendored = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
 lnv2 = []
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow = "1.0.89"
 log = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

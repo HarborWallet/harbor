@@ -3628,7 +3628,6 @@ dependencies = [
 name = "harbor-ui"
 version = "1.0.0-beta.rc1"
 dependencies = [
- "anyhow",
  "chrono",
  "fd-lock",
  "harbor-client",
