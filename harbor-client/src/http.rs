@@ -450,6 +450,9 @@ where
     handle_response(response, 0, None).await
 }
 
+/// Use what Chrome puts for User Agent for better privacy, copied from: https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+
 /// Build a GET request with common headers
 fn build_get_request(
     uri: impl AsRef<str>,
@@ -458,7 +461,7 @@ fn build_get_request(
     let uri_str = uri.as_ref();
     let mut builder = Request::builder()
         .uri(uri_str)
-        .header("User-Agent", "harbor-client/0.1.0");
+        .header("User-Agent", USER_AGENT);
 
     // Only set Host header if we're not using an absolute URL
     if let Some(host) = host {
@@ -481,7 +484,7 @@ fn build_post_request<P: Serialize + Sized>(
     let uri_str = uri.as_ref();
     let mut builder = Request::builder()
         .uri(uri_str)
-        .header("User-Agent", "harbor-client/0.1.0")
+        .header("User-Agent", USER_AGENT)
         .method("POST");
 
     // Only set Host header if we're not using an absolute URL
