@@ -262,11 +262,20 @@ pub fn spawn_lightning_receive_thread(
     is_transfer: bool,
 ) {
     spawn(async move {
+        let mut error_counter = 0;
         loop {
-            let mint_quote_response = client
-                .mint_quote_state(&quote.id)
-                .await
-                .expect("Failed to get mint quote state");
+            let mint_quote_response = match client.mint_quote_state(&quote.id).await {
+                Ok(response) => response,
+                Err(e) => {
+                    error!("Error getting mint quote state: {e}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    error_counter += 1;
+                    if error_counter > 5 {
+                        return;
+                    }
+                    continue;
+                }
+            };
 
             if mint_quote_response.state == MintQuoteState::Paid {
                 client
