@@ -1,4 +1,5 @@
 use crate::bridge::run_core;
+use crate::components::confirm_modal::{BasicModalState, ConfirmModalState};
 use crate::components::focus_input_id;
 use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{Config, write_config};
@@ -137,7 +138,8 @@ pub enum Message {
     InitError(String),
     // Local state changes
     Navigate(Route),
-    SetConfirmModal(Option<components::ConfirmModalState>),
+    SetConfirmModal(Option<ConfirmModalState>),
+    SetBasicModal(Option<BasicModalState>),
     ReceiveAmountChanged(String),
     ReceiveStateReset,
     SendDestInputChanged(String),
@@ -213,7 +215,8 @@ pub struct HarborWallet {
     mint_list: Vec<MintItem>,
     active_mint: Option<MintIdentifier>,
     // Modal
-    confirm_modal: Option<components::ConfirmModalState>,
+    confirm_modal: Option<ConfirmModalState>,
+    basic_modal: Option<BasicModalState>,
     // Welcome screen
     init_status: WelcomeStatus,
     seed_input_str: String,
@@ -942,13 +945,13 @@ impl HarborWallet {
                     let (_, task) = self.send_from_ui(UICoreMsg::GetSeedWords);
                     task
                 } else {
-                    self.settings_show_seed_words = false;
+                    self.basic_modal = None;
                     Task::none()
                 }
             }
             Message::UrlClicked(url) => {
                 log::info!("Url clicked: {}", url);
-                self.confirm_modal = Some(components::ConfirmModalState {
+                self.confirm_modal = Some(ConfirmModalState {
                     title: "Open External Link?".to_string(),
                     description: format!("This will open {} in your default browser.", url),
                     confirm_action: Box::new(Message::OpenUrl(url)),
@@ -980,6 +983,10 @@ impl HarborWallet {
             }
             Message::SetConfirmModal(modal_state) => {
                 self.confirm_modal = modal_state;
+                Task::none()
+            }
+            Message::SetBasicModal(modal_state) => {
+                self.basic_modal = modal_state;
                 Task::none()
             }
             Message::CancelReceiveGeneration => {
@@ -1299,8 +1306,19 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::SeedWords(words) => {
-                    self.seed_words = Some(words);
-                    self.settings_show_seed_words = true;
+                    self.seed_words = Some(words.clone());
+
+                    // Create a BasicModalState to display the seed words
+                    self.basic_modal = Some(BasicModalState {
+                        title: "Your Seed Words".to_string(),
+                        description:
+                            "Keep these 12 words safe. They are the only way to recover your funds."
+                                .to_string(),
+                        close_action: Box::new(Message::ShowSeedWords(false)),
+                        content_renderer: Some(routes::settings::render_seed_words),
+                        content_data: Some(words),
+                    });
+
                     Task::none()
                 }
                 CoreUIMsg::OnchainReceiveEnabled(enabled) => {
@@ -1360,9 +1378,15 @@ impl HarborWallet {
             Route::Welcome => crate::routes::welcome(self),
         };
 
-        let content = crate::components::confirm_modal(active_route, self.confirm_modal.as_ref());
+        // First wrap the content in the confirm modal
+        let content_with_confirm =
+            crate::components::confirm_modal(active_route, self.confirm_modal.as_ref());
 
-        ToastManager::new(content, &self.toasts, Message::CloseToast).into()
+        // Then wrap it in the basic modal
+        let content_with_modals =
+            crate::components::basic_modal(content_with_confirm, self.basic_modal.as_ref());
+
+        ToastManager::new(content_with_modals, &self.toasts, Message::CloseToast).into()
     }
 
     fn theme(&self) -> iced::Theme {
