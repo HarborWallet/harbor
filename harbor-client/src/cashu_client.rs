@@ -1,7 +1,9 @@
 use crate::db::DBConnection;
 use crate::fedimint_client::update_history;
 use crate::http::{make_get_request_tor, make_tor_request};
-use crate::{CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg};
+use crate::{
+    CoreUIMsg, CoreUIMsgPacket, HarborCore, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg,
+};
 use async_trait::async_trait;
 use bitcoin::hex::FromHex;
 use cdk::amount::SplitTarget;
@@ -16,7 +18,6 @@ use cdk::util::unix_time;
 use cdk::wallet::{MeltQuote, MintConnector, MintQuote};
 use cdk::{Error, Wallet};
 use fedimint_core::Amount;
-use futures::SinkExt;
 use futures::channel::mpsc::Sender;
 use log::error;
 use serde::Serialize;
@@ -205,29 +206,23 @@ pub fn spawn_lightning_payment_thread(
                 } else {
                     SendSuccessMsg::Lightning { preimage }
                 };
-                sender
-                    .send(CoreUIMsgPacket {
-                        id: Some(msg_id),
-                        msg: CoreUIMsg::SendSuccess(params),
-                    })
-                    .await
-                    .unwrap();
+                HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                    .await;
 
                 let bal: u64 = client
                     .total_balance()
                     .await
                     .expect("failed to get balance")
                     .into();
-                sender
-                    .send(CoreUIMsgPacket {
-                        id: Some(msg_id),
-                        msg: CoreUIMsg::MintBalanceUpdated {
-                            id: MintIdentifier::Cashu(client.mint_url.clone()),
-                            balance: Amount::from_sats(bal),
-                        },
-                    })
-                    .await
-                    .expect("failed to send balance updated message");
+                HarborCore::send_msg(
+                    &mut sender,
+                    Some(msg_id),
+                    CoreUIMsg::MintBalanceUpdated {
+                        id: MintIdentifier::Cashu(client.mint_url.clone()),
+                        balance: Amount::from_sats(bal),
+                    },
+                )
+                .await;
 
                 if let Err(e) = storage.set_lightning_payment_preimage(quote.id, preimage) {
                     error!("Could not set preimage for lightning payment: {e}");
@@ -237,17 +232,12 @@ pub fn spawn_lightning_payment_thread(
             }
             Err(e) => {
                 log::error!("Payment failed: {e}");
-                sender
-                    .send(CoreUIMsgPacket {
-                        id: Some(msg_id),
-                        msg: if is_transfer {
-                            CoreUIMsg::TransferFailure(e.to_string())
-                        } else {
-                            CoreUIMsg::SendFailure(e.to_string())
-                        },
-                    })
-                    .await
-                    .expect("failed to send failure message");
+                let msg = if is_transfer {
+                    CoreUIMsg::TransferFailure(e.to_string())
+                } else {
+                    CoreUIMsg::SendFailure(e.to_string())
+                };
+                HarborCore::send_msg(&mut sender, Some(msg_id), msg).await;
 
                 if let Err(e) = storage.mark_lightning_payment_as_failed(quote.id) {
                     error!("Could not mark lightning payment as failed: {e}");
@@ -292,29 +282,23 @@ pub fn spawn_lightning_receive_thread(
                 } else {
                     ReceiveSuccessMsg::Lightning
                 };
-                sender
-                    .send(CoreUIMsgPacket {
-                        id: Some(msg_id),
-                        msg: CoreUIMsg::ReceiveSuccess(params),
-                    })
-                    .await
-                    .expect("Failed to send receive success message");
+                HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::ReceiveSuccess(params))
+                    .await;
 
                 if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
                     error!("Could not mark lightning receive as success: {e}");
                 }
 
                 let new_balance = client.total_balance().await.expect("Failed to get balance");
-                sender
-                    .send(CoreUIMsgPacket {
-                        id: Some(msg_id),
-                        msg: CoreUIMsg::MintBalanceUpdated {
-                            id: MintIdentifier::Cashu(client.mint_url.clone()),
-                            balance: Amount::from_sats(new_balance.into()),
-                        },
-                    })
-                    .await
-                    .expect("Failed to send balance updated message");
+                HarborCore::send_msg(
+                    &mut sender,
+                    Some(msg_id),
+                    CoreUIMsg::MintBalanceUpdated {
+                        id: MintIdentifier::Cashu(client.mint_url.clone()),
+                        balance: Amount::from_sats(new_balance.into()),
+                    },
+                )
+                .await;
 
                 update_history(storage, msg_id, &mut sender).await;
 
