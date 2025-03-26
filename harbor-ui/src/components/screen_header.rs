@@ -16,7 +16,12 @@ pub fn h_screen_header(
         let MintItem { name, .. } = item;
         let people_icon = map_icon(SvgIcon::People, 24., 24.);
 
-        let mint_names: Vec<String> = harbor.mint_list.iter().map(|f| f.name.clone()).collect();
+        let mint_names: Vec<String> = harbor
+            .mint_list
+            .iter()
+            .filter(|m| m.active)
+            .map(|f| f.name.clone())
+            .collect();
 
         let is_generating = harbor.receive_status == ReceiveStatus::Generating;
         let show_picker = !is_generating && !disable_switcher;
