@@ -26,7 +26,7 @@ use fedimint_core::core::{ModuleKind, OperationId};
 use fedimint_core::invite_code::InviteCode;
 use fedimint_ln_client::{LightningClientModule, PayType};
 use fedimint_ln_common::config::FeeToAmount;
-use fedimint_ln_common::lightning_invoice::{Bolt11Invoice, Bolt11InvoiceDescription, Description};
+use fedimint_ln_common::lightning_invoice::{Bolt11InvoiceDescription, Description};
 use fedimint_wallet_client::WalletClientModule;
 use futures::{SinkExt, channel::mpsc::Sender};
 use lightning_address::make_lnurl_request;
@@ -71,6 +71,14 @@ pub mod fedimint_client;
 mod http;
 pub mod lightning_address;
 pub mod metadata;
+
+pub use bip39;
+pub use bitcoin;
+pub use cdk;
+pub use cdk_redb;
+pub use fedimint_core;
+
+pub use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum MintIdentifier {

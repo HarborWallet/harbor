@@ -1,5 +1,4 @@
-use bitcoin::Network;
-use fedimint_core::anyhow;
+use harbor_client::bitcoin::Network;
 use harbor_client::data_dir;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

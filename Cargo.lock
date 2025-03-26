@@ -3628,14 +3628,9 @@ dependencies = [
 name = "harbor-ui"
 version = "1.0.0-beta.rc1"
 dependencies = [
- "bip39",
- "bitcoin",
- "cdk",
- "cdk-redb",
+ "anyhow",
  "chrono",
  "fd-lock",
- "fedimint-core",
- "fedimint-ln-common",
  "harbor-client",
  "iced",
  "keyring-lib",

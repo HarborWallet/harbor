@@ -1,12 +1,12 @@
 use super::{format_amount, format_timestamp, side_panel_style, subtitle};
 use crate::Message;
 use crate::components::{SvgIcon, map_icon, text_link};
-use bitcoin::Network;
-use fedimint_core::config::FederationId;
+use harbor_client::bitcoin::Network;
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
+use harbor_client::fedimint_core::config::FederationId;
 use iced::widget::{column, container, row, text, vertical_space};
 use iced::{Alignment, Element, Length};
 
