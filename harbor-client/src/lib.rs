@@ -439,19 +439,19 @@ impl HarborCore {
     // Initial setup messages that don't have an id
     // Panics if fails to send
     async fn send_system_msg(&self, msg: CoreUIMsg) {
-        self.tx
-            .clone()
-            .send(CoreUIMsgPacket { id: None, msg })
-            .await
-            .expect("Could not communicate with the UI");
+        Self::send_msg(&mut self.tx.clone(), None, msg).await
     }
 
     // Standard core->ui communication with an id
     // Panics if fails to send
     pub async fn msg(&self, id: Uuid, msg: CoreUIMsg) {
-        self.tx
-            .clone()
-            .send(CoreUIMsgPacket { id: Some(id), msg })
+        Self::send_msg(&mut self.tx.clone(), Some(id), msg).await
+    }
+
+    pub async fn send_msg(sender: &mut Sender<CoreUIMsgPacket>, id: Option<Uuid>, msg: CoreUIMsg) {
+        let msg = CoreUIMsgPacket { id, msg };
+        sender
+            .send(msg)
             .await
             .expect("Could not communicate with the UI");
     }
@@ -1595,12 +1595,7 @@ impl HarborCore {
         // Only update the UI if we weren't cancelled
         if !metadata_fetch_cancel.load(Ordering::Relaxed) {
             // update list in front end
-            tx.send(CoreUIMsgPacket {
-                id: None,
-                msg: CoreUIMsg::FederationListNeedsUpdate,
-            })
-            .await
-            .expect("federation list needs update");
+            Self::send_msg(&mut tx, None, CoreUIMsg::FederationListNeedsUpdate).await;
         }
     }
 

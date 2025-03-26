@@ -1,4 +1,6 @@
-use crate::{CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg};
+use crate::{
+    CoreUIMsg, CoreUIMsgPacket, HarborCore, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg,
+};
 use crate::{db::DBConnection, db_models::NewFedimint};
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -25,8 +27,8 @@ use fedimint_ln_common::LightningGateway;
 use fedimint_lnv2_client::{ReceiveOperationState, SendOperationState};
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
+use futures::StreamExt;
 use futures::channel::mpsc::Sender;
-use futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace};
 use std::fmt::Debug;
 use std::ops::Range;
@@ -267,13 +269,12 @@ pub(crate) async fn update_history(
     sender: &mut Sender<CoreUIMsgPacket>,
 ) {
     if let Ok(history) = storage.get_transaction_history() {
-        sender
-            .send(CoreUIMsgPacket {
-                id: Some(msg_id),
-                msg: CoreUIMsg::TransactionHistoryUpdated(history),
-            })
-            .await
-            .unwrap();
+        HarborCore::send_msg(
+            sender,
+            Some(msg_id),
+            CoreUIMsg::TransactionHistoryUpdated(history),
+        )
+        .await;
     }
 }
 
@@ -296,13 +297,12 @@ pub(crate) async fn spawn_invoice_receive_subscription(
             match op_state {
                 LnReceiveState::Canceled { reason } => {
                     error!("Payment canceled, reason: {:?}", reason);
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveFailed(reason.to_string()),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveFailed(reason.to_string()),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_ln_receive_as_failed(operation_id.fmt_full().to_string())
@@ -318,13 +318,12 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     } else {
                         ReceiveSuccessMsg::Lightning
                     };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveSuccess(params),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_ln_receive_as_success(operation_id.fmt_full().to_string())
@@ -333,16 +332,15 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
@@ -378,13 +376,12 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                     } else {
                         ReceiveSuccessMsg::Lightning
                     };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveSuccess(params),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_ln_receive_as_success(operation_id.fmt_full().to_string())
@@ -393,16 +390,15 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
@@ -410,13 +406,13 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                 }
                 ReceiveOperationState::Expired => {
                     error!("Payment expired");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveFailed("Invoice expired".to_string()),
-                        })
-                        .await
-                        .unwrap();
+
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveFailed("Invoice expired".to_string()),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_ln_receive_as_failed(operation_id.fmt_full().to_string())
@@ -427,13 +423,12 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                 }
                 ReceiveOperationState::Failure => {
                     error!("Payment failed");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveFailed("Unexpected error".to_string()),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveFailed("Unexpected error".to_string()),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_ln_receive_as_failed(operation_id.fmt_full().to_string())
@@ -467,17 +462,12 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
             match op_state {
                 SendOperationState::Failure => {
                     error!("Unexpected payment error");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: if is_transfer {
-                                CoreUIMsg::TransferFailure("Unexpected failure".to_string())
-                            } else {
-                                CoreUIMsg::SendFailure("Unexpected failure".to_string())
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    let msg = if is_transfer {
+                        CoreUIMsg::TransferFailure("Unexpected failure".to_string())
+                    } else {
+                        CoreUIMsg::SendFailure("Unexpected failure".to_string())
+                    };
+                    HarborCore::send_msg(&mut sender, Some(msg_id), msg).await;
 
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
@@ -488,17 +478,12 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                 }
                 SendOperationState::Refunded => {
                     error!("Payment refunded");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: if is_transfer {
-                                CoreUIMsg::TransferFailure("Payment failed".to_string())
-                            } else {
-                                CoreUIMsg::SendFailure("Payment failed".to_string())
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    let msg = if is_transfer {
+                        CoreUIMsg::TransferFailure("Payment failed".to_string())
+                    } else {
+                        CoreUIMsg::SendFailure("Payment failed".to_string())
+                    };
+                    HarborCore::send_msg(&mut sender, Some(msg_id), msg).await;
 
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
@@ -516,13 +501,8 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                     } else {
                         SendSuccessMsg::Lightning { preimage }
                     };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                        .await;
 
                     if let Err(e) = storage.set_lightning_payment_preimage(
                         operation_id.fmt_full().to_string(),
@@ -532,16 +512,15 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
@@ -572,17 +551,12 @@ pub(crate) async fn spawn_invoice_payment_subscription(
             match op_state {
                 LnPayState::Canceled => {
                     error!("Payment canceled");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: if is_transfer {
-                                CoreUIMsg::TransferFailure("Canceled".to_string())
-                            } else {
-                                CoreUIMsg::SendFailure("Canceled".to_string())
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    let msg = if is_transfer {
+                        CoreUIMsg::TransferFailure("Canceled".to_string())
+                    } else {
+                        CoreUIMsg::SendFailure("Canceled".to_string())
+                    };
+                    HarborCore::send_msg(&mut sender, Some(msg_id), msg).await;
 
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
@@ -592,18 +566,13 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     break;
                 }
                 LnPayState::UnexpectedError { error_message } => {
-                    error!("Unexpected payment error: {:?}", error_message);
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: if is_transfer {
-                                CoreUIMsg::TransferFailure(error_message)
-                            } else {
-                                CoreUIMsg::SendFailure(error_message)
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    error!("Unexpected payment error: {error_message}");
+                    let msg = if is_transfer {
+                        CoreUIMsg::TransferFailure(error_message)
+                    } else {
+                        CoreUIMsg::SendFailure(error_message)
+                    };
+                    HarborCore::send_msg(&mut sender, Some(msg_id), msg).await;
 
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
@@ -621,13 +590,8 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     } else {
                         SendSuccessMsg::Lightning { preimage }
                     };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                        .await;
 
                     if let Err(e) = storage.set_lightning_payment_preimage(
                         operation_id.fmt_full().to_string(),
@@ -637,16 +601,15 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
@@ -676,13 +639,12 @@ pub(crate) async fn spawn_internal_payment_subscription(
             match op_state {
                 InternalPayState::FundingFailed { error } => {
                     error!("Funding failed: {error:?}");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveFailed(error.to_string()),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::SendFailure(error.to_string()),
+                    )
+                    .await;
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
                     {
@@ -692,13 +654,12 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 }
                 InternalPayState::UnexpectedError(error_message) => {
                     error!("Unexpected payment error: {error_message:?}");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendFailure(error_message),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::SendFailure(error_message),
+                    )
+                    .await;
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
                     {
@@ -711,13 +672,8 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     let params = SendSuccessMsg::Lightning {
                         preimage: preimage.0,
                     };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                        .await;
 
                     if let Err(e) = storage.set_lightning_payment_preimage(
                         operation_id.fmt_full().to_string(),
@@ -727,16 +683,15 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage, msg_id, &mut sender).await;
 
@@ -766,14 +721,9 @@ pub(crate) async fn spawn_onchain_payment_subscription(
             match op_state {
                 WithdrawState::Created => {}
                 WithdrawState::Failed(error) => {
-                    error!("Onchain payment failed: {error:?}");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendFailure(error),
-                        })
-                        .await
-                        .unwrap();
+                    error!("Onchain payment failed: {error}");
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendFailure(error))
+                        .await;
                     if let Err(e) =
                         storage.mark_onchain_payment_as_failed(operation_id.fmt_full().to_string())
                     {
@@ -785,13 +735,8 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                 WithdrawState::Succeeded(txid) => {
                     info!("Onchain payment success: {txid}");
                     let params = SendSuccessMsg::Onchain { txid };
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::SendSuccess(params),
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                        .await;
 
                     if let Err(e) =
                         storage.set_onchain_payment_txid(operation_id.fmt_full().to_string(), txid)
@@ -800,16 +745,15 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     }
 
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
@@ -838,14 +782,13 @@ pub(crate) async fn spawn_onchain_receive_subscription(
             match op_state {
                 DepositStateV2::WaitingForTransaction => {}
                 DepositStateV2::Failed(error) => {
-                    error!("Onchain receive failed: {error:?}");
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::ReceiveFailed(error),
-                        })
-                        .await
-                        .unwrap();
+                    error!("Onchain receive failed: {error}");
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::ReceiveFailed(error),
+                    )
+                    .await;
 
                     if let Err(e) =
                         storage.mark_onchain_receive_as_failed(operation_id.fmt_full().to_string())
@@ -873,13 +816,12 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     if recv.is_none_or(|r| r.txid().is_none()) {
                         let txid = btc_out_point.txid;
                         let params = ReceiveSuccessMsg::Onchain { txid };
-                        sender
-                            .send(CoreUIMsgPacket {
-                                id: Some(msg_id),
-                                msg: CoreUIMsg::ReceiveSuccess(params),
-                            })
-                            .await
-                            .unwrap();
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveSuccess(params),
+                        )
+                        .await;
 
                         let fee_sats = 0; // fees for receives may exist one day
                         if let Err(e) = storage.set_onchain_receive_txid(
@@ -906,16 +848,15 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                 } => {
                     info!("Onchain receive claimed: {btc_deposited} from {btc_out_point:?}");
                     let new_balance = client.get_balance().await;
-                    sender
-                        .send(CoreUIMsgPacket {
-                            id: Some(msg_id),
-                            msg: CoreUIMsg::MintBalanceUpdated {
-                                id: MintIdentifier::Fedimint(client.federation_id()),
-                                balance: new_balance,
-                            },
-                        })
-                        .await
-                        .unwrap();
+                    HarborCore::send_msg(
+                        &mut sender,
+                        Some(msg_id),
+                        CoreUIMsg::MintBalanceUpdated {
+                            id: MintIdentifier::Fedimint(client.federation_id()),
+                            balance: new_balance,
+                        },
+                    )
+                    .await;
 
                     if let Err(e) = storage
                         .mark_onchain_receive_as_confirmed(operation_id.fmt_full().to_string())
