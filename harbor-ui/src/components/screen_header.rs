@@ -29,7 +29,7 @@ pub fn h_screen_header(
         let federation_element: Element<Message> = if show_picker {
             pick_list(mint_names, Some(name.clone()), move |selected_name| {
                 if let Some(mint) = harbor.mint_list.iter().find(|f| f.name == selected_name) {
-                    Message::ChangeFederation(mint.id.clone())
+                    Message::ChangeMint(mint.id.clone())
                 } else {
                     Message::Noop
                 }
