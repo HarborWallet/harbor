@@ -9,7 +9,7 @@ use crate::{HarborWallet, Message, SendStatus};
 
 pub fn transfer(harbor: &HarborWallet) -> Element<Message> {
     // We have to have at least 2 federations to be on this screen!
-    assert!(harbor.mint_list.len() >= 2);
+    assert!(harbor.mint_list.iter().filter(|f| f.active).count() >= 2);
     let federation_names: Vec<&str> = harbor
         .mint_list
         .iter()
