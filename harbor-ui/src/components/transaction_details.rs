@@ -3,12 +3,13 @@ use crate::Message;
 use crate::components::{SvgIcon, map_icon, text_link};
 use harbor_client::MintIdentifier;
 use harbor_client::bitcoin::Network;
+use harbor_client::bitcoin::hex::DisplayHex;
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
 use harbor_client::fedimint_core::config::FederationId;
-use iced::widget::{column, container, row, text, vertical_space};
+use iced::widget::{column, container, rich_text, row, span, text, vertical_space};
 use iced::{Alignment, Element, Length};
 
 pub fn h_transaction_details<'a>(
@@ -24,6 +25,7 @@ pub fn h_transaction_details<'a>(
         timestamp,
         status: _,
         txid,
+        preimage,
     } = item;
 
     // Create title based on type and direction
@@ -83,8 +85,6 @@ pub fn h_transaction_details<'a>(
 
     let mut details = column![mint_section, amount_section, time_section].spacing(16);
 
-    // TODO: need preimages so we can do lightning too
-
     // Add TXID if it exists
     if let Some(txid) = txid {
         let base_url = match network {
@@ -99,6 +99,24 @@ pub fn h_transaction_details<'a>(
             column![
                 text("TXID").size(16).style(subtitle),
                 text_link(txid.to_string(), url)
+            ]
+            .spacing(8),
+        );
+    }
+
+    // Add preimage if it exists
+    if let Some(preimage) = preimage {
+        let hex = preimage.to_lower_hex_string();
+        // Take first 5 chars, add "...", and append last 5 chars
+        let first_five = &hex[..5];
+        let last_five = &hex[hex.len() - 5..];
+        details = details.push(
+            column![
+                text("Preimage").size(16).style(subtitle),
+                row![
+                    rich_text([span(format!("{first_five}...{last_five}")).link(hex)])
+                        .on_link_click(move |a: String| Message::CopyToClipboard(a))
+                ]
             ]
             .spacing(8),
         );

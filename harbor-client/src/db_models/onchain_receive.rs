@@ -182,6 +182,7 @@ impl From<OnChainReceive> for TransactionItem {
                 .txid
                 .as_ref()
                 .map(|t| Txid::from_str(t).expect("invalid txid")),
+            preimage: None,
             direction: TransactionDirection::Incoming,
             mint_identifier: payment.mint_identifier(),
             status: payment.status(),

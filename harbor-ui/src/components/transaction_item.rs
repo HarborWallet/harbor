@@ -20,6 +20,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
         mint_identifier: _,
         status,
         txid: _,
+        preimage: _,
     } = item;
     let kind_icon = match kind {
         TransactionItemKind::Lightning => map_icon(super::SvgIcon::Bolt, 24., 24.),
