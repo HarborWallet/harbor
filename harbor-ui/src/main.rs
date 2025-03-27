@@ -5,6 +5,7 @@ use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{Config, write_config};
 use components::{MUTINY_GREEN, MUTINY_RED};
 use harbor_client::Bolt11Invoice;
+use harbor_client::bip39::Mnemonic;
 use harbor_client::bitcoin::{Address, Network};
 use harbor_client::cdk::mint_url::MintUrl;
 use harbor_client::db_models::MintItem;
@@ -177,7 +178,10 @@ pub enum Message {
     GenerateInvoice,
     GenerateAddress,
     Unlock(String),
-    Init(String), // TODO add seed option
+    Init {
+        password: String,
+        seed: Option<String>,
+    },
     AddMint(String),
     RejoinMint(MintIdentifier),
     PeekMint(String),
@@ -816,7 +820,7 @@ impl HarborWallet {
                     task
                 }
             },
-            Message::Init(password) => match self.unlock_status {
+            Message::Init { password, seed } => match self.unlock_status {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     if password.is_empty() {
@@ -829,10 +833,24 @@ impl HarborWallet {
                         })
                     } else {
                         self.unlock_failure_reason = None;
-                        let (_, task) = self.send_from_ui(UICoreMsg::Init {
-                            password,
-                            seed: None, // FIXME: Use this
-                        });
+
+                        let seed = match seed {
+                            None => None,
+                            Some(seed) => match Mnemonic::from_str(&seed) {
+                                Ok(seed) => Some(seed),
+                                Err(_) => {
+                                    return Task::perform(async {}, |_| {
+                                        Message::AddToast(Toast {
+                                            title: "Error".to_string(),
+                                            body: Some("Invalid seed words".to_string()),
+                                            status: ToastStatus::Bad,
+                                        })
+                                    });
+                                }
+                            },
+                        };
+
+                        let (_, task) = self.send_from_ui(UICoreMsg::Init { password, seed });
                         task
                     }
                 }
@@ -1376,6 +1394,7 @@ impl HarborWallet {
             Route::Transfer => row![sidebar, crate::routes::transfer(self)].into(),
             Route::Settings => row![sidebar, crate::routes::settings(self)].into(),
             Route::Welcome => crate::routes::welcome(self),
+            Route::Restore => crate::routes::restore(self),
         };
 
         // First wrap the content in the confirm modal

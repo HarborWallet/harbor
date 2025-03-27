@@ -90,7 +90,7 @@ pub trait DBConnection {
     fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic>;
 
     // Generates a new mnemonic and stores it in the DB
-    fn generate_mnemonic(&self, words: Option<String>) -> anyhow::Result<Mnemonic>;
+    fn generate_mnemonic(&self, words: Option<Mnemonic>) -> anyhow::Result<Mnemonic>;
 
     // Inserts a new federation into the DB
     fn insert_new_federation(&self, f: NewFedimint) -> anyhow::Result<Fedimint>;
@@ -528,19 +528,21 @@ impl DBConnection for SQLConnection {
         }
     }
 
-    fn generate_mnemonic(&self, words: Option<String>) -> anyhow::Result<Mnemonic> {
-        let mnemonic_words =
-            words.unwrap_or(Mnemonic::generate_in(Language::English, 12)?.to_string());
+    fn generate_mnemonic(&self, words: Option<Mnemonic>) -> anyhow::Result<Mnemonic> {
+        let seed = match words {
+            Some(words) => words,
+            None => Mnemonic::generate_in(Language::English, 12)?,
+        };
 
         let new_profile = NewProfile {
             id: uuid::Uuid::new_v4().to_string(),
-            seed_words: mnemonic_words,
+            seed_words: seed.to_string(),
         };
 
-        let p = self.insert_new_profile(new_profile)?;
+        self.insert_new_profile(new_profile)?;
 
         info!("creating new seed");
-        Ok(Mnemonic::from_str(&p.seed_words)?)
+        Ok(seed)
     }
 
     fn get_pending_onchain_receives(&self) -> anyhow::Result<Vec<OnChainReceive>> {

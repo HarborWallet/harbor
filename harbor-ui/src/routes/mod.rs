@@ -28,6 +28,9 @@ pub use settings::*;
 pub mod welcome;
 pub use welcome::*;
 
+pub mod restore;
+pub use restore::*;
+
 #[derive(Default, PartialEq, Debug, Clone, Copy)]
 pub enum MintSubroute {
     #[default]
@@ -39,6 +42,7 @@ pub enum MintSubroute {
 pub enum Route {
     #[default]
     Welcome,
+    Restore,
     Unlock,
     Home,
     Mints(MintSubroute),
