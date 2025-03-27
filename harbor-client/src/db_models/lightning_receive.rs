@@ -177,6 +177,7 @@ impl From<LightningReceive> for TransactionItem {
             kind: TransactionItemKind::Lightning,
             amount: payment.amount().sats_round_down(),
             txid: None,
+            preimage: None,
             direction: TransactionDirection::Incoming,
             mint_identifier: payment.mint_identifier(),
             status: payment.status(),
