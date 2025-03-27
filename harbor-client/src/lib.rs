@@ -1306,6 +1306,8 @@ impl HarborCore {
             &self.mnemonic,
             self.network,
             self.stop.clone(),
+            self.tx.clone(),
+            Some(msg_id),
         )
         .await?;
 

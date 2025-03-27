@@ -9,6 +9,7 @@ use bitcoin::Network;
 use bitcoin::hashes::hex::FromHex;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::ClientHandleArc;
+use fedimint_client::backup::Metadata;
 use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{RootSecretStrategy, get_default_client_secret};
 use fedimint_core::config::FederationId;
@@ -75,6 +76,8 @@ impl FedimintClient {
         mnemonic: &Mnemonic,
         network: Network,
         stop: Arc<AtomicBool>,
+        mut sender: Sender<CoreUIMsgPacket>,
+        msg_id: Option<Uuid>,
     ) -> anyhow::Result<Self> {
         let federation_id = invite_or_id.federation_id();
 
@@ -104,28 +107,24 @@ impl FedimintClient {
         client_builder.with_primary_module_kind(fedimint_mint_client::KIND);
 
         trace!("Building fedimint client db");
-        let secret = Bip39RootSecretStrategy::<12>::to_root_secret(mnemonic);
+        let root_secret = Bip39RootSecretStrategy::<12>::to_root_secret(mnemonic);
+        let secret = get_default_client_secret(&root_secret, &federation_id);
 
         let fedimint_client = if is_initialized {
-            Some(
-                client_builder
-                    .open(get_default_client_secret(&secret, &federation_id))
-                    .await
-                    .map_err(|e| {
-                        error!("Could not open federation client: {e}");
-                        e
-                    })?,
-            )
-        } else if let FederationInviteOrId::Invite(invite_code) = invite_or_id {
+            Arc::new(client_builder.open(secret).await.map_err(|e| {
+                error!("Could not open federation client: {e}");
+                e
+            })?)
+        } else if let FederationInviteOrId::Invite(ref invite_code) = invite_or_id {
             let download = Instant::now();
             let config = {
                 let config = if tor_enabled {
                     fedimint_api_client::api::net::Connector::Tor
-                        .download_from_invite_code(&invite_code)
+                        .download_from_invite_code(invite_code)
                         .await
                 } else {
                     fedimint_api_client::api::net::Connector::Tcp
-                        .download_from_invite_code(&invite_code)
+                        .download_from_invite_code(invite_code)
                         .await
                 };
                 config.map_err(|e| {
@@ -138,35 +137,88 @@ impl FedimintClient {
                 download.elapsed().as_millis()
             );
 
-            Some(
-                client_builder
-                    .join(
-                        get_default_client_secret(&secret, &federation_id),
-                        config,
-                        None,
-                    )
-                    .await
-                    .map_err(|e| {
-                        error!("Could not join federation: {e}");
-                        e
-                    })?,
-            )
-        } else {
-            None
-        };
+            let client_backup = client_builder
+                .download_backup_from_federation(&secret, &config, invite_code.api_secret())
+                .await?;
 
-        let fedimint_client = match fedimint_client {
-            None => {
-                error!("did not have enough information to join federation");
-                return Err(anyhow!(
-                    "did not have enough information to join federation"
-                ));
+            match client_backup {
+                None => Arc::new(
+                    client_builder
+                        .join(secret, config, invite_code.api_secret())
+                        .await
+                        .map_err(|e| {
+                            error!("Could not join federation: {e}");
+                            e
+                        })?,
+                ),
+                Some(backup) => {
+                    let client = client_builder
+                        .recover(secret, config, invite_code.api_secret(), Some(backup))
+                        .await
+                        .map_err(|e| {
+                            error!("Could not join federation: {e}");
+                            e
+                        })?;
+
+                    HarborCore::send_msg(
+                        &mut sender,
+                        msg_id,
+                        CoreUIMsg::StatusUpdate {
+                            message: "Recovering federation notes".to_string(),
+                            operation_id: msg_id,
+                        },
+                    )
+                    .await;
+                    match client.wait_for_all_recoveries().await {
+                        Ok(_) => {
+                            info!("Federation successfully recovered");
+                            HarborCore::send_msg(
+                                &mut sender,
+                                msg_id,
+                                CoreUIMsg::StatusUpdate {
+                                    message: "Successfully recovered federation notes".to_string(),
+                                    operation_id: msg_id,
+                                },
+                            )
+                            .await;
+
+                            let fut = Box::pin(Self::new(
+                                storage,
+                                invite_or_id,
+                                mnemonic,
+                                network,
+                                stop,
+                                sender,
+                                msg_id,
+                            ));
+                            return fut.await;
+                        }
+                        Err(e) => {
+                            error!("Could not recover federation: {e}");
+                            HarborCore::send_msg(
+                                &mut sender,
+                                msg_id,
+                                CoreUIMsg::StatusUpdate {
+                                    message: "Failed recovered federation notes".to_string(),
+                                    operation_id: msg_id,
+                                },
+                            )
+                            .await;
+                            return Err(e);
+                        }
+                    }
+                }
             }
-            Some(client) => Arc::new(client),
+        } else {
+            error!("did not have enough information to join federation");
+            return Err(anyhow!(
+                "did not have enough information to join federation"
+            ));
         };
 
         trace!("Retrieving fedimint wallet client module");
 
+        // we can't check network during a recovery
         // check federation is on expected network
         let wallet_client = fedimint_client
             .get_first_module::<WalletClientModule>()
@@ -180,6 +232,19 @@ impl FedimintClient {
 
             return Err(anyhow::anyhow!("Network mismatch, expected: {network}"));
         }
+
+        // Create a backup
+        let client = fedimint_client.clone();
+        spawn(async move {
+            info!("Creating backup to federation");
+            let start = Instant::now();
+            match client.backup_to_federation(Metadata::empty()).await {
+                Err(e) => error!("Could not create backup to federation: {e}"),
+                Ok(_) => info!("Successfully created backup to federation"),
+            }
+
+            info!("Creating backup took: {}ms", start.elapsed().as_millis());
+        });
 
         // Update gateway cache in background
         let client_clone = fedimint_client.clone();
@@ -344,6 +409,11 @@ pub(crate) async fn spawn_invoice_receive_subscription(
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
 
+                    client
+                        .backup_to_federation(Metadata::empty())
+                        .await
+                        .expect("Could not backup");
+
                     break;
                 }
                 _ => {}
@@ -401,6 +471,11 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                     .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
+
+                    client
+                        .backup_to_federation(Metadata::empty())
+                        .await
+                        .expect("Could not backup");
 
                     break;
                 }
@@ -865,6 +940,11 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                     }
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
+
+                    client
+                        .backup_to_federation(Metadata::empty())
+                        .await
+                        .expect("Could not backup");
 
                     break;
                 }
