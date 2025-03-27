@@ -3,6 +3,7 @@ use super::{
     vr,
 };
 use crate::{HarborWallet, Message, ReceiveStatus};
+use harbor_client::MintIdentifier;
 use harbor_client::db_models::MintItem;
 use iced::widget::{column, container, horizontal_space, pick_list, rich_text, row, span, text};
 use iced::{Alignment, Color, Element, Length, Padding, never};
@@ -13,8 +14,13 @@ pub fn h_screen_header(
     disable_switcher: bool,
 ) -> Element<Message> {
     if let Some(item) = harbor.active_federation() {
-        let MintItem { name, .. } = item;
-        let people_icon = map_icon(SvgIcon::People, 24., 24.);
+        let MintItem { name, id, .. } = item;
+
+        // Choose the right icon based on the mint type
+        let mint_icon = match id {
+            MintIdentifier::Cashu(_) => map_icon(SvgIcon::Squirrel, 24., 24.),
+            MintIdentifier::Fedimint(_) => map_icon(SvgIcon::People, 24., 24.),
+        };
 
         let mint_names: Vec<String> = harbor
             .mint_list
@@ -49,7 +55,7 @@ pub fn h_screen_header(
             .into()
         };
 
-        let current_federation = row![people_icon, federation_element]
+        let current_federation = row![mint_icon, federation_element]
             .align_y(Alignment::Center)
             .spacing(16)
             .width(Length::Shrink)

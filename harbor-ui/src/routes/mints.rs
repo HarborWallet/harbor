@@ -59,7 +59,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
     let column = match &harbor.peek_federation_item {
         None => {
             let mint_input = h_input(InputArgs {
-                label: "Mint Invite Code",
+                label: "Invite Code or Mint URL",
                 value: &harbor.mint_invite_code_str,
                 on_input: Message::MintInviteCodeInputChanged,
                 disabled: harbor.peek_status == PeekStatus::Peeking,

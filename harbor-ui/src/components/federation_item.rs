@@ -1,4 +1,5 @@
 use crate::{AddFederationStatus, HarborWallet, Message};
+use harbor_client::MintIdentifier;
 use harbor_client::db_models::MintItem;
 use harbor_client::metadata::FederationMeta;
 use iced::{
@@ -16,8 +17,15 @@ fn mint_info<'a>(
     name: &'a str,
     guardians: &'a Option<Vec<String>>,
     metadata: &'a FederationMeta,
+    id: &'a MintIdentifier,
 ) -> iced::widget::Column<'a, Message> {
-    let name_row = row![map_icon(SvgIcon::People, 24., 24.), text(name).size(24)]
+    // Choose the right icon based on the mint type
+    let mint_icon = match id {
+        MintIdentifier::Cashu(_) => map_icon(SvgIcon::Squirrel, 24., 24.),
+        MintIdentifier::Fedimint(_) => map_icon(SvgIcon::People, 24., 24.),
+    };
+
+    let name_row = row![mint_icon, text(name).size(24)]
         .align_y(Alignment::Center)
         .spacing(16);
 
@@ -42,7 +50,7 @@ fn mint_info<'a>(
 }
 
 pub fn h_federation_item_preview(item: &MintItem) -> Element<Message> {
-    let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
+    let mut column = mint_info(&item.name, &item.guardians, &item.metadata, &item.id);
 
     let preview_tag = container(text("Preview").size(18).style(subtitle))
         .padding(8)
@@ -57,7 +65,7 @@ pub fn h_federation_item_preview(item: &MintItem) -> Element<Message> {
 }
 
 pub fn h_federation_item(item: &MintItem) -> Element<Message> {
-    let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
+    let mut column = mint_info(&item.name, &item.guardians, &item.metadata, &item.id);
 
     column = column.push(h_balance_display(item.balance));
 
@@ -86,7 +94,7 @@ pub fn h_federation_archived<'a>(
     item: &'a MintItem,
     harbor: &'a HarborWallet,
 ) -> Element<'a, Message> {
-    let mut column = mint_info(&item.name, &item.guardians, &item.metadata);
+    let mut column = mint_info(&item.name, &item.guardians, &item.metadata, &item.id);
 
     let is_joining = harbor.add_federation_status == AddFederationStatus::Adding
         && harbor.current_rejoin_id == Some(item.id.clone());
