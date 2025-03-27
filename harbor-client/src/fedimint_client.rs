@@ -1,6 +1,4 @@
-use crate::{
-    CoreUIMsg, CoreUIMsgPacket, HarborCore, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg,
-};
+use crate::{CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg};
 use crate::{db::DBConnection, db_models::NewFedimint};
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -27,6 +25,7 @@ use fedimint_ln_common::LightningGateway;
 use fedimint_lnv2_client::{ReceiveOperationState, SendOperationState};
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
+use futures::SinkExt;
 use futures::StreamExt;
 use futures::channel::mpsc::Sender;
 use log::{debug, error, info, trace};
@@ -38,6 +37,7 @@ use std::time::Instant;
 use std::{fmt, sync::atomic::AtomicBool};
 use tokio::spawn;
 use uuid::Uuid;
+use crate::HarborCore;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -286,7 +286,8 @@ pub(crate) async fn spawn_invoice_receive_subscription(
     msg_id: Uuid,
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnReceiveState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning lightning receive subscription for operation id: {}",
         operation_id.fmt_full()
@@ -294,6 +295,10 @@ pub(crate) async fn spawn_invoice_receive_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 LnReceiveState::Canceled { reason } => {
                     error!("Payment canceled, reason: {:?}", reason);
@@ -349,7 +354,7 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                 _ => {}
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_lnv2_receive_subscription(
@@ -360,7 +365,8 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
     msg_id: Uuid,
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<ReceiveOperationState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning LNv2 receive subscription for operation id: {}",
         operation_id.fmt_full()
@@ -368,6 +374,10 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 ReceiveOperationState::Claimed => {
                     info!("Payment claimed");
@@ -440,7 +450,7 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                 _ => {}
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_lnv2_payment_subscription(
@@ -451,7 +461,8 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
     msg_id: Uuid,
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<SendOperationState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning LNv2 payment subscription for operation id: {}",
         operation_id.fmt_full()
@@ -459,6 +470,10 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 SendOperationState::Failure => {
                     error!("Unexpected payment error");
@@ -529,7 +544,7 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                 _ => {}
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_invoice_payment_subscription(
@@ -540,7 +555,8 @@ pub(crate) async fn spawn_invoice_payment_subscription(
     msg_id: Uuid,
     is_transfer: bool,
     subscription: UpdateStreamOrOutcome<LnPayState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning lightning payment subscription for operation id: {}",
         operation_id.fmt_full()
@@ -548,6 +564,10 @@ pub(crate) async fn spawn_invoice_payment_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 LnPayState::Canceled => {
                     error!("Payment canceled");
@@ -618,7 +638,7 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                 _ => {}
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_internal_payment_subscription(
@@ -628,7 +648,8 @@ pub(crate) async fn spawn_internal_payment_subscription(
     operation_id: OperationId,
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<InternalPayState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning internal payment subscription for operation id: {}",
         operation_id.fmt_full()
@@ -636,6 +657,10 @@ pub(crate) async fn spawn_internal_payment_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 InternalPayState::FundingFailed { error } => {
                     error!("Funding failed: {error:?}");
@@ -645,6 +670,7 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         CoreUIMsg::SendFailure(error.to_string()),
                     )
                     .await;
+
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
                     {
@@ -660,6 +686,7 @@ pub(crate) async fn spawn_internal_payment_subscription(
                         CoreUIMsg::SendFailure(error_message),
                     )
                     .await;
+
                     if let Err(e) = storage
                         .mark_lightning_payment_as_failed(operation_id.fmt_full().to_string())
                     {
@@ -700,7 +727,7 @@ pub(crate) async fn spawn_internal_payment_subscription(
                 _ => {}
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_onchain_payment_subscription(
@@ -710,7 +737,8 @@ pub(crate) async fn spawn_onchain_payment_subscription(
     operation_id: OperationId,
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<WithdrawState>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning onchain payment subscription for operation id: {}",
         operation_id.fmt_full()
@@ -718,31 +746,24 @@ pub(crate) async fn spawn_onchain_payment_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 WithdrawState::Created => {}
-                WithdrawState::Failed(error) => {
-                    error!("Onchain payment failed: {error}");
-                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendFailure(error))
-                        .await;
-                    if let Err(e) =
-                        storage.mark_onchain_payment_as_failed(operation_id.fmt_full().to_string())
-                    {
-                        error!("Could not mark onchain payment as failed: {e}");
-                    }
-
-                    break;
-                }
                 WithdrawState::Succeeded(txid) => {
-                    info!("Onchain payment success: {txid}");
-                    let params = SendSuccessMsg::Onchain { txid };
-                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
-                        .await;
+                    info!("Onchain payment broadcasted: {txid:?}");
 
                     if let Err(e) =
                         storage.set_onchain_payment_txid(operation_id.fmt_full().to_string(), txid)
                     {
                         error!("Could not mark onchain payment txid: {e}");
                     }
+
+                    let params = SendSuccessMsg::Onchain { txid };
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
+                        .await;
 
                     let new_balance = client.get_balance().await;
                     HarborCore::send_msg(
@@ -756,12 +777,23 @@ pub(crate) async fn spawn_onchain_payment_subscription(
                     .await;
 
                     update_history(storage.clone(), msg_id, &mut sender).await;
+                    break;
+                }
+                WithdrawState::Failed(error) => {
+                    error!("Onchain payment failed: {error}");
+                    HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendFailure(error))
+                        .await;
 
+                    if let Err(e) =
+                        storage.mark_onchain_payment_as_failed(operation_id.fmt_full().to_string())
+                    {
+                        error!("Could not mark onchain payment as failed: {e}");
+                    }
                     break;
                 }
             }
         }
-    });
+    })
 }
 
 pub(crate) async fn spawn_onchain_receive_subscription(
@@ -771,7 +803,8 @@ pub(crate) async fn spawn_onchain_receive_subscription(
     operation_id: OperationId,
     msg_id: Uuid,
     subscription: UpdateStreamOrOutcome<DepositStateV2>,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     info!(
         "Spawning onchain receive subscription for operation id: {}",
         operation_id.fmt_full()
@@ -779,6 +812,10 @@ pub(crate) async fn spawn_onchain_receive_subscription(
     spawn(async move {
         let mut stream = subscription.into_stream();
         while let Some(op_state) = stream.next().await {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             match op_state {
                 DepositStateV2::WaitingForTransaction => {}
                 DepositStateV2::Failed(error) => {
@@ -870,7 +907,7 @@ pub(crate) async fn spawn_onchain_receive_subscription(
                 }
             }
         }
-    });
+    })
 }
 
 #[derive(Clone)]

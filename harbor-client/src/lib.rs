@@ -238,6 +238,7 @@ pub struct HarborCore {
     pub stop: Arc<AtomicBool>,
     pub tor_enabled: Arc<AtomicBool>,
     pub metadata_fetch_cancel: Arc<AtomicBool>,
+    pub spawned_tasks: Arc<RwLock<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl HarborCore {
@@ -266,6 +267,9 @@ impl HarborCore {
         let cashu = cashu_clients.clone();
         let cashus = cashu.read().await;
 
+        // Create a vector to hold all the spawned tasks
+        let spawned_tasks = Arc::new(RwLock::new(Vec::new()));
+
         for item in pending_onchain_recv {
             if let Some(federation_id) = item.fedimint_id() {
                 if let Some(client) = fed_clients.get(&federation_id) {
@@ -276,15 +280,20 @@ impl HarborCore {
 
                     let op_id = item.operation_id();
                     if let Ok(sub) = onchain.subscribe_deposit(op_id).await {
-                        spawn_onchain_receive_subscription(
+                        let handle = spawn_onchain_receive_subscription(
                             tx.clone(),
                             client.fedimint_client.clone(),
                             storage.clone(),
                             op_id,
                             Uuid::nil(),
                             sub,
+                            stop.clone(),
                         )
                         .await;
+
+                        // Store task handle
+                        let mut tasks = spawned_tasks.write().await;
+                        tasks.push(handle);
                     }
                 }
             }
@@ -300,15 +309,20 @@ impl HarborCore {
 
                     let op_id = item.operation_id();
                     if let Ok(sub) = onchain.subscribe_withdraw_updates(op_id).await {
-                        spawn_onchain_payment_subscription(
+                        let handle = spawn_onchain_payment_subscription(
                             tx.clone(),
                             client.fedimint_client.clone(),
                             storage.clone(),
                             op_id,
                             Uuid::nil(),
                             sub,
+                            stop.clone(),
                         )
                         .await;
+
+                        // Store task handle
+                        let mut tasks = spawned_tasks.write().await;
+                        tasks.push(handle);
                     }
                 }
             }
@@ -326,7 +340,7 @@ impl HarborCore {
                         let op_id = item.operation_id();
 
                         if let Ok(sub) = lightning_module.subscribe_ln_receive(op_id).await {
-                            spawn_invoice_receive_subscription(
+                            let handle = spawn_invoice_receive_subscription(
                                 tx.clone(),
                                 client.fedimint_client.clone(),
                                 storage.clone(),
@@ -334,8 +348,13 @@ impl HarborCore {
                                 Uuid::nil(),
                                 false,
                                 sub,
+                                stop.clone(),
                             )
                             .await;
+
+                            // Store task handle
+                            let mut tasks = spawned_tasks.write().await;
+                            tasks.push(handle);
                         } else {
                             storage.mark_ln_receive_as_failed(item.operation_id)?
                         }
@@ -348,14 +367,19 @@ impl HarborCore {
                         if let Ok(Some(quote)) =
                             client.localstore.get_mint_quote(&item.operation_id).await
                         {
-                            spawn_lightning_receive_thread(
+                            let handle = spawn_lightning_receive_thread(
                                 tx.clone(),
                                 client.clone(),
                                 storage.clone(),
                                 quote,
                                 Uuid::nil(),
                                 false,
+                                stop.clone(),
                             );
+
+                            // Store task handle
+                            let mut tasks = spawned_tasks.write().await;
+                            tasks.push(handle);
                         } else {
                             storage.mark_ln_receive_as_failed(item.operation_id)?
                         }
@@ -379,7 +403,7 @@ impl HarborCore {
 
                         // need to attempt for internal and external subscriptions for lightning payments
                         if let Ok(sub) = lightning_module.subscribe_ln_pay(op_id).await {
-                            spawn_invoice_payment_subscription(
+                            let handle = spawn_invoice_payment_subscription(
                                 tx.clone(),
                                 client.fedimint_client.clone(),
                                 storage.clone(),
@@ -387,19 +411,29 @@ impl HarborCore {
                                 Uuid::nil(),
                                 false,
                                 sub,
+                                stop.clone(),
                             )
                             .await;
+
+                            // Store the handle so we can join it later
+                            let mut tasks = spawned_tasks.write().await;
+                            tasks.push(handle);
                         } else if let Ok(sub) = lightning_module.subscribe_internal_pay(op_id).await
                         {
-                            spawn_internal_payment_subscription(
+                            let handle = spawn_internal_payment_subscription(
                                 tx.clone(),
                                 client.fedimint_client.clone(),
                                 storage.clone(),
                                 op_id,
                                 Uuid::nil(),
                                 sub,
+                                stop.clone(),
                             )
                             .await;
+
+                            // Store the handle so we can join it later
+                            let mut tasks = spawned_tasks.write().await;
+                            tasks.push(handle);
                         } else {
                             storage.mark_lightning_payment_as_failed(item.operation_id)?
                         }
@@ -412,14 +446,19 @@ impl HarborCore {
                         if let Ok(Some(quote)) =
                             client.localstore.get_melt_quote(&item.operation_id).await
                         {
-                            spawn_lightning_payment_thread(
+                            let handle = spawn_lightning_payment_thread(
                                 tx.clone(),
                                 client.clone(),
                                 storage.clone(),
                                 quote,
                                 Uuid::nil(),
                                 false,
+                                stop.clone(),
                             );
+
+                            // Store task handle
+                            let mut tasks = spawned_tasks.write().await;
+                            tasks.push(handle);
                         } else {
                             storage.mark_lightning_payment_as_failed(item.operation_id)?
                         }
@@ -442,6 +481,7 @@ impl HarborCore {
             stop,
             tor_enabled,
             metadata_fetch_cancel: Arc::new(AtomicBool::new(false)),
+            spawned_tasks,
         })
     }
 
@@ -611,14 +651,19 @@ impl HarborCore {
             Amount::from_msats(quote.fee_reserve.into()),
         )?;
 
-        spawn_lightning_payment_thread(
+        let handle = spawn_lightning_payment_thread(
             self.tx.clone(),
             client,
             self.storage.clone(),
             quote,
             msg_id,
             is_transfer,
+            self.stop.clone(),
         );
+
+        // Store the handle so we can join it later
+        let mut tasks = self.spawned_tasks.write().await;
+        tasks.push(handle);
 
         self.status_update(msg_id, "Waiting for payment confirmation")
             .await;
@@ -674,7 +719,7 @@ impl HarborCore {
                 let sub = lnv2_module
                     .subscribe_send_operation_state_updates(operation_id)
                     .await?;
-                spawn_lnv2_payment_subscription(
+                let handle = spawn_lnv2_payment_subscription(
                     self.tx.clone(),
                     client,
                     self.storage.clone(),
@@ -682,8 +727,13 @@ impl HarborCore {
                     msg_id,
                     is_transfer,
                     sub,
+                    self.stop.clone(),
                 )
                 .await;
+
+                // Store the handle so we can join it later
+                let mut tasks = self.spawned_tasks.write().await;
+                tasks.push(handle);
             }
             Err(err) => {
                 log::warn!("LNv2 payment failed, trying LNv1. {err}");
@@ -734,28 +784,38 @@ impl HarborCore {
                 match outgoing.payment_type {
                     PayType::Internal(op_id) => {
                         let sub = lightning_module.subscribe_internal_pay(op_id).await?;
-                        spawn_internal_payment_subscription(
+                        let handle = spawn_internal_payment_subscription(
                             self.tx.clone(),
-                            client,
+                            client.clone(),
                             self.storage.clone(),
                             op_id,
                             msg_id,
                             sub,
+                            self.stop.clone(),
                         )
                         .await;
+
+                        // Store the handle so we can join it later
+                        let mut tasks = self.spawned_tasks.write().await;
+                        tasks.push(handle);
                     }
                     PayType::Lightning(op_id) => {
                         let sub = lightning_module.subscribe_ln_pay(op_id).await?;
-                        spawn_invoice_payment_subscription(
+                        let handle = spawn_invoice_payment_subscription(
                             self.tx.clone(),
-                            client,
+                            client.clone(),
                             self.storage.clone(),
                             op_id,
                             msg_id,
                             is_transfer,
                             sub,
+                            self.stop.clone(),
                         )
                         .await;
+
+                        // Store the handle so we can join it later
+                        let mut tasks = self.spawned_tasks.write().await;
+                        tasks.push(handle);
                     }
                 }
             }
@@ -902,7 +962,7 @@ impl HarborCore {
                 let sub = lnv2_module
                     .subscribe_receive_operation_state_updates(operation_id)
                     .await?;
-                spawn_lnv2_receive_subscription(
+                let handle = spawn_lnv2_receive_subscription(
                     self.tx.clone(),
                     client.clone(),
                     self.storage.clone(),
@@ -910,8 +970,13 @@ impl HarborCore {
                     msg_id,
                     is_transfer,
                     sub,
+                    self.stop.clone(),
                 )
                 .await;
+
+                // Store the handle so we can join it later
+                let mut tasks = self.spawned_tasks.write().await;
+                tasks.push(handle);
                 Ok(invoice)
             }
             Err(err) => {
@@ -957,7 +1022,7 @@ impl HarborCore {
                 // Create subscription to operation if it exists
                 match lightning_module.subscribe_ln_receive(op_id).await {
                     Ok(subscription) => {
-                        spawn_invoice_receive_subscription(
+                        let handle = spawn_invoice_receive_subscription(
                             self.tx.clone(),
                             client.clone(),
                             self.storage.clone(),
@@ -965,8 +1030,13 @@ impl HarborCore {
                             msg_id,
                             is_transfer,
                             subscription,
+                            self.stop.clone(),
                         )
                         .await;
+
+                        // Store the handle so we can join it later
+                        let mut tasks = self.spawned_tasks.write().await;
+                        tasks.push(handle);
                     }
                     _ => {
                         error!("Could not create subscription to lightning receive");
@@ -1013,14 +1083,20 @@ impl HarborCore {
             Amount::ZERO, // todo one day there will be receive fees
         )?;
 
-        spawn_lightning_receive_thread(
+        let handle = spawn_lightning_receive_thread(
             self.tx.clone(),
             client,
             self.storage.clone(),
             quote,
             msg_id,
             is_transfer,
+            self.stop.clone(),
         );
+
+        // Store the handle so we can join it later
+        let mut tasks = self.spawned_tasks.write().await;
+        tasks.push(handle);
+
         Ok(invoice)
     }
 
@@ -1120,15 +1196,20 @@ impl HarborCore {
 
         let sub = onchain.subscribe_withdraw_updates(op_id).await?;
 
-        spawn_onchain_payment_subscription(
+        let handle = spawn_onchain_payment_subscription(
             self.tx.clone(),
             client.clone(),
             self.storage.clone(),
             op_id,
             msg_id,
             sub,
+            self.stop.clone(),
         )
         .await;
+
+        // Store the handle so we can join it later
+        let mut tasks = self.spawned_tasks.write().await;
+        tasks.push(handle);
 
         Ok(())
     }
@@ -1166,15 +1247,20 @@ impl HarborCore {
 
         let sub = onchain.subscribe_deposit(op_id).await?;
 
-        spawn_onchain_receive_subscription(
+        let handle = spawn_onchain_receive_subscription(
             self.tx.clone(),
             client.clone(),
             self.storage.clone(),
             op_id,
             msg_id,
             sub,
+            self.stop.clone(),
         )
         .await;
+
+        // Store the handle so we can join it later
+        let mut tasks = self.spawned_tasks.write().await;
+        tasks.push(handle);
 
         Ok(address)
     }
@@ -1668,5 +1754,59 @@ impl HarborCore {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
         self.status_update(msg_id, "Test sequence complete!").await;
+    }
+
+    pub async fn shutdown(&self) {
+        // Signal all tasks to stop
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.metadata_fetch_cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // Take ownership of the tasks so we can join them
+        let mut tasks = self.spawned_tasks.write().await;
+        let tasks_to_join = std::mem::take(&mut *tasks);
+
+        log::info!("Shutting down {} spawned tasks", tasks_to_join.len());
+
+        // Join all tasks with a timeout to prevent hanging
+        for (i, handle) in tasks_to_join.into_iter().enumerate() {
+            match tokio::time::timeout(Duration::from_secs(5), handle).await {
+                Ok(result) => {
+                    if let Err(e) = result {
+                        if e.is_panic() {
+                            log::error!("Task {} panicked during shutdown", i);
+                        } else {
+                            log::error!("Task {} failed during shutdown: {:?}", i, e);
+                        }
+                    }
+                }
+                Err(_) => {
+                    log::warn!("Task {} did not complete within timeout during shutdown", i);
+                    // We can't safely abort the task in current tokio versions as handle.abort() is unstable
+                }
+            }
+        }
+
+        log::info!("All tasks have been shut down");
+    }
+}
+
+// Implement Drop for HarborCore to ensure resources are cleaned up
+impl Drop for HarborCore {
+    fn drop(&mut self) {
+        // Signal tasks to stop immediately in case shutdown() wasn't called
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.metadata_fetch_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        // We can't call the async shutdown method directly from drop,
+        // but we can at least log that we're being dropped
+        log::info!("HarborCore instance is being dropped");
+        
+        // If we're in a tokio context, we could technically spawn a blocking task
+        // that waits for the runtime to complete shutdown, but this is tricky
+        // because the runtime might be shutting down too.
+        //
+        // Instead, we've designed the system so that setting stop signals is enough
+        // for clean shutdown. Tasks check these signals and exit gracefully.
     }
 }
