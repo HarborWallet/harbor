@@ -1,6 +1,6 @@
 [package]
 name = "harbor-client"
-version = "1.0.0-beta.rc1"
+version = "1.0.0-beta.rc2"
 edition = "2024"
 
 [features]
