@@ -13,7 +13,7 @@ pub fn settings(harbor: &HarborWallet) -> Element<Message> {
 
     let onchain_receive_checkbox = h_checkbox(
         "On-chain Receive",
-        Some("Receive bitcoin on-chain with all mints."),
+        Some("Receive bitcoin on-chain with all Fedimint mints."),
         harbor.onchain_receive_enabled,
         false,
         |enabled| {

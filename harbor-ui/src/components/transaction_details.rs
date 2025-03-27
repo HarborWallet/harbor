@@ -1,6 +1,7 @@
 use super::{format_amount, format_timestamp, side_panel_style, subtitle};
 use crate::Message;
 use crate::components::{SvgIcon, map_icon, text_link};
+use harbor_client::MintIdentifier;
 use harbor_client::bitcoin::Network;
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::{
@@ -52,14 +53,17 @@ pub fn h_transaction_details<'a>(
                 .unwrap_or(FederationId::dummy()),
         ));
 
+    // Choose the right icon based on the mint type
+    let mint_icon = match mint_identifier {
+        MintIdentifier::Cashu(_) => map_icon(SvgIcon::Squirrel, 16., 16.),
+        MintIdentifier::Fedimint(_) => map_icon(SvgIcon::People, 16., 16.),
+    };
+
     let mint_section = column![
         text(mint_label).size(16).style(subtitle),
-        row![
-            map_icon(SvgIcon::People, 16., 16.),
-            text(mint.name.clone()).size(16)
-        ]
-        .align_y(Alignment::Center)
-        .spacing(8)
+        row![mint_icon, text(mint.name.clone()).size(16)]
+            .align_y(Alignment::Center)
+            .spacing(8)
     ]
     .spacing(8);
 
