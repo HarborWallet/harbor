@@ -147,7 +147,7 @@ pub enum UICoreMsg {
     Unlock(String),
     Init {
         password: String,
-        seed: Option<String>,
+        seed: Option<Mnemonic>,
     },
     GetSeedWords,
     SetOnchainReceiveEnabled(bool),
