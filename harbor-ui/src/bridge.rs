@@ -82,6 +82,10 @@ async fn setup_harbor_core(
     network: Network,
     tx: &mut Sender<Message>,
 ) -> Option<HarborCore> {
+    // Setup core message channel
+    let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
+    let mut tx_clone = tx.clone();
+
     // Setup database
     let db_path = db_path.to_string();
     let password = password.to_string();
@@ -115,6 +119,8 @@ async fn setup_harbor_core(
             &mnemonic,
             network,
             stop.clone(),
+            core_tx.clone(),
+            None,
         )
         .await
         .expect("Could not create fedimint client");
@@ -160,9 +166,7 @@ async fn setup_harbor_core(
         cashu_clients.insert(wallet.mint_url.clone(), wallet);
     }
 
-    // Setup core message channel
-    let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
-    let mut tx_clone = tx.clone();
+    // setup message passing thread
     tokio::spawn(async move {
         loop {
             let next_result = core_rx.next().await;
