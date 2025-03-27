@@ -20,7 +20,7 @@ permissions:
 jobs:
   build-mac:
     name: Build MacOS
-    runs-on: macos
+    runs-on: macos-latest
     environment: signing
     steps:
       - uses: actions/checkout@v4
