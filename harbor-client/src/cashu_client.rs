@@ -1,9 +1,7 @@
 use crate::db::DBConnection;
 use crate::fedimint_client::update_history;
 use crate::http::{make_get_request_tor, make_tor_request};
-use crate::{
-    CoreUIMsg, CoreUIMsgPacket, HarborCore, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg,
-};
+use crate::{CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg};
 use async_trait::async_trait;
 use bitcoin::hex::FromHex;
 use cdk::amount::SplitTarget;
@@ -18,6 +16,7 @@ use cdk::util::unix_time;
 use cdk::wallet::{MeltQuote, MintConnector, MintQuote};
 use cdk::{Error, Wallet};
 use fedimint_core::Amount;
+use futures::SinkExt;
 use futures::channel::mpsc::Sender;
 use log::error;
 use serde::Serialize;
@@ -28,6 +27,7 @@ use std::time::Duration;
 use tokio::spawn;
 use url::Url;
 use uuid::Uuid;
+use crate::HarborCore;
 
 #[derive(Debug, Clone)]
 pub struct TorMintConnector {
@@ -190,10 +190,14 @@ pub fn spawn_lightning_payment_thread(
     quote: MeltQuote,
     msg_id: Uuid,
     is_transfer: bool,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     spawn(async move {
         match client.melt(&quote.id).await {
             Ok(outgoing) => {
+                if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
                 log::info!(
                     "Payment completed: {}, preimage: {:?}",
                     quote.id,
@@ -209,11 +213,14 @@ pub fn spawn_lightning_payment_thread(
                 HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
                     .await;
 
-                let bal: u64 = client
-                    .total_balance()
-                    .await
-                    .expect("failed to get balance")
-                    .into();
+                let bal: u64 = match client.total_balance().await {
+                    Ok(balance) => balance.into(),
+                    Err(e) => {
+                        log::error!("Failed to get balance: {e}");
+                        return;
+                    }
+                };
+
                 HarborCore::send_msg(
                     &mut sender,
                     Some(msg_id),
@@ -231,6 +238,9 @@ pub fn spawn_lightning_payment_thread(
                 update_history(storage, msg_id, &mut sender).await;
             }
             Err(e) => {
+                if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
                 log::error!("Payment failed: {e}");
                 let msg = if is_transfer {
                     CoreUIMsg::TransferFailure(e.to_string())
@@ -244,7 +254,7 @@ pub fn spawn_lightning_payment_thread(
                 }
             }
         }
-    });
+    })
 }
 
 pub fn spawn_lightning_receive_thread(
@@ -254,10 +264,15 @@ pub fn spawn_lightning_receive_thread(
     quote: MintQuote,
     msg_id: Uuid,
     is_transfer: bool,
-) {
+    stop: Arc<AtomicBool>,
+) -> tokio::task::JoinHandle<()> {
     spawn(async move {
         let mut error_counter = 0;
         loop {
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             let mint_quote_response = match client.mint_quote_state(&quote.id).await {
                 Ok(response) => response,
                 Err(e) => {
@@ -265,6 +280,14 @@ pub fn spawn_lightning_receive_thread(
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     error_counter += 1;
                     if error_counter > 5 {
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(format!(
+                                "Failed to check payment status: {e}"
+                            )),
+                        )
+                        .await;
                         return;
                     }
                     continue;
@@ -272,51 +295,73 @@ pub fn spawn_lightning_receive_thread(
             };
 
             if mint_quote_response.state == MintQuoteState::Paid {
-                client
-                    .mint(&quote.id, SplitTarget::default(), None)
-                    .await
-                    .expect("Failed to mint receive tokens");
+                match client.mint(&quote.id, SplitTarget::default(), None).await {
+                    Ok(_) => {
+                        let params = if is_transfer {
+                            ReceiveSuccessMsg::Transfer
+                        } else {
+                            ReceiveSuccessMsg::Lightning
+                        };
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveSuccess(params),
+                        )
+                        .await;
 
-                let params = if is_transfer {
-                    ReceiveSuccessMsg::Transfer
-                } else {
-                    ReceiveSuccessMsg::Lightning
-                };
-                HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::ReceiveSuccess(params))
-                    .await;
+                        if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
+                            error!("Could not mark lightning receive as success: {e}");
+                        }
 
-                if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
-                    error!("Could not mark lightning receive as success: {e}");
+                        match client.total_balance().await {
+                            Ok(new_balance) => {
+                                HarborCore::send_msg(
+                                    &mut sender,
+                                    Some(msg_id),
+                                    CoreUIMsg::MintBalanceUpdated {
+                                        id: MintIdentifier::Cashu(client.mint_url.clone()),
+                                        balance: Amount::from_sats(new_balance.into()),
+                                    },
+                                )
+                                .await;
+                            }
+                            Err(e) => {
+                                log::error!("Failed to get balance: {e}");
+                            }
+                        }
+
+                        update_history(storage, msg_id, &mut sender).await;
+                    }
+                    Err(e) => {
+                        log::error!("Failed to mint tokens: {e}");
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(format!("Failed to mint tokens: {e}")),
+                        )
+                        .await;
+                    }
                 }
-
-                let new_balance = client.total_balance().await.expect("Failed to get balance");
-                HarborCore::send_msg(
-                    &mut sender,
-                    Some(msg_id),
-                    CoreUIMsg::MintBalanceUpdated {
-                        id: MintIdentifier::Cashu(client.mint_url.clone()),
-                        balance: Amount::from_sats(new_balance.into()),
-                    },
-                )
-                .await;
-
-                update_history(storage, msg_id, &mut sender).await;
-
                 break;
             } else if quote.expiry.le(&unix_time()) {
-                client
-                    .localstore
-                    .remove_mint_quote(&quote.id)
-                    .await
-                    .expect("Failed to remove mint quote");
+                if let Err(e) = client.localstore.remove_mint_quote(&quote.id).await {
+                    log::error!("Failed to remove mint quote: {e}");
+                }
 
                 if let Err(e) = storage.mark_ln_receive_as_failed(quote.id) {
                     error!("Could not mark lightning receive as failed: {e}");
                 }
 
+                HarborCore::send_msg(
+                    &mut sender,
+                    Some(msg_id),
+                    CoreUIMsg::ReceiveFailed("Payment expired".to_string()),
+                )
+                .await;
+
                 break;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-    });
+    })
 }
