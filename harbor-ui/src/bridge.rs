@@ -590,7 +590,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         match core.get_federation_info(msg.id, invite_code).await {
                             Err(e) => {
                                 error!("Error getting federation info: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                     .await;
                             }
                             Ok((config, metadata)) => {
@@ -612,7 +612,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         match core.get_cashu_mint_info(msg.id, mint_url.clone()).await {
                             Err(e) => {
                                 error!("Error getting cashu mint info: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                     .await;
                             }
                             Ok(info) => {
@@ -649,7 +649,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         match core.add_federation(msg.id, invite_code).await {
                             Err(e) => {
                                 error!("Error adding federation: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                     .await;
                             }
                             Ok(_) => {
@@ -674,7 +674,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     {
                         Err(e) => {
                             error!("Error adding mint: {e}");
-                            core.msg(msg.id, CoreUIMsg::AddFederationFailed(e.to_string()))
+                            core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                 .await;
                         }
                         Ok(_) => {
@@ -759,13 +759,10 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 match core.add_federation(msg.id, invite_code).await {
                                     Err(e) => {
                                         error!("Error adding federation: {e}");
-                                        core.msg(
-                                            msg.id,
-                                            CoreUIMsg::AddFederationFailed(e.to_string()),
-                                        )
-                                        .await;
+                                        core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                                            .await;
                                     }
-                                    _ => {
+                                    Ok(_) => {
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
                                             core.msg(
@@ -780,8 +777,22 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 }
                             }
                         }
-                        MintIdentifier::Cashu(_url) => {
-                            todo!("rejoin cashu")
+                        MintIdentifier::Cashu(ref mint_url) => {
+                            match core.add_cashu_mint(msg.id, mint_url.clone()).await {
+                                Err(e) => {
+                                    error!("Error adding cashu mint: {e}");
+                                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                                        .await;
+                                }
+                                Ok(_) => {
+                                    if let Ok(new_list) = core.get_mint_items().await {
+                                        core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list))
+                                            .await;
+                                    }
+                                    info!("Rejoined cashu mint: {mint_url}");
+                                    core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
+                                }
+                            }
                         }
                     },
                     UICoreMsg::FederationListNeedsUpdate => {

@@ -15,6 +15,7 @@ use anyhow::anyhow;
 use bip39::Mnemonic;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
+use cdk::cdk_database::WalletDatabase;
 use cdk::mint_url::MintUrl;
 use cdk::nuts::{CurrencyUnit, MintInfo};
 use cdk::wallet::WalletBuilder;
@@ -190,7 +191,7 @@ pub enum CoreUIMsg {
         id: MintIdentifier,
         balance: Amount,
     },
-    AddFederationFailed(String),
+    AddMintFailed(String),
     RemoveFederationFailed(String),
     MintInfo {
         id: MintIdentifier,
@@ -1502,7 +1503,7 @@ impl HarborCore {
         for c in cashu_clients.values() {
             let balance: u64 = c.total_balance().await?.into();
 
-            let info = c.get_mint_info().await?;
+            let info = c.localstore.get_mint(c.mint_url.clone()).await?;
 
             let metadata = FederationMeta {
                 federation_name: info
@@ -1554,17 +1555,36 @@ impl HarborCore {
             });
         }
 
-        // get archived mints
-        // todo archived cashu mints
-        let archived = self.storage.get_archived_mints().expect("archived mints");
+        // get archived fedimints
+        let archived = self.storage.get_archived_fedimints()?;
         for m in archived {
             let item = MintItem {
-                id: MintIdentifier::Fedimint(FederationId::from_str(&m.id).unwrap()),
+                id: MintIdentifier::Fedimint(FederationId::from_str(&m.id)?),
                 name: m.name.clone().unwrap_or("Unknown".to_string()),
                 balance: 0,
                 guardians: None,
                 module_kinds: None,
                 metadata: m.into(),
+                on_chain_supported: false,
+                active: false,
+            };
+            res.push(item);
+        }
+
+        // get archived cashu mints
+        let archived = self.storage.list_archived_cashu_mints()?;
+        for mint_url in archived {
+            let info = self.cashu_storage.get_mint(mint_url.clone()).await?;
+            let item = MintItem {
+                id: MintIdentifier::Cashu(mint_url.clone()),
+                name: info
+                    .as_ref()
+                    .and_then(|i| i.name.clone())
+                    .unwrap_or(mint_url.to_string()),
+                balance: 0,
+                guardians: None,
+                module_kinds: None,
+                metadata: info.into(),
                 on_chain_supported: false,
                 active: false,
             };

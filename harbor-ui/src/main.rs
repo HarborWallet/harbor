@@ -1138,7 +1138,7 @@ impl HarborWallet {
                     self.receive_invoice = Some(invoice);
                     Task::none()
                 }
-                CoreUIMsg::AddFederationFailed(reason) => {
+                CoreUIMsg::AddMintFailed(reason) => {
                     let reason = reason.clone();
                     self.clear_add_federation_state();
                     Task::perform(async {}, move |_| {

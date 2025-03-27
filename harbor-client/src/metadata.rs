@@ -1,5 +1,6 @@
 use crate::http::{make_get_request_direct, make_get_request_tor};
 use bitcoin::secp256k1::PublicKey;
+use cdk::nuts::MintInfo;
 use fedimint_client::ClientHandleArc;
 use fedimint_core::config::ClientConfig;
 use fedimint_core::config::FederationId;
@@ -77,6 +78,28 @@ impl FederationMeta {
             None => vec![],
             Some(str) => serde_json::from_str(str).unwrap_or_default(),
         }
+    }
+}
+
+impl From<Option<MintInfo>> for FederationMeta {
+    fn from(info: Option<MintInfo>) -> Self {
+        FederationMeta {
+            federation_name: info.as_ref().and_then(|i| i.name.clone()),
+            federation_expiry_timestamp: None,
+            welcome_message: None,
+            vetted_gateways: None,
+            federation_icon_url: info.as_ref().and_then(|i| i.icon_url.clone()),
+            meta_external_url: None,
+            preview_message: info.and_then(|i| i.description),
+            popup_end_timestamp: None,
+            popup_countdown_message: None,
+        }
+    }
+}
+
+impl From<MintInfo> for FederationMeta {
+    fn from(info: MintInfo) -> Self {
+        Some(info).into()
     }
 }
 
