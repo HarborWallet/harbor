@@ -46,4 +46,9 @@ mkdir -p "$APP_EXTRAS_DIR"
 cp -fRp "$APP_TEMPLATE" "$APP_DIR"
 cp -fp "target/aarch64-apple-darwin/release/$TARGET" "$APP_BINARY_DIR/harbor"
 touch -r "target/aarch64-apple-darwin/release/$TARGET" "$APP_DIR/$APP_NAME"
+
+# Fix dynamic library paths
+echo "Fixing dynamic library paths..."
+./scripts/fix-dylib-paths.sh "$APP_DIR/$APP_NAME"
+
 echo "✨ Created '$APP_NAME' in '$APP_DIR'"

@@ -33,6 +33,8 @@ jobs:
 
       - name: Build
         run: nix develop --command bash -c "bash scripts/build-macos.sh"
+        env:
+          GETTEXT_STATIC: "true"
 
       - name: Sign macOS
         env:

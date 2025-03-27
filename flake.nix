@@ -48,6 +48,7 @@
             pkgs.nixfmt-rfc-style
             pkgs.dbus
             pkgs.libsecret
+            pkgs.gettext
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
@@ -76,6 +77,7 @@
 
         devShell = pkgs.mkShell rec {
           packages = inputs ++ [
+            pkgs.git
             pkgs.mesa
             pkgs.libglvnd # Adds EGL support
             pkgs.xorg.libX11
@@ -104,6 +106,7 @@
             # Added libraries to LD_LIBRARY_PATH for keyring
             pkgs.dbus.lib
             pkgs.libsecret
+            pkgs.gettext
           ]);
 
           shellHook = ''
@@ -113,6 +116,9 @@
             export __EGL_VENDOR_LIBRARY_DIRS=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/share/glvnd/egl_vendor.d/
             # Wayland specific environment variables
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+            
+            # Ensure gettext is statically linked
+            export GETTEXT_STATIC=1
             
             # Ensure DBus session is available for keyring
             ${if pkgs.stdenv.isLinux then ''
