@@ -112,9 +112,11 @@ pub trait DBConnection {
     // gets the federation data for a specific federation
     fn list_federations(&self) -> anyhow::Result<Vec<String>>;
 
-    fn get_archived_mints(&self) -> anyhow::Result<Vec<MintMetadata>>;
+    fn get_archived_fedimints(&self) -> anyhow::Result<Vec<MintMetadata>>;
 
     fn list_cashu_mints(&self) -> anyhow::Result<Vec<String>>;
+
+    fn list_archived_cashu_mints(&self) -> anyhow::Result<Vec<MintUrl>>;
 
     fn insert_new_cashu_mint(&self, url: String) -> anyhow::Result<()>;
 
@@ -604,7 +606,7 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn get_archived_mints(&self) -> anyhow::Result<Vec<MintMetadata>> {
+    fn get_archived_fedimints(&self) -> anyhow::Result<Vec<MintMetadata>> {
         let conn = &mut self.db.get()?;
         let ids = Fedimint::get_archived_ids(conn)?;
         let mut result = Vec::with_capacity(ids.len());
@@ -615,6 +617,15 @@ impl DBConnection for SQLConnection {
             }
         }
         Ok(result)
+    }
+
+    fn list_archived_cashu_mints(&self) -> anyhow::Result<Vec<MintUrl>> {
+        let conn = &mut self.db.get()?;
+        let ids = CashuMint::get_archived_mints(conn)?;
+        Ok(ids
+            .into_iter()
+            .map(|a| MintUrl::from_str(&a))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     fn get_federation_invite_code(&self, f: FederationId) -> anyhow::Result<Option<InviteCode>> {
