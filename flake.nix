@@ -48,7 +48,6 @@
             pkgs.nixfmt-rfc-style
             pkgs.dbus
             pkgs.libsecret
-            pkgs.gettext
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
@@ -97,7 +96,6 @@
           # Important environment variables for EGL and Wayland
           # EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
           # WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
-          GETTEXT_STATIC = "1"; # Ensure gettext is statically linked
           LD_LIBRARY_PATH = lib.makeLibraryPath ([
             pkgs.mesa
             pkgs.libglvnd
@@ -107,7 +105,6 @@
             # Added libraries to LD_LIBRARY_PATH for keyring
             pkgs.dbus.lib
             pkgs.libsecret
-            pkgs.gettext
           ]);
 
           shellHook = ''
