@@ -20,7 +20,7 @@ permissions:
 jobs:
   build-mac:
     name: Build MacOS
-    runs-on: macos-15-xlarge
+    runs-on: macos-latest
     environment: signing
     steps:
       - uses: actions/checkout@v4
@@ -31,9 +31,6 @@ jobs:
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
       
-      - name: Install gettext
-        run: brew install gettext
-
       - name: Build
         run: nix develop --command bash -c "bash scripts/build-macos.sh"
 
