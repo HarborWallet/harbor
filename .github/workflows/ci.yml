@@ -12,23 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-        with:
-          determinate: true
       - uses: DeterminateSystems/flakehub-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
       - uses: Swatinem/rust-cache@v2
         with:
           # Add env vars that affect the build, including our feature flag
           env-vars: CARGO USE_VENDOR_FEATURE
-      - name: Install DBus dependencies
-        run: sudo apt-get update && sudo apt-get install -y dbus-x11
-      - name: Setup DBus environment
-        run: |
-          mkdir -p $XDG_RUNTIME_DIR
-          sudo dbus-uuidgen --ensure
-          dbus-launch --sh-syntax > /tmp/dbus-session
-          source /tmp/dbus-session
-          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
       - name: Run format check
         run: nix develop --command bash -c "just format-check"
       - name: Run clippy
