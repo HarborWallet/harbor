@@ -35,9 +35,8 @@ rm -f "$APP_TEMPLATE_PLIST.tmp.bak"
 export MACOSX_DEPLOYMENT_TARGET="11.0"
 
 echo "Building Harbor for Apple Silicon..."
-cd harbor-ui
-cargo build --release --target=aarch64-apple-darwin --features vendored
-cd ..
+# Build from the root directory and explicitly specify the package
+cargo build --release --target=aarch64-apple-darwin --features vendored -p harbor-ui
 
 echo "Creating app bundle..."
 # build app
