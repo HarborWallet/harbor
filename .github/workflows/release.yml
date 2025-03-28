@@ -24,15 +24,12 @@ jobs:
     environment: signing
     steps:
       - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/flakehub-cache-action@main
-      - uses: DeterminateSystems/flake-checker-action@main
       - uses: Swatinem/rust-cache@v2
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
 
       - name: Build
-        run: nix develop --command bash -c "bash scripts/build-macos.sh"
+        run: bash scripts/build-macos.sh
 
       - name: Sign macOS
         env:
@@ -43,10 +40,10 @@ jobs:
           MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
           MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
           MACOS_NOTARIZATION_PWD: ${{ secrets.MACOS_NOTARIZATION_PWD }}
-        run: nix develop --command bash -c "scripts/sign-macos.sh"
+        run: bash scripts/sign-macos.sh
 
       - name: Package DMG
-        run: nix develop --command bash -c "bash scripts/package-macos.sh"
+        run: bash scripts/package-macos.sh
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
