@@ -20,6 +20,8 @@ jobs:
         with:
           # Add env vars that affect the build, including our feature flag
           env-vars: CARGO USE_VENDOR_FEATURE
+      - name: Install DBus dependencies
+        run: sudo apt-get update && sudo apt-get install -y dbus-x11
       - name: Setup DBus environment
         run: |
           mkdir -p $XDG_RUNTIME_DIR
