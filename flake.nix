@@ -76,6 +76,7 @@
 
         devShell = pkgs.mkShell rec {
           packages = inputs ++ [
+            pkgs.git
             pkgs.mesa
             pkgs.libglvnd # Adds EGL support
             pkgs.xorg.libX11

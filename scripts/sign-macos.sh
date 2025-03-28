@@ -17,6 +17,7 @@ RELEASE_DIR="target/release"
 APP_DIR="$RELEASE_DIR/macos"
 APP_NAME="Harbor.app"
 APP_PATH="$APP_DIR/$APP_NAME"
+FRAMEWORKS_DIR="$APP_PATH/Contents/Frameworks"
 
 # Clean up any leftover files from previous runs
 rm -f certificate.p12 notarization.zip
@@ -82,8 +83,18 @@ echo "Checking for valid signing identities..."
 IDENTITIES=$(security find-identity -v -p codesigning build.keychain | grep -c "valid identities found")
 echo "Found $IDENTITIES valid signing identities"
 
+# First sign any bundled libraries in the Frameworks directory
+if [ -d "$FRAMEWORKS_DIR" ]; then
+    echo "Signing bundled libraries in Frameworks directory..."
+    find "$FRAMEWORKS_DIR" -type f -name "*.dylib" | while read -r lib; do
+        echo "Signing library: $(basename "$lib")"
+        /usr/bin/codesign --force --timestamp --sign "$MACOS_CERTIFICATE_NAME" --options runtime "$lib"
+    done
+fi
+
 echo "Signing Harbor.app..."
-/usr/bin/codesign --force -s "$MACOS_CERTIFICATE_NAME" --options runtime "$APP_PATH" -v
+# Sign the app with deep option to handle all bundled components
+/usr/bin/codesign --force --deep --timestamp -s "$MACOS_CERTIFICATE_NAME" --options runtime "$APP_PATH" -v
 
 echo "Creating keychain profile for notarization..."
 xcrun notarytool store-credentials "harbor-notary-profile" \
