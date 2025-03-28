@@ -97,6 +97,7 @@
           # Important environment variables for EGL and Wayland
           # EGL_PLATFORM = "wayland"; # Changed from x11 to wayland
           # WAYLAND_DISPLAY = "wayland-0"; # Default Wayland display
+          GETTEXT_STATIC = "1"; # Ensure gettext is statically linked
           LD_LIBRARY_PATH = lib.makeLibraryPath ([
             pkgs.mesa
             pkgs.libglvnd
@@ -116,9 +117,6 @@
             export __EGL_VENDOR_LIBRARY_DIRS=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/share/glvnd/egl_vendor.d/
             # Wayland specific environment variables
             export XDG_RUNTIME_DIR=''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
-            
-            # Ensure gettext is statically linked
-            export GETTEXT_STATIC=1
             
             # Ensure DBus session is available for keyring
             ${if pkgs.stdenv.isLinux then ''
