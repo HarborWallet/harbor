@@ -18,6 +18,12 @@ jobs:
         with:
           # Add env vars that affect the build, including our feature flag
           env-vars: CARGO USE_VENDOR_FEATURE
+          
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libsqlcipher-dev libdbus-1-dev libsecret-1-dev
+
       - name: Run format check
         run: nix develop --command bash -c "just format-check"
       - name: Run clippy
