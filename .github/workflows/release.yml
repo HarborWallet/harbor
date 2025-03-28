@@ -30,6 +30,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
+      
+      - name: Install gettext
+        run: brew install gettext
 
       - name: Build
         run: nix develop --command bash -c "bash scripts/build-macos.sh"
