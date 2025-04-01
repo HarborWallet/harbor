@@ -485,6 +485,7 @@ fn build_post_request<P: Serialize + Sized>(
     let mut builder = Request::builder()
         .uri(uri_str)
         .header("User-Agent", USER_AGENT)
+        .header("Content-Type", "application/json")
         .method("POST");
 
     // Only set Host header if we're not using an absolute URL
