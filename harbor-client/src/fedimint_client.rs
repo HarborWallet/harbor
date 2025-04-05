@@ -10,8 +10,8 @@ use bitcoin::hashes::hex::FromHex;
 use fedimint_bip39::Bip39RootSecretStrategy;
 use fedimint_client::ClientHandleArc;
 use fedimint_client::backup::Metadata;
-use fedimint_client::oplog::UpdateStreamOrOutcome;
 use fedimint_client::secret::{RootSecretStrategy, get_default_client_secret};
+use fedimint_client_module::oplog::UpdateStreamOrOutcome;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::IDatabaseTransactionOps;
@@ -567,7 +567,7 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                     }
                     break;
                 }
-                SendOperationState::Success => {
+                SendOperationState::Success(_) => {
                     info!("Payment success");
                     // TODO: Get preimage from state
                     let preimage: [u8; 32] = [0; 32];
