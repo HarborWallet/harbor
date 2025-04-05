@@ -567,10 +567,8 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                     }
                     break;
                 }
-                SendOperationState::Success(_) => {
+                SendOperationState::Success(preimage) => {
                     info!("Payment success");
-                    // TODO: Get preimage from state
-                    let preimage: [u8; 32] = [0; 32];
                     let params = if is_transfer {
                         SendSuccessMsg::Transfer
                     } else {
