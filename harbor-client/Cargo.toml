@@ -34,16 +34,17 @@ cdk-redb = { version = "0.8.1", default-features = false, features = ["wallet"] 
 bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
 
-fedimint-api-client = { version = "0.6.1", features = ["tor"] }
-fedimint-client = { version = "0.6.1", features = ["tor"] }
-fedimint-core = "0.6.1"
-fedimint-wallet-client = "0.6.1"
-fedimint-mint-client = "0.6.1"
-fedimint-ln-client = "0.6.1"
-fedimint-bip39 = "0.6.1"
-fedimint-ln-common = "0.6.1"
-fedimint-lnv2-common = "0.6.1"
-fedimint-lnv2-client = "0.6.1"
+fedimint-api-client = { version = "0.7.0", features = ["tor"] }
+fedimint-client = { version = "0.7.0", features = ["tor"] }
+fedimint-client-module = { version = "0.7.0", features = ["tor"] }
+fedimint-core = "0.7.0"
+fedimint-wallet-client = "0.7.0"
+fedimint-mint-client = "0.7.0"
+fedimint-ln-client = "0.7.0"
+fedimint-bip39 = "0.7.0"
+fedimint-ln-common = "0.7.0"
+fedimint-lnv2-common = "0.7.0"
+fedimint-lnv2-client = "0.7.0"
 
 # BEGIN BLOCK OF KEEP IN SYNC WITH FEDIMINT'S VERSION
 arti-client = { version = "0.20.0", default-features = false, features = ["tokio", "rustls"], package = "fedimint-arti-client" }
