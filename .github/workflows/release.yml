@@ -48,7 +48,8 @@ jobs:
       - name: Package DMG
         run: nix develop --command bash -c "bash scripts/package-macos.sh"
 
-      - name: Create Release and Upload Assets
+      - name: Create Release and Upload macOS Asset
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ github.event.inputs.tag || github.ref_name }}
@@ -57,8 +58,10 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: target/release/macos/harbor.dmg
+
   build-linux:
-    name: Build linux
+    needs: build-mac
+    name: Build Linux
     runs-on: ubuntu-22.04
     environment: signing
     steps:
@@ -91,22 +94,85 @@ jobs:
           echo "ARTIFACT_PATH=$(bash scripts/package-linux.sh archive_path)" >> "$GITHUB_ENV"
           echo "DEB_PATH=$(bash scripts/package-linux.sh deb_path)" >> "$GITHUB_ENV"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux
-          path: |
-            ${{ env.ARTIFACT_PATH }}
-            ${{ env.DEB_PATH }}
-
-      - name: Create Release and Upload Assets
+      - name: Upload Linux Assets
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.event.inputs.tag || github.ref_name }}
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           draft: true
           prerelease: false
-          generate_release_notes: true
           files: |
             ${{ env.ARTIFACT_PATH }}
             ${{ env.DEB_PATH }}
+
+  build-windows:
+    needs: build-mac
+    name: Build Windows
+    runs-on: windows-latest
+    environment: signing
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache Rust dependencies
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Key needs to be specific to Windows/MSVC if different from Linux/macOS
+          key: windows-msvc-${{ hashFiles('**/Cargo.lock') }}
+
+      # Install WiX Toolset using Chocolatey (package manager for Windows)
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y --no-progress
+
+      # Install Rust toolchain with the MSVC target
+      - name: Install Rust (msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+          targets: x86_64-pc-windows-msvc
+
+      - name: Get Version
+        id: get_version
+        # Assumes tag is like vX.Y.Z, removes 'v' prefix
+        run: echo "VERSION=$(echo ${{ github.event.inputs.tag || github.ref_name }} | sed 's/^v//')" >> $env:GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build
+        id: build
+        run: |
+          $exePath = .\\scripts\\build-windows.ps1 -TargetTriple "x86_64-pc-windows-msvc"
+          echo "EXE_PATH=$exePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Sign Exe
+        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' # Only run if secrets are set
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+        run: .\\scripts\\sign-windows.ps1 -FilePath "${{ env.EXE_PATH }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
+        shell: pwsh
+
+      - name: Package (ZIP and MSI)
+        id: package
+        run: |
+          $output = .\\scripts\\package-windows.ps1 -Version "${{ steps.get_version.outputs.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
+          # Extract paths from script output (assumes specific format "::set-output name=...::...")
+          $output | Where-Object { $_ -match '::set-output name=zip_path::(.*)' } | ForEach-Object { echo "ZIP_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+          $output | Where-Object { $_ -match '::set-output name=msi_path::(.*)' } | ForEach-Object { echo "MSI_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+        shell: pwsh
+
+      - name: Sign MSI
+        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' && env.MSI_PATH != ''
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+        run: .\\scripts\\sign-windows.ps1 -FilePath "${{ env.MSI_PATH }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
+        shell: pwsh
+
+      - name: Upload Windows Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          prerelease: false
+          files: |
+            ${{ env.ZIP_PATH }}
+            ${{ env.MSI_PATH }}
