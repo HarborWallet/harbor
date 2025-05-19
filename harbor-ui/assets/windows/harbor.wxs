@@ -2,7 +2,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Product Id="*" Name="Harbor"
              Language="1033" Version="$(var.ProductVersion)" Manufacturer="Harbor Cash"
-             UpgradeCode="PUT-A-UNIQUE-GUID-HERE-1111-2222-333333333333"> <Package InstallerVersion="301" Compressed="yes"
+             UpgradeCode="fed3aae1-c560-417a-b6a7-cf055d2d577b"> <Package InstallerVersion="301" Compressed="yes"
                  InstallScope="perMachine" Platform="x64" /> <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
 
         <MediaTemplate EmbedCab="yes" />
@@ -11,7 +11,7 @@
             <Directory Id="ProgramFiles64Folder">
                 <Directory Id="ManufacturerFolder" Name="Harbor Cash">
                     <Directory Id="INSTALLFOLDER" Name="Harbor">
-                        <Component Id="MainExecutable" Guid="PUT-A-UNIQUE-GUID-HERE-4444-5555-666666666666">
+                        <Component Id="MainExecutable" Guid="3fb10e37-a387-4700-92d6-3157d28e4af3">
                             <File Id="HarborExe"
                                   Source="$(var.HarborExePath)" KeyPath="yes" /> <Shortcut Id="ApplicationStartMenuShortcut"
                                       Name="Harbor"
@@ -33,7 +33,7 @@
         </Feature>
 
         <DirectoryRef Id="ApplicationProgramsFolder">
-            <Component Id="ApplicationShortcutComponent" Guid="PUT-A-UNIQUE-GUID-HERE-7777-8888-999999999999">
+            <Component Id="ApplicationShortcutComponent" Guid="c5dfa07d-ccf5-4f34-aa12-2e8ee9cf0fb9">
                 <Shortcut Id="ApplicationStartMenuShortcutRef"
                           Name="Harbor"
                           Description="Harbor Bitcoin Wallet"
@@ -41,7 +41,7 @@
                           WorkingDirectory="INSTALLFOLDER"
                           Icon="HarborIcon.ico"/>
                 <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
-                <RegistryValue Root="HKCU" Key="Software\Harbor Cash\Harbor" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+                <RegistryValue Root="HKLM" Key="Software\Harbor Cash\Harbor" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
         </DirectoryRef>
 

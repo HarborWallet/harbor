@@ -151,26 +151,23 @@ jobs:
       - name: Package (ZIP and MSI)
         id: package
         run: |
-          $output = .\\scripts\\package-windows.ps1 -Version "${{ env.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
-          # Extract paths from script output (assumes specific format "::set-output name=...::...")
-          $output | Where-Object { $_ -match '::set-output name=zip_path::(.*)' } | ForEach-Object { echo "ZIP_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
-          $output | Where-Object { $_ -match '::set-output name=msi_path::(.*)' } | ForEach-Object { echo "MSI_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+          .\scripts\package-windows.ps1 -Version "${{ steps.get_version.outputs.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
         shell: pwsh
 
       - name: Sign MSI
-        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' && env.MSI_PATH != ''
+        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' && steps.package.outputs.msi_path != ''
         env:
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
-        run: .\\scripts\\sign-windows.ps1 -FilePath "${{ env.MSI_PATH }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
+        run: .\scripts\sign-windows.ps1 -FilePath "${{ steps.package.outputs.msi_path }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
         shell: pwsh
 
       - name: Upload Windows Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          draft: true
+          draft: true # Match draft status
           prerelease: false
           files: |
-            ${{ env.ZIP_PATH }}
-            ${{ env.MSI_PATH }}
+            ${{ steps.package.outputs.zip_path }}
+            ${{ steps.package.outputs.msi_path }}

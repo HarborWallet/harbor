@@ -40,7 +40,7 @@ $ZipFileName = "harbor-$Version-$Architecture-windows.zip"
 $ZipFilePath = Join-Path -Path $ReleaseDir -ChildPath $ZipFileName
 Compress-Archive -Path "$StagingDir\*" -DestinationPath $ZipFilePath -Force
 Write-Host "Created ZIP archive: $ZipFilePath"
-Write-Host "::set-output name=zip_path::$ZipFilePath" # Output for GitHub Actions
+echo "zip_path=$ZipFilePath" >> $env:GITHUB_OUTPUT
 
 # --- Create MSI Installer (using WiX) ---
 Write-Host "Building MSI installer..."
@@ -79,8 +79,8 @@ Write-Host "Running Light..."
 $lightArgs = @(
     "`"$WixObjDir\*.wixobj`"", # Input object files
     "-out", "`"$MsiFilePath`"", # Output MSI file
-    "-spdb" # Generate PDB for debugging if needed
-    # "-ext", "WixUIExtension", # Include if using standard UI like WixUI_Minimal
+    "-spdb", # Generate PDB for debugging if needed
+    "-ext", "WixUIExtension" # Include if using standard UI like WixUI_Minimal
     # "-ext", "WixUtilExtension" # Example: If using utility extensions
     # "-cultures:en-us" # Specify culture if needed
 )
@@ -88,7 +88,7 @@ $lightArgs = @(
  if ($LASTEXITCODE -ne 0) { Write-Error "WiX Light linking failed!"; exit 1 }
 
 Write-Host "Created MSI installer: $MsiFilePath"
-Write-Host "::set-output name=msi_path::$MsiFilePath" # Output for GitHub Actions
+echo "msi_path=$MsiFilePath" >> $env:GITHUB_OUTPUT
 
 # Clean up staging
 Remove-Item -Recurse -Force $StagingDir | Out-Null
