@@ -60,7 +60,6 @@ jobs:
           files: target/release/macos/harbor.dmg
 
   build-linux:
-    needs: build-mac
     name: Build Linux
     runs-on: ubuntu-22.04
     environment: signing
@@ -105,7 +104,6 @@ jobs:
             ${{ env.DEB_PATH }}
 
   build-windows:
-    needs: build-mac
     name: Build Windows
     runs-on: windows-latest
     environment: signing
@@ -132,7 +130,7 @@ jobs:
       - name: Get Version
         id: get_version
         # Assumes tag is like vX.Y.Z, removes 'v' prefix
-        run: echo "VERSION=$(echo ${{ github.event.inputs.tag || github.ref_name }} | sed 's/^v//')" >> $env:GITHUB_OUTPUT
+        run: echo "VERSION=$(echo ${{ github.event.inputs.tag || github.ref_name }} | sed 's/^v//')" >> $GITHUB_ENV
         shell: bash
 
       - name: Build
@@ -153,7 +151,7 @@ jobs:
       - name: Package (ZIP and MSI)
         id: package
         run: |
-          $output = .\\scripts\\package-windows.ps1 -Version "${{ steps.get_version.outputs.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
+          $output = .\\scripts\\package-windows.ps1 -Version "${{ env.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
           # Extract paths from script output (assumes specific format "::set-output name=...::...")
           $output | Where-Object { $_ -match '::set-output name=zip_path::(.*)' } | ForEach-Object { echo "ZIP_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
           $output | Where-Object { $_ -match '::set-output name=msi_path::(.*)' } | ForEach-Object { echo "MSI_PATH=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
