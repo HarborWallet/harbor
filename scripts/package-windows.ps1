@@ -11,8 +11,8 @@ param(
 
 $ReleaseDir = Join-Path -Path $BuildDir -ChildPath "release"
 $ExeSourcePath = Join-Path -Path $BuildDir -ChildPath "$TargetTriple\release\$TargetName.exe"
-$IconSourcePath = Join-Path -Path $PWD -ChildPath "$AssetsDir\harbor.ico" # WiX needs absolute path usually
-$WixSourcePath = Join-Path -Path $PWD -ChildPath "$AssetsDir\harbor.wxs"  # WiX needs absolute path usually
+$IconSourcePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "$AssetsDir\harbor.ico"
+$WixSourcePath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "$AssetsDir\harbor.wxs"
 $StagingDir = Join-Path -Path $ReleaseDir -ChildPath "windows_staging"
 $FinalExeName = "harbor.exe" # Rename for consistency if desired
 
