@@ -151,7 +151,7 @@ jobs:
       - name: Package (ZIP and MSI)
         id: package
         run: |
-          .\scripts\package-windows.ps1 -Version "${{ steps.get_version.outputs.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
+          .\scripts\package-windows.ps1 -Version "${{ env.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
         shell: pwsh
 
       - name: Sign MSI
