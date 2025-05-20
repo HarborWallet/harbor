@@ -105,7 +105,7 @@ jobs:
 
   build-windows:
     name: Build Windows
-    runs-on: windows-latest
+    runs-on: warp-windows-latest-x64-32x
     environment: signing
     steps:
       - uses: actions/checkout@v4
