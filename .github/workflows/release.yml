@@ -129,8 +129,8 @@ jobs:
 
       - name: Get Version
         id: get_version
-        # Assumes tag is like vX.Y.Z, removes 'v' prefix
-        run: echo "VERSION=$(echo ${{ github.event.inputs.tag || github.ref_name }} | sed 's/^v//')" >> $GITHUB_ENV
+        # Converts tag name to version number (e.g. v1.0.0 -> 1.0.0 or v1.0.0-beta.rc3 -> 1.0.0.3)
+        run: echo "VERSION=$(echo ${{ github.event.inputs.tag || github.ref_name }} | sed -E 's/^v//; s/-beta\.rc/./')" >> $GITHUB_ENV
         shell: bash
 
       - name: Build
