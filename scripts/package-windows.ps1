@@ -57,21 +57,15 @@ if (-not $CandlePath -or -not $LightPath) {
     exit 1
 }
 
-# Define variables for WiX
-$wixArgs = @(
-    "`"$WixSourcePath`"", # Input WXS file
-    "-out", "`"$WixObjDir\`"", # Output directory for object files (.wixobj)
-    "-arch", $Architecture,
-    "-dProductVersion=$Version", # Pass version variable
-    "-dHarborExePath=`"$((Join-Path $StagingDir $FinalExeName))`"", # Pass staged Exe path
-    "-dHarborIconPath=`"$IconSourcePath`""  # Pass icon path
-    # Add more -d flags if you need other variables in WXS
-    # "-ext", "WixUtilExtension" # Example: If using utility extensions
-)
-
 # Compile WiX source (candle.exe)
 Write-Host "Running Candle..."
-& $CandlePath $wixArgs
+& $CandlePath `
+    "$WixSourcePath" `
+    "-out" "$WixObjDir\" `
+    "-arch" $Architecture `
+    "-dProductVersion=$Version" `
+    "-dHarborExePath=$(Join-Path $StagingDir $FinalExeName)" `
+    "-dHarborIconPath=$IconSourcePath"
 if ($LASTEXITCODE -ne 0) { Write-Error "WiX Candle compilation failed!"; exit 1 }
 
 # Link WiX objects (light.exe)
