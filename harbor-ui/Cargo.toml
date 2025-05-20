@@ -2,6 +2,7 @@
 name = "harbor-ui"
 version = "1.0.0-beta.rc2"
 edition = "2024"
+description = "Harbor Bitcoin Wallet"
 
 [features]
 default = []
@@ -24,3 +25,17 @@ opener = { version = "0.7.2", features = ["reveal"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 keyring-lib = "1.0.2"
+
+[package.metadata.bundle]
+name = "Harbor"
+identifier = "cash.harbor"
+icon = ["assets/windows/harbor.ico"]
+resources = ["assets/windows/License.rtf"]
+copyright = "Copyright (c) Harbor Cash. All rights reserved."
+category = "Finance"
+short_description = "Harbor Bitcoin Wallet"
+long_description = """
+Harbor is a Bitcoin wallet focused on privacy and ease of use.
+"""
+
+[package.metadata.bundle.windows]

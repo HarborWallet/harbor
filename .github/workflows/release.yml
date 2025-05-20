@@ -116,16 +116,16 @@ jobs:
           # Key needs to be specific to Windows/MSVC if different from Linux/macOS
           key: windows-msvc-${{ hashFiles('**/Cargo.lock') }}
 
-      # Install WiX Toolset using Chocolatey (package manager for Windows)
-      - name: Install WiX Toolset
-        run: choco install wixtoolset -y --no-progress
-
       # Install Rust toolchain with the MSVC target
       - name: Install Rust (msvc)
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable-x86_64-pc-windows-msvc
           targets: x86_64-pc-windows-msvc
+
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle
+        shell: bash
 
       - name: Get Version
         id: get_version
@@ -148,18 +148,21 @@ jobs:
         run: .\\scripts\\sign-windows.ps1 -FilePath "${{ env.EXE_PATH }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
         shell: pwsh
 
-      - name: Package (ZIP and MSI)
-        id: package
+      - name: Create MSI with cargo-bundle
+        id: cargo_bundle_package
         run: |
-          .\scripts\package-windows.ps1 -Version "${{ env.VERSION }}" -TargetTriple "x86_64-pc-windows-msvc"
+          cargo bundle --release --target x86_64-pc-windows-msvc --profile release -p harbor-ui
+          # MSI output path: target/x86_64-pc-windows-msvc/release/bundle/msi/Harbor.msi
+          # This path is based on the target, profile, 'msi' format, and the 'name' field ("Harbor") in [package.metadata.bundle].
+          echo "MSI_PATH=target\\x86_64-pc-windows-msvc\\release\\bundle\\msi\\Harbor.msi" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         shell: pwsh
 
       - name: Sign MSI
-        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' && steps.package.outputs.msi_path != ''
+        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != '' && env.WINDOWS_CERTIFICATE_PWD != '' && steps.cargo_bundle_package.outputs.MSI_PATH != ''
         env:
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
-        run: .\scripts\sign-windows.ps1 -FilePath "${{ steps.package.outputs.msi_path }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
+        run: .\\scripts\\sign-windows.ps1 -FilePath "${{ steps.cargo_bundle_package.outputs.MSI_PATH }}" -CertificatePfxBase64 "$env:WINDOWS_CERTIFICATE_PFX_BASE64" -CertificatePassword "$env:WINDOWS_CERTIFICATE_PWD"
         shell: pwsh
 
       - name: Upload Windows Assets
@@ -169,5 +172,4 @@ jobs:
           draft: true # Match draft status
           prerelease: false
           files: |
-            ${{ steps.package.outputs.zip_path }}
-            ${{ steps.package.outputs.msi_path }}
+            ${{ steps.cargo_bundle_package.outputs.MSI_PATH }}
