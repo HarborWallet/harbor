@@ -40,7 +40,6 @@ $ZipFileName = "harbor-$Version-$Architecture-windows.zip"
 $ZipFilePath = Join-Path -Path $ReleaseDir -ChildPath $ZipFileName
 Compress-Archive -Path "$StagingDir\*" -DestinationPath $ZipFilePath -Force
 Write-Host "Created ZIP archive: $ZipFilePath"
-echo "zip_path=$ZipFilePath" >> $env:GITHUB_OUTPUT
 
 # --- Create MSI Installer (using WiX) ---
 Write-Host "Building MSI installer..."
@@ -82,7 +81,12 @@ $lightArgs = @(
  if ($LASTEXITCODE -ne 0) { Write-Error "WiX Light linking failed!"; exit 1 }
 
 Write-Host "Created MSI installer: $MsiFilePath"
-echo "msi_path=$MsiFilePath" >> $env:GITHUB_OUTPUT
+
+# Github actions requires paths to be in forward slashes
+$GitHubZipPath = $ZipFilePath -replace '\\', '/'
+$GitHubMsiPath = $MsiFilePath -replace '\\', '/'
+echo "zip_path=$GitHubZipPath" >> $env:GITHUB_OUTPUT
+echo "msi_path=$GitHubMsiPath" >> $env:GITHUB_OUTPUT
 
 # Clean up staging
 Remove-Item -Recurse -Force $StagingDir | Out-Null
