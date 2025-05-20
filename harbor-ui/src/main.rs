@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use crate::bridge::run_core;
 use crate::components::confirm_modal::{BasicModalState, ConfirmModalState};
 use crate::components::focus_input_id;
