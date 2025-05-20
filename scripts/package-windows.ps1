@@ -71,14 +71,14 @@ if ($LASTEXITCODE -ne 0) { Write-Error "WiX Candle compilation failed!"; exit 1 
 # Link WiX objects (light.exe)
 Write-Host "Running Light..."
 $lightArgs = @(
-    "`"$WixObjDir\*.wixobj`"", # Input object files
-    "-out", "`"$MsiFilePath`"", # Output MSI file
-    "-spdb", # Generate PDB for debugging if needed
-    "-ext", "WixUIExtension" # Include if using standard UI like WixUI_Minimal
-    # "-ext", "WixUtilExtension" # Example: If using utility extensions
-    # "-cultures:en-us" # Specify culture if needed
+    "$WixObjDir\*.wixobj"  # Input object files (no nested quotes)
+    "-out", "$MsiFilePath"  # Output MSI file
+    "-spdb"  # Generate PDB for debugging if needed
+    "-ext", "WixUIExtension"  # Include if using standard UI like WixUI_Minimal
+# "-ext", "WixUtilExtension"  # Example: If using utility extensions
+# "-cultures:en-us"  # Specify culture if needed
 )
- & $LightPath $lightArgs
+ & $LightPath @lightArgs  # Use @ for splatting instead of $
  if ($LASTEXITCODE -ne 0) { Write-Error "WiX Light linking failed!"; exit 1 }
 
 Write-Host "Created MSI installer: $MsiFilePath"
