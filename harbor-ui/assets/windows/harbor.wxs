@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="Harbor"
+             Language="1033" Version="$(var.ProductVersion)" Manufacturer="Harbor Cash"
+             UpgradeCode="fed3aae1-c560-417a-b6a7-cf055d2d577b">
+        <Package InstallerVersion="301" Compressed="yes"
+                 InstallScope="perMachine" Platform="x64" />
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+        <MediaTemplate EmbedCab="yes" />
+
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="ManufacturerFolder" Name="Harbor Cash">
+                    <Directory Id="INSTALLFOLDER" Name="Harbor">
+                        <Component Id="MainExecutable" Guid="3fb10e37-a387-4700-92d6-3157d28e4af3">
+                            <File Id="HarborExe"
+                                  Source="$(var.HarborExePath)" KeyPath="yes" />
+                        </Component>
+                    </Directory>
+                </Directory>
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="Harbor"/>
+            </Directory>
+        </Directory>
+
+        <Icon Id="HarborIcon.ico" SourceFile="$(var.HarborIconPath)" />
+        <Property Id="ARPPRODUCTICON" Value="HarborIcon.ico" />
+
+        <Feature Id="ProductFeature" Title="Harbor Application" Level="1">
+            <ComponentRef Id="MainExecutable" />
+            <ComponentRef Id="StartMenuShortcutComponent" />
+        </Feature>
+
+        <!-- Create a component for the start menu shortcuts -->
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="StartMenuShortcutComponent" Guid="c5dfa07d-ccf5-4f34-aa12-2e8ee9cf0fb9">
+                <Shortcut Id="ApplicationStartMenuShortcut"
+                          Name="Harbor"
+                          Description="Harbor Bitcoin Wallet"
+                          Target="[INSTALLFOLDER]Harbor.exe"
+                          WorkingDirectory="INSTALLFOLDER"
+                          Icon="HarborIcon.ico"/>
+                <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\Harbor Cash\Harbor" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+
+        <UIRef Id="WixUI_Minimal" />
+        <WixVariable Id="WixUILicenseRtf" Value="harbor-ui/assets/windows/License.rtf" />
+    </Product>
+</Wix>
