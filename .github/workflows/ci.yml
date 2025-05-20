@@ -5,7 +5,7 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       id-token: "write"
       contents: "read"
@@ -18,7 +18,7 @@ jobs:
           determinate: true
       - uses: DeterminateSystems/flakehub-cache-action@main
       - uses: DeterminateSystems/flake-checker-action@main
-      - uses: Swatinem/rust-cache@v2
+      - uses: useblacksmith/rust-cache@v3
         with:
           # Add env vars that affect the build, including our feature flag
           env-vars: CARGO USE_VENDOR_FEATURE

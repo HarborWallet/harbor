@@ -59,11 +59,11 @@ jobs:
           files: target/release/macos/harbor.dmg
   build-linux:
     name: Build linux
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     environment: signing
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: useblacksmith/rust-cache@v3
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
 
