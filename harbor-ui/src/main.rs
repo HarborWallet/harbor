@@ -791,27 +791,41 @@ impl HarborWallet {
             },
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
                 Ok(amount_sats) => {
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            // todo show error
-                            error!("No active federation");
-                            return Task::none();
-                        }
-                    };
+                    // Check if we have an active mint
+                    if self.active_mint.is_none() {
+                        return Task::perform(async {}, |_| {
+                            Message::AddToast(Toast {
+                                title: "Cannot donate".to_string(),
+                                body: Some("No active mint selected".to_string()),
+                                status: ToastStatus::Bad,
+                            })
+                        });
+                    }
 
-                    let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
-                        mint,
-                        amount_sats,
-                        lnurl: parse_lnurl("hrf@btcpay.hrf.org").expect("this is valid"),
-                    });
-                    self.current_send_id = Some(id);
-                    task
+                    // Clear any existing send state
+                    self.clear_send_state();
+
+                    // Prepopulate the send screen with donation details
+                    self.send_dest_input_str = "hrf@btcpay.hrf.org".to_string();
+                    self.send_amount_input_str = amount_sats.to_string();
+
+                    // Clear the donate amount
+                    self.donate_amount_str = String::new();
+
+                    // Navigate to the send screen
+                    self.active_route = Route::Send;
+
+                    Task::none()
                 }
                 Err(e) => {
-                    self.receive_amount_str = String::new();
-                    error!("Error parsing amount: {e}");
-                    Task::none()
+                    error!("Error parsing donate amount: {e}");
+                    Task::perform(async {}, move |_| {
+                        Message::AddToast(Toast {
+                            title: "Invalid donation amount".to_string(),
+                            body: Some("Please enter a valid number of sats".to_string()),
+                            status: ToastStatus::Bad,
+                        })
+                    })
                 }
             },
             Message::Unlock(password) => match self.unlock_status {
