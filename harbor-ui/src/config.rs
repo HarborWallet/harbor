@@ -45,7 +45,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            network: Network::Signet, // todo change to mainnet when launching
+            network: Network::Bitcoin,
         }
     }
 }
