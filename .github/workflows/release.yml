@@ -30,6 +30,8 @@ jobs:
 
       - name: Build
         run: nix develop --command bash -c "bash scripts/build-macos.sh"
+        env:
+          BUILD_TARGET: "aarch64-apple-darwin"
 
       - name: Sign macOS
         env:
@@ -44,6 +46,8 @@ jobs:
 
       - name: Package DMG
         run: nix develop --command bash -c "bash scripts/package-macos.sh"
+        env:
+          DMG_NAME: "harbor-aarch64.dmg"
 
       - name: Create Release and Upload macOS Asset
         id: create_release
@@ -54,7 +58,52 @@ jobs:
           draft: true
           prerelease: false
           generate_release_notes: true
-          files: target/release/macos/harbor.dmg
+          files: target/release/macos/harbor-aarch64.dmg
+
+  build-mac-x86:
+    name: Build MacOS x86
+    runs-on: macos-13
+    environment: signing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/flakehub-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+      - uses: Swatinem/rust-cache@v2
+        with:
+          env-vars: CARGO USE_VENDOR_FEATURE
+
+      - name: Build
+        run: nix develop --command bash -c "bash scripts/build-macos.sh"
+        env:
+          BUILD_TARGET: "x86_64-apple-darwin"
+
+      - name: Sign macOS
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_CERTIFICATE_NAME: ${{ secrets.MACOS_CERTIFICATE_NAME }}
+          MACOS_CI_KEYCHAIN_PWD: ${{ secrets.MACOS_CI_KEYCHAIN_PWD }}
+          MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.MACOS_NOTARIZATION_APPLE_ID }}
+          MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
+          MACOS_NOTARIZATION_PWD: ${{ secrets.MACOS_NOTARIZATION_PWD }}
+        run: nix develop --command bash -c "scripts/sign-macos.sh"
+
+      - name: Package DMG
+        run: nix develop --command bash -c "bash scripts/package-macos.sh"
+        env:
+          DMG_NAME: "harbor-x86.dmg"
+
+      - name: Create Release and Upload macOS Asset
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          files: target/release/macos/harbor-x86.dmg
 
   build-linux:
     name: Build Linux

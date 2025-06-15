@@ -36,15 +36,15 @@ export MACOSX_DEPLOYMENT_TARGET="11.0"
 
 echo "Building Harbor for Apple Silicon..."
 # Build from the root directory and explicitly specify the package
-cargo build --release --target=aarch64-apple-darwin --features vendored -p harbor-ui
+cargo build --release --target=$BUILD_TARGET --features vendored -p harbor-ui
 
 echo "Creating app bundle..."
 # build app
 mkdir -p "$APP_BINARY_DIR"
 mkdir -p "$APP_EXTRAS_DIR"
 cp -fRp "$APP_TEMPLATE" "$APP_DIR"
-cp -fp "target/aarch64-apple-darwin/release/$TARGET" "$APP_BINARY_DIR/harbor"
-touch -r "target/aarch64-apple-darwin/release/$TARGET" "$APP_DIR/$APP_NAME"
+cp -fp "target/$BUILD_TARGET/release/$TARGET" "$APP_BINARY_DIR/harbor"
+touch -r "target/$BUILD_TARGET/release/$TARGET" "$APP_DIR/$APP_NAME"
 
 # Bundle libintl.8.dylib with the app
 echo "Bundling and fixing libintl.8.dylib..."
