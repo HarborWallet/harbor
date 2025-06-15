@@ -70,7 +70,6 @@ jobs:
           env-vars: CARGO USE_VENDOR_FEATURE
 
       - name: Install linux deps
-        if: matrix.target.target == 'linux'
         run: |
           sudo apt update
           sudo apt install \
@@ -78,6 +77,7 @@ jobs:
             git \
             dpkg \
             pkg-config \
+            protobuf-compiler \
             libdbus-1-dev \
             libsqlcipher-dev \
             libudev-dev \
