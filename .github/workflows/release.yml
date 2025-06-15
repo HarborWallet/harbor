@@ -69,8 +69,10 @@ jobs:
         with:
           env-vars: CARGO USE_VENDOR_FEATURE
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+
       - name: Install linux deps
-        if: matrix.target.target == 'linux'
         run: |
           sudo apt update
           sudo apt install \
@@ -119,6 +121,10 @@ jobs:
       # Install WiX Toolset using Chocolatey (package manager for Windows)
       - name: Install WiX Toolset
         run: choco install wixtoolset -y --no-progress
+
+      # Install protocol buffers compiler
+      - name: Install protoc
+        run: choco install protoc -y --no-progress
 
       # Install Rust toolchain with the MSVC target
       - name: Install Rust (msvc)
