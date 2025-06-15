@@ -4068,7 +4068,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-client"
-version = "1.0.0-beta.rc3"
+version = "1.0.0-beta.rc4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4119,7 +4119,7 @@ dependencies = [
 
 [[package]]
 name = "harbor-ui"
-version = "1.0.0-beta.rc3"
+version = "1.0.0-beta.rc4"
 dependencies = [
  "chrono",
  "fd-lock",
