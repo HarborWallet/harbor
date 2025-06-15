@@ -897,8 +897,10 @@ impl HarborWallet {
             Message::PeekMint(string) => match InviteCode::from_str(&string) {
                 Ok(invite) => {
                     if self.mint_list.iter().any(|m| {
-                        m.id.federation_id()
-                            .is_some_and(|f| f == invite.federation_id())
+                        m.active
+                            && m.id
+                                .federation_id()
+                                .is_some_and(|f| f == invite.federation_id())
                     }) {
                         return Task::perform(async {}, |_| {
                             Message::AddToast(Toast {
@@ -919,7 +921,7 @@ impl HarborWallet {
                         if self
                             .mint_list
                             .iter()
-                            .any(|m| m.id.mint_url().is_some_and(|u| u == mint))
+                            .any(|m| m.active && m.id.mint_url().is_some_and(|u| u == mint))
                         {
                             return Task::perform(async {}, |_| {
                                 Message::AddToast(Toast {

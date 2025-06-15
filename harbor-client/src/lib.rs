@@ -1368,6 +1368,36 @@ impl HarborCore {
 
         let wallet = builder.build()?;
 
+        // start background task to attempt to restore
+        let w = wallet.clone();
+        let mut tx = self.tx.clone();
+        spawn(async move {
+            match w.restore().await {
+                Err(e) => log::error!("Failed to restore cashu mint: {e}"),
+                Ok(amt) => {
+                    if amt > cdk::Amount::ZERO {
+                        log::info!("Restored cashu mint: {}, amt: {amt}", w.mint_url);
+                        match w.total_balance().await {
+                            Err(e) => log::error!("Failed to get cashu mint balance: {e}"),
+                            Ok(balance) => {
+                                log::info!("Cashu mint balance: {balance}");
+                                let balance: u64 = balance.into();
+                                Self::send_msg(
+                                    &mut tx,
+                                    None,
+                                    CoreUIMsg::MintBalanceUpdated {
+                                        id: MintIdentifier::Cashu(w.mint_url.clone()),
+                                        balance: Amount::from_sats(balance),
+                                    },
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         self.status_update(msg_id, "Registering with mint").await;
 
         clients.insert(mint_url, wallet);

@@ -48,6 +48,7 @@
             pkgs.nixfmt-rfc-style
             pkgs.dbus
             pkgs.libsecret
+            pkgs.protobuf
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
@@ -109,6 +110,7 @@
 
           shellHook = ''
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
+            export PROTOC=${pkgs.protobuf}/bin/protoc
             # Add important Mesa paths
             export LIBGL_DRIVERS_PATH=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/lib/dri
             export __EGL_VENDOR_LIBRARY_DIRS=${if pkgs.mesa ? drivers then pkgs.mesa.drivers else pkgs.mesa}/share/glvnd/egl_vendor.d/
