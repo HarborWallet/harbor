@@ -54,10 +54,10 @@ mkdir -p "$FRAMEWORKS_DIR"
 chmod 755 "$FRAMEWORKS_DIR"
 
 # Find libintl.8.dylib in nix store
-LIBINTL_PATH=$(find /nix/store -name "libintl.8.dylib" -type f | head -n 1)
+LIBINTL_PATH=$(find /nix/store -name "libintl.8.dylib" -type f | grep $(uname -m) | head -n 1)
 if [ -n "$LIBINTL_PATH" ]; then
     echo "Found libintl at: $LIBINTL_PATH"
-    
+
     # Copy to Frameworks directory with sudo if needed
     echo "Copying library to Frameworks..."
     if ! cp "$LIBINTL_PATH" "$FRAMEWORKS_DIR/"; then
@@ -72,12 +72,12 @@ if [ -n "$LIBINTL_PATH" ]; then
             exit 1
         fi
     fi
-    
+
     # Update binary to reference the bundled library using @rpath
     echo "Fixing reference in binary..."
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY_DIR/harbor"
     install_name_tool -change "$LIBINTL_PATH" "@rpath/libintl.8.dylib" "$APP_BINARY_DIR/harbor"
-    
+
     # Check if there are any other dependencies of libintl.8.dylib
     SUB_DEPS=$(otool -L "$FRAMEWORKS_DIR/libintl.8.dylib" | grep -v "/System/" | grep -v "@rpath" | grep -v "@executable_path" | grep -v "/usr/lib/" | awk -F' ' '{print $1}')
     if [ -n "$SUB_DEPS" ]; then
@@ -87,10 +87,10 @@ if [ -n "$LIBINTL_PATH" ]; then
             if [[ "$SUB_DEP_PATH" == *"libintl.8.dylib"* ]]; then
                 continue
             fi
-            
+
             SUB_DEP_NAME=$(basename "$SUB_DEP_PATH")
             echo "Processing dependency: $SUB_DEP_NAME"
-            
+
             # Copy to Frameworks directory with sudo if needed
             if ! cp "$SUB_DEP_PATH" "$FRAMEWORKS_DIR/"; then
                 echo "Standard copy failed for $SUB_DEP_NAME, trying with elevated permissions..."
@@ -103,19 +103,33 @@ if [ -n "$LIBINTL_PATH" ]; then
                     continue
                 fi
             fi
-            
+
             # Fix the reference in libintl
             install_name_tool -change "$SUB_DEP_PATH" "@rpath/$SUB_DEP_NAME" "$FRAMEWORKS_DIR/libintl.8.dylib"
-            
+
             # Set the ID
             install_name_tool -id "@rpath/$SUB_DEP_NAME" "$FRAMEWORKS_DIR/$SUB_DEP_NAME"
         done
     fi
-    
+
     # Fix the ID of libintl itself
     install_name_tool -id "@rpath/libintl.8.dylib" "$FRAMEWORKS_DIR/libintl.8.dylib"
 else
     echo "Warning: Could not find libintl.8.dylib in nix store!"
+fi
+
+# Verification
+echo "Verifying final binary..."
+otool -L "$APP_BINARY_DIR/harbor"
+echo ""
+echo "Bundled libraries:"
+ls -la "$FRAMEWORKS_DIR/" 2>/dev/null || echo "No libraries bundled."
+echo ""
+echo "Checking for nix store references:"
+if otool -L "$APP_BINARY_DIR/harbor" | grep "/nix/store"; then
+    echo "⚠️  WARNING: Binary still has nix store references!"
+else
+    echo "✅ No nix store references found"
 fi
 
 echo "✨ Created '$APP_NAME' in '$APP_DIR'"
