@@ -204,6 +204,7 @@ impl From<LightningPayment> for TransactionItem {
         Self {
             kind: TransactionItemKind::Lightning,
             amount: payment.amount().sats_round_down(),
+            fee_msats: payment.fee_msats as u64,
             txid: None,
             preimage: payment.preimage(),
             direction: TransactionDirection::Outgoing,

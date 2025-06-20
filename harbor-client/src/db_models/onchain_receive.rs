@@ -178,6 +178,7 @@ impl From<OnChainReceive> for TransactionItem {
         Self {
             kind: TransactionItemKind::Onchain,
             amount: payment.amount_sats.unwrap_or(0) as u64, // todo handle this better
+            fee_msats: payment.fee_sats.unwrap_or(0) as u64 * 1000, // Convert to msats
             txid: payment
                 .txid
                 .as_ref()
