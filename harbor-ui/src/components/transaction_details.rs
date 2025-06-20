@@ -20,6 +20,7 @@ pub fn h_transaction_details<'a>(
     let TransactionItem {
         kind,
         amount,
+        fee_msats,
         direction,
         mint_identifier,
         timestamp,
@@ -83,7 +84,21 @@ pub fn h_transaction_details<'a>(
     ]
     .spacing(8);
 
-    let mut details = column![mint_section, amount_section, time_section].spacing(16);
+    // only add fee section for outgoing transactions
+    let mut details = match direction {
+        TransactionDirection::Incoming => {
+            column![mint_section, amount_section, time_section].spacing(16)
+        }
+        TransactionDirection::Outgoing => {
+            let formatted_fee = format_amount(*fee_msats / 1000); // Convert msats to sats
+            let fee_section = column![
+                text("Fee").size(16).style(subtitle),
+                text(formatted_fee).size(16)
+            ]
+            .spacing(8);
+            column![mint_section, amount_section, fee_section, time_section].spacing(16)
+        }
+    };
 
     // Add TXID if it exists
     if let Some(txid) = txid {

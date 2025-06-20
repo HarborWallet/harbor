@@ -25,7 +25,7 @@ use fedimint_ln_client::{
     InternalPayState, LightningClientInit, LightningClientModule, LnPayState, LnReceiveState,
 };
 use fedimint_ln_common::LightningGateway;
-use fedimint_lnv2_client::{ReceiveOperationState, SendOperationState};
+use fedimint_lnv2_client::{LightningOperationMeta, ReceiveOperationState, SendOperationState};
 use fedimint_mint_client::MintClientInit;
 use fedimint_wallet_client::{DepositStateV2, WalletClientInit, WalletClientModule, WithdrawState};
 use futures::StreamExt;
@@ -351,11 +351,28 @@ pub(crate) async fn get_ln_tx_fee(
     operation_id: OperationId,
 ) -> Result<u64, anyhow::Error> {
     // todo account for lnv2
-    let ln = client.get_first_module::<LightningClientModule>()?;
 
-    let details = ln.get_ln_pay_details_for(operation_id).await?;
+    let enable_lnv2 = cfg!(feature = "lnv2");
 
-    Ok(details.fee.msats)
+    if enable_lnv2 {
+        let operation = client.operation_log().get_operation(operation_id).await;
+        match operation {
+            None => Ok(0),
+            Some(op_log_val) => {
+                let meta = op_log_val.meta::<LightningOperationMeta>();
+                match meta {
+                    LightningOperationMeta::Receive(receive) => Ok(receive.gateway_fee().msats),
+                    LightningOperationMeta::Send(send) => Ok(send.gateway_fee().msats),
+                }
+            }
+        }
+    } else {
+        let ln = client.get_first_module::<LightningClientModule>()?;
+
+        let details = ln.get_ln_pay_details_for(operation_id).await?;
+
+        Ok(details.fee.msats)
+    }
 }
 
 pub(crate) async fn spawn_invoice_receive_subscription(
