@@ -138,19 +138,37 @@ impl LightningPayment {
             .optional()?)
     }
 
-    pub fn set_preimage(
+    pub fn set_preimage_and_fee(
         conn: &mut SqliteConnection,
         operation_id: String,
         preimage: [u8; 32],
+        fee_msats: Option<u64>,
     ) -> anyhow::Result<()> {
-        diesel::update(
-            lightning_payments::table.filter(lightning_payments::operation_id.eq(operation_id)),
-        )
-        .set((
-            lightning_payments::preimage.eq(Some(hex::encode(preimage))),
-            lightning_payments::status.eq(PaymentStatus::Success as i32),
-        ))
-        .execute(conn)?;
+        match fee_msats {
+            None => {
+                diesel::update(
+                    lightning_payments::table
+                        .filter(lightning_payments::operation_id.eq(operation_id)),
+                )
+                .set((
+                    lightning_payments::preimage.eq(Some(hex::encode(preimage))),
+                    lightning_payments::status.eq(PaymentStatus::Success as i32),
+                ))
+                .execute(conn)?;
+            }
+            Some(fee) => {
+                diesel::update(
+                    lightning_payments::table
+                        .filter(lightning_payments::operation_id.eq(operation_id)),
+                )
+                .set((
+                    lightning_payments::preimage.eq(Some(hex::encode(preimage))),
+                    lightning_payments::fee_msats.eq(fee as i64),
+                    lightning_payments::status.eq(PaymentStatus::Success as i32),
+                ))
+                .execute(conn)?;
+            }
+        }
 
         Ok(())
     }

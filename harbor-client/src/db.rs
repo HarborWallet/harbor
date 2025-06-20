@@ -149,10 +149,11 @@ pub trait DBConnection {
         fee: Amount,
     ) -> anyhow::Result<()>;
 
-    fn set_lightning_payment_preimage(
+    fn set_lightning_as_complete(
         &self,
         operation_id: String,
         preimage: [u8; 32],
+        fee_msats: Option<u64>,
     ) -> anyhow::Result<()>;
 
     fn mark_lightning_payment_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
@@ -362,14 +363,15 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn set_lightning_payment_preimage(
+    fn set_lightning_as_complete(
         &self,
         operation_id: String,
         preimage: [u8; 32],
+        fee_msats: Option<u64>,
     ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        LightningPayment::set_preimage(conn, operation_id, preimage)?;
+        LightningPayment::set_preimage_and_fee(conn, operation_id, preimage, fee_msats)?;
 
         Ok(())
     }
