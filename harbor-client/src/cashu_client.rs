@@ -221,7 +221,11 @@ pub fn spawn_lightning_payment_thread(
                 )
                 .await;
 
-                if let Err(e) = storage.set_lightning_payment_preimage(quote.id, preimage) {
+                let fee = Amount::from_sats(outgoing.fee_paid.into());
+
+                if let Err(e) =
+                    storage.set_lightning_as_complete(quote.id, preimage, Some(fee.msats))
+                {
                     error!("Could not set preimage for lightning payment: {e}");
                 }
 

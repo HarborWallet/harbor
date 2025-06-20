@@ -343,6 +343,21 @@ pub(crate) async fn update_history(
     }
 }
 
+/// Retrieves the fee for a lightning transaction by its operation ID.
+///
+/// Returns the fee in millisatoshis (msats).
+pub(crate) async fn get_ln_tx_fee(
+    client: &ClientHandleArc,
+    operation_id: OperationId,
+) -> Result<u64, anyhow::Error> {
+    // todo account for lnv2
+    let ln = client.get_first_module::<LightningClientModule>()?;
+
+    let details = ln.get_ln_pay_details_for(operation_id).await?;
+
+    Ok(details.fee.msats)
+}
+
 pub(crate) async fn spawn_invoice_receive_subscription(
     mut sender: Sender<CoreUIMsgPacket>,
     client: ClientHandleArc,
@@ -577,9 +592,12 @@ pub(crate) async fn spawn_lnv2_payment_subscription(
                     HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
                         .await;
 
-                    if let Err(e) = storage.set_lightning_payment_preimage(
+                    let fee_msats = get_ln_tx_fee(&client, operation_id).await.ok();
+
+                    if let Err(e) = storage.set_lightning_as_complete(
                         operation_id.fmt_full().to_string(),
                         preimage,
+                        fee_msats,
                     ) {
                         error!("Could not mark lightning payment as success: {e}");
                     }
@@ -666,9 +684,12 @@ pub(crate) async fn spawn_invoice_payment_subscription(
                     HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
                         .await;
 
-                    if let Err(e) = storage.set_lightning_payment_preimage(
+                    let fee_msats = get_ln_tx_fee(&client, operation_id).await.ok();
+
+                    if let Err(e) = storage.set_lightning_as_complete(
                         operation_id.fmt_full().to_string(),
                         preimage,
+                        fee_msats,
                     ) {
                         error!("Could not mark lightning payment as success: {e}");
                     }
@@ -748,9 +769,12 @@ pub(crate) async fn spawn_internal_payment_subscription(
                     HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::SendSuccess(params))
                         .await;
 
-                    if let Err(e) = storage.set_lightning_payment_preimage(
+                    let fee_msats = get_ln_tx_fee(&client, operation_id).await.ok();
+
+                    if let Err(e) = storage.set_lightning_as_complete(
                         operation_id.fmt_full().to_string(),
                         preimage.0,
+                        fee_msats,
                     ) {
                         error!("Could not mark lightning payment as success: {e}");
                     }
