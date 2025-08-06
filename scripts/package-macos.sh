@@ -5,7 +5,6 @@ set -e # Exit on error
 RELEASE_DIR="target/release"
 APP_DIR="$RELEASE_DIR/macos"
 APP_NAME="Harbor.app"
-DMG_NAME="harbor.dmg"
 DMG_DIR="$RELEASE_DIR/macos"
 
 # package dmg

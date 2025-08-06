@@ -49,6 +49,7 @@
             pkgs.dbus
             pkgs.libsecret
             pkgs.protobuf
+            pkgs.gettext
           ]
           ++ lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.AppKit
