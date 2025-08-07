@@ -6,7 +6,7 @@ use harbor_client::cashu_client::TorMintConnector;
 use harbor_client::cdk::mint_url::MintUrl;
 use harbor_client::cdk::nuts::CurrencyUnit;
 use harbor_client::cdk::wallet::WalletBuilder;
-use harbor_client::cdk_redb::WalletRedbDatabase;
+use harbor_client::cdk_sqlite::WalletSqliteDatabase;
 use harbor_client::db::{DBConnection, check_password, setup_db};
 use harbor_client::fedimint_client::{FederationInviteOrId, FedimintClient};
 use harbor_client::fedimint_core::config::FederationId;
@@ -88,8 +88,8 @@ async fn setup_harbor_core(
 
     // Setup database
     let db_path = db_path.to_string();
-    let password = password.to_string();
-    let db = spawn_blocking(move || setup_db(&db_path, password))
+    let pw = password.to_string();
+    let db = spawn_blocking(move || setup_db(&db_path, pw))
         .await
         .expect("Could not create join handle")
         .ok()?;
@@ -128,12 +128,11 @@ async fn setup_harbor_core(
         clients.insert(client.federation_id(), client);
     }
 
-    let cashu_db_path = data_dir.join("cashu.redb");
-    if !cashu_db_path.exists() {
-        File::create_new(&cashu_db_path).expect("could not create cashu db");
-    }
+    let cashu_db_path = data_dir.join("cashu.sqlite");
     let cashu_db = Arc::new(
-        WalletRedbDatabase::new(&cashu_db_path).expect("Could not create cashu WalletRedbDatabase"),
+        WalletSqliteDatabase::new(&cashu_db_path, password.to_string())
+            .await
+            .expect("Could not create cashu WalletRedbDatabase"),
     );
 
     // Setup cashu clients
@@ -426,7 +425,8 @@ pub fn run_core() -> impl Stream<Item = Message> {
 
                     // set up the DB with the provided password
                     let db_path = path.join(HARBOR_FILE_NAME);
-                    let db = spawn_blocking(move || setup_db(db_path.to_str().unwrap(), password))
+                    let pw = password.clone();
+                    let db = spawn_blocking(move || setup_db(db_path.to_str().unwrap(), pw))
                         .await
                         .expect("Could not create join handle");
 
@@ -441,12 +441,10 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     }
                     let db = db.expect("no error");
 
-                    let cashu_db_path = path.join("cashu.redb");
-                    if !cashu_db_path.exists() {
-                        File::create_new(&cashu_db_path).expect("could not create cashu db");
-                    }
+                    let cashu_db_path = path.join("cashu.sqlite");
                     let cashu_db = Arc::new(
-                        WalletRedbDatabase::new(&cashu_db_path)
+                        WalletSqliteDatabase::new(&cashu_db_path, password)
+                            .await
                             .expect("Could not create cashu WalletRedbDatabase"),
                     );
 

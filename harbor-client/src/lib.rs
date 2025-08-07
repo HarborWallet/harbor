@@ -19,7 +19,7 @@ use cdk::cdk_database::WalletDatabase;
 use cdk::mint_url::MintUrl;
 use cdk::nuts::{CurrencyUnit, MintInfo};
 use cdk::wallet::WalletBuilder;
-use cdk_redb::WalletRedbDatabase;
+use cdk_sqlite::WalletSqliteDatabase;
 use fedimint_client::{spawn_lnv2_payment_subscription, spawn_lnv2_receive_subscription};
 use fedimint_core::Amount;
 use fedimint_core::config::{ClientConfig, FederationId};
@@ -76,7 +76,7 @@ pub mod metadata;
 pub use bip39;
 pub use bitcoin;
 pub use cdk;
-pub use cdk_redb;
+pub use cdk_sqlite;
 pub use fedimint_core;
 
 pub use fedimint_ln_common::lightning_invoice::Bolt11Invoice;
@@ -234,7 +234,7 @@ pub struct HarborCore {
     pub clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
     pub cashu_clients: Arc<RwLock<HashMap<MintUrl, cdk::Wallet>>>,
     pub storage: Arc<dyn DBConnection + Send + Sync>,
-    pub cashu_storage: Arc<WalletRedbDatabase>,
+    pub cashu_storage: Arc<WalletSqliteDatabase>,
     pub stop: Arc<AtomicBool>,
     pub tor_enabled: Arc<AtomicBool>,
     pub metadata_fetch_cancel: Arc<AtomicBool>,
@@ -250,7 +250,7 @@ impl HarborCore {
         clients: Arc<RwLock<HashMap<FederationId, FedimintClient>>>,
         cashu_clients: Arc<RwLock<HashMap<MintUrl, cdk::Wallet>>>,
         storage: Arc<dyn DBConnection + Send + Sync>,
-        cashu_storage: Arc<WalletRedbDatabase>,
+        cashu_storage: Arc<WalletSqliteDatabase>,
         stop: Arc<AtomicBool>,
         tor_enabled: Arc<AtomicBool>,
     ) -> anyhow::Result<Self> {
