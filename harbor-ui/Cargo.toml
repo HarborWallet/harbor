@@ -1,6 +1,6 @@
 [package]
 name = "harbor-ui"
-version = "1.0.0-beta.rc4"
+version = "1.0.0-beta.rc5"
 edition = "2024"
 
 [features]
@@ -8,7 +8,7 @@ default = []
 vendored = ["harbor-client/vendored"]
 
 [dependencies]
-harbor-client = { version = "1.0.0-beta.rc4", path = "../harbor-client" }
+harbor-client = { version = "1.0.0-beta.rc5", path = "../harbor-client" }
 fd-lock = "4.0.2"
 
 log = { workspace = true }
