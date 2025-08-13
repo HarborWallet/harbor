@@ -20,6 +20,7 @@ pub enum TransactionDirection {
 pub struct TransactionItem {
     pub kind: TransactionItemKind,
     pub amount: u64,
+    pub fee_msats: u64,
     pub txid: Option<Txid>,
     pub preimage: Option<[u8; 32]>,
     pub direction: TransactionDirection,
@@ -33,6 +34,7 @@ impl TransactionItem {
         Self {
             kind: TransactionItemKind::Lightning,
             amount: 100,
+            fee_msats: 1000,
             txid: None,
             preimage: None,
             direction: TransactionDirection::Incoming,
@@ -46,6 +48,7 @@ impl TransactionItem {
         Self {
             kind: TransactionItemKind::Onchain,
             amount: 100,
+            fee_msats: 1000,
             txid: Some(Txid::all_zeros()),
             preimage: None,
             direction: TransactionDirection::Outgoing,

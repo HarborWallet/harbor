@@ -162,6 +162,7 @@ impl From<OnChainPayment> for TransactionItem {
         Self {
             kind: TransactionItemKind::Onchain,
             amount: payment.amount_sats as u64,
+            fee_msats: payment.fee_sats as u64 * 1000, // Convert to msats
             txid: payment
                 .txid
                 .as_ref()

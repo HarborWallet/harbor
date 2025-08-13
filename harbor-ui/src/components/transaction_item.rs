@@ -15,6 +15,7 @@ pub fn h_transaction_item(item: &TransactionItem, is_selected: bool) -> Element<
     let TransactionItem {
         kind,
         amount,
+        fee_msats: _,
         direction,
         timestamp,
         mint_identifier: _,
