@@ -76,7 +76,13 @@ if [ -n "$LIBINTL_PATH" ]; then
     # Update binary to reference the bundled library using @rpath
     echo "Fixing reference in binary..."
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BINARY_DIR/harbor"
-    install_name_tool -change "$LIBINTL_PATH" "@rpath/libintl.8.dylib" "$APP_BINARY_DIR/harbor"
+    
+    # Find ALL references to libintl.8.dylib in the binary and update them
+    LIBINTL_REFS=$(otool -L "$APP_BINARY_DIR/harbor" | grep libintl.8.dylib | awk '{print $1}')
+    for REF in $LIBINTL_REFS; do
+        echo "Updating reference: $REF -> @rpath/libintl.8.dylib"
+        install_name_tool -change "$REF" "@rpath/libintl.8.dylib" "$APP_BINARY_DIR/harbor"
+    done
     
     # Check if there are any other dependencies of libintl.8.dylib
     SUB_DEPS=$(otool -L "$FRAMEWORKS_DIR/libintl.8.dylib" | grep -v "/System/" | grep -v "@rpath" | grep -v "@executable_path" | grep -v "/usr/lib/" | awk -F' ' '{print $1}')
