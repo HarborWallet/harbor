@@ -130,7 +130,7 @@ async fn setup_harbor_core(
 
     let cashu_db_path = data_dir.join("cashu.sqlite");
     let cashu_db = Arc::new(
-        WalletSqliteDatabase::new(&cashu_db_path, password.to_string())
+        WalletSqliteDatabase::new((cashu_db_path, password.to_string()))
             .await
             .expect("Could not create cashu WalletRedbDatabase"),
     );
@@ -149,7 +149,7 @@ async fn setup_harbor_core(
             .mint_url(mint_url.clone())
             .unit(CurrencyUnit::Sat)
             .localstore(cashu_db.clone())
-            .seed(&seed);
+            .seed(seed);
 
         let builder = if profile.tor_enabled() {
             builder.client(TorMintConnector::new(
@@ -435,7 +435,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
 
                     let cashu_db_path = path.join("cashu.sqlite");
                     let cashu_db = Arc::new(
-                        WalletSqliteDatabase::new(&cashu_db_path, password)
+                        WalletSqliteDatabase::new((cashu_db_path, password))
                             .await
                             .expect("Could not create cashu WalletRedbDatabase"),
                     );
@@ -506,6 +506,28 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             error!("Error sending: {e}");
                             core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
                                 .await;
+                        }
+                    }
+                    UICoreMsg::SendBolt12 { mint, offer, amount_msats } => {
+                        log::info!("Got UICoreMsg::SendBolt12");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
+                        if let Err(e) = core.send_bolt12(msg.id, mint, offer, amount_msats, false).await {
+                            error!("Error sending bolt12: {e}");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
+                        }
+                    }
+                    UICoreMsg::ReceiveBolt12 { mint, amount } => {
+                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
+                        match core.receive_bolt12(msg.id, mint, amount, false).await {
+                            Err(e) => {
+                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                                    .await;
+                            }
+                            Ok(offer) => {
+                                core.msg(msg.id, CoreUIMsg::ReceiveBolt12OfferGenerated(offer))
+                                    .await;
+                            }
                         }
                     }
                     UICoreMsg::ReceiveLightning { mint, amount } => {

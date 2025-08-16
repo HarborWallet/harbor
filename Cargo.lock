@@ -1153,14 +1153,14 @@ source = "git+https://github.com/benthecarman/arti.git?rev=e0f1f7a9a44ae0543c0b6
 
 [[package]]
 name = "cashu"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4c95072ffe3442625d7589faeeabab4c739a4b8a79c11d826f295606dad7a26"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
 dependencies = [
  "bitcoin",
  "cbor-diag",
  "ciborium",
  "instant",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "once_cell",
  "regex",
@@ -1216,9 +1216,8 @@ dependencies = [
 
 [[package]]
 name = "cdk"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b26c214b8cce92097d4c9c72081eceb6ba52f55e98f0d2f2987d862f07b0fd6"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1230,6 +1229,7 @@ dependencies = [
  "cdk-signatory",
  "ciborium",
  "getrandom 0.2.15",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "regex",
  "reqwest 0.12.12",
@@ -1249,9 +1249,8 @@ dependencies = [
 
 [[package]]
 name = "cdk-common"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "448d373b82da04b4bdea60f28ae5b08f057888e1bd96cc3c68270c9fb4b3fbfc"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1261,6 +1260,7 @@ dependencies = [
  "ciborium",
  "futures",
  "instant",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "serde",
  "serde_json",
@@ -1273,9 +1273,8 @@ dependencies = [
 
 [[package]]
 name = "cdk-signatory"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a43766d6de33b9ac2976ed06c571e6c5b566ee75222f48373964289b604bf4"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1294,14 +1293,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "cdk-sqlite"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "560aded37253bde9778f86592cfd5c8efb3c67a54891c3ecfad8a43d2b1e255d"
+name = "cdk-sql-common"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
 dependencies = [
  "async-trait",
  "bitcoin",
  "cdk-common",
+ "lightning-invoice 0.33.2",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cdk-sqlite"
+version = "0.11.0"
+source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+dependencies = [
+ "async-trait",
+ "bitcoin",
+ "cdk-common",
+ "cdk-sql-common",
  "lightning-invoice 0.33.2",
  "rusqlite",
  "serde",
@@ -2287,6 +2304,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dnssec-prover"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec4f825369fc7134da70ca4040fddc8e03b80a46d249ae38d9c1c39b7b4476bf"
+
+[[package]]
 name = "document-features"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2936,7 +2959,7 @@ dependencies = [
  "itertools 0.13.0",
  "js-sys",
  "jsonrpsee-core",
- "lightning",
+ "lightning 0.0.125",
  "lightning-invoice 0.32.0",
  "lightning-types 0.1.0",
  "macro_rules_attribute",
@@ -3055,7 +3078,7 @@ dependencies = [
  "bitcoin",
  "fedimint-core",
  "fedimint-threshold-crypto",
- "lightning",
+ "lightning 0.0.125",
  "lightning-invoice 0.32.0",
  "serde",
  "serde-big-array",
@@ -4084,6 +4107,12 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 
 [[package]]
 name = "hashbrown"
@@ -5575,6 +5604,22 @@ dependencies = [
  "bitcoin",
  "lightning-invoice 0.32.0",
  "lightning-types 0.1.0",
+]
+
+[[package]]
+name = "lightning"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e540fcb289a76826c9c0b078d3dd1f05691972c5a53fb4d3120540862040a147"
+dependencies = [
+ "bech32 0.11.0",
+ "bitcoin",
+ "dnssec-prover",
+ "hashbrown 0.13.2",
+ "libm",
+ "lightning-invoice 0.33.2",
+ "lightning-types 0.2.0",
+ "possiblyrandom",
 ]
 
 [[package]]
@@ -7259,6 +7304,15 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "possiblyrandom"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b122a615d72104fb3d8b26523fdf9232cd8ee06949fb37e4ce3ff964d15dffd"
+dependencies = [
+ "getrandom 0.2.15",
 ]
 
 [[package]]
