@@ -10,12 +10,18 @@ use iced::{Color, Length};
 
 /// Main view function.
 pub fn receive(harbor: &HarborWallet) -> Element<Message> {
-    if let Some(receive_string) = harbor
-        .receive_invoice
-        .as_ref()
-        .map(|s| s.to_string())
-        .or_else(|| harbor.receive_address.as_ref().map(|a| a.to_string()))
-    {
+    // First check if we have a regular invoice or address
+    let receive_string = if let Some(invoice) = &harbor.receive_invoice {
+        Some(invoice.to_string())
+    } else if let Some(address) = &harbor.receive_address {
+        Some(address.to_string())
+    } else if let Some(offer) = &harbor.receive_bolt12_offer {
+        Some(offer.clone())
+    } else {
+        None
+    };
+
+    if let Some(receive_string) = receive_string {
         render_generated_view(receive_string, harbor)
     } else {
         render_receive_form(harbor)
@@ -35,17 +41,26 @@ fn render_receive_form(harbor: &HarborWallet) -> Element<Message> {
                 .active_federation()
                 .is_some_and(|x| x.on_chain_supported));
 
-    let header = if on_chain_enabled {
-        h_header("Deposit", "Receive on-chain or via lightning.")
+    // Bolt12 is only available for Cashu mints
+    let bolt12_enabled = harbor
+        .active_mint
+        .as_ref()
+        .is_some_and(|a| a.mint_url().is_some());
+
+    let header = if on_chain_enabled || bolt12_enabled {
+        h_header("Deposit", "Receive via lightning, Bolt12, or on-chain.")
     } else {
         h_header("Deposit", "Receive via lightning.")
     };
 
-    let content = if on_chain_enabled {
-        let method_choice = render_method_choice(harbor);
+    let content = if on_chain_enabled || bolt12_enabled {
+        let method_choice = render_method_choice(harbor, on_chain_enabled, bolt12_enabled);
         match harbor.receive_method {
             ReceiveMethod::Lightning => {
                 column![header, method_choice, render_lightning_view(harbor)]
+            }
+            ReceiveMethod::Bolt12 => {
+                column![header, method_choice, render_bolt12_view(harbor)]
             }
             ReceiveMethod::OnChain => {
                 column![header, method_choice, render_onchain_view(harbor)]
@@ -103,6 +118,45 @@ fn render_lightning_view(harbor: &HarborWallet) -> Element<Message> {
     column![amount_input, buttons].spacing(48).into()
 }
 
+/// Renders the Bolt12 view including the optional amount input.
+fn render_bolt12_view(harbor: &HarborWallet) -> Element<Message> {
+    let generating = harbor.receive_status == ReceiveStatus::Generating;
+
+    let amount_input = h_input(InputArgs {
+        label: "Amount (optional)",
+        placeholder: "420",
+        value: &harbor.receive_amount_str,
+        on_input: Message::ReceiveAmountChanged,
+        numeric: true,
+        suffix: Some("sats"),
+        disabled: generating,
+        ..InputArgs::default()
+    });
+
+    // Create the "Generate Bolt12 Offer" button.
+    let generate_offer_button =
+        h_button("Generate Bolt12 Offer", SvgIcon::Qr, generating).on_press(Message::GenerateBolt12Offer);
+
+    let buttons = if generating {
+        // When generating, include a "Start Over" next to the generate button.
+        let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
+            .on_press(Message::CancelReceiveGeneration);
+        let mut button_group = column![row![start_over_button, generate_offer_button].spacing(8)];
+
+        if let Some(status) = harbor
+            .current_receive_id
+            .and_then(|id| operation_status_for_id(harbor, Some(id)))
+        {
+            button_group = button_group.push(status).spacing(16);
+        }
+        button_group
+    } else {
+        column![generate_offer_button]
+    };
+
+    column![amount_input, buttons].spacing(48).into()
+}
+
 /// Renders the on-chain view.
 fn render_onchain_view(harbor: &HarborWallet) -> Element<Message> {
     let generating = harbor.receive_status == ReceiveStatus::Generating;
@@ -130,8 +184,8 @@ fn render_onchain_view(harbor: &HarborWallet) -> Element<Message> {
     buttons.into()
 }
 
-/// Renders the method selector for on-chain enabled wallets.
-fn render_method_choice(harbor: &HarborWallet) -> Element<Message> {
+/// Renders the method selector for enabled payment methods.
+fn render_method_choice(harbor: &HarborWallet, on_chain_enabled: bool, bolt12_enabled: bool) -> Element<Message> {
     let lightning_choice = radio(
         "Lightning",
         ReceiveMethod::Lightning,
@@ -143,34 +197,56 @@ fn render_method_choice(harbor: &HarborWallet) -> Element<Message> {
     let lightning_caption = h_caption_text("Good for small amounts. Instant settlement, low fees.");
     let lightning = column![lightning_choice, lightning_caption].spacing(8);
 
-    let onchain_choice = radio(
-        "On-chain",
-        ReceiveMethod::OnChain,
-        Some(harbor.receive_method),
-        Message::ReceiveMethodChanged,
-    )
-    .text_size(18);
+    let mut choices = vec![lightning];
 
-    let onchain_caption = h_caption_text(
-        "Good for large amounts. Requires on-chain fees and 10 block confirmations.",
-    );
-    let onchain = column![onchain_choice, onchain_caption].spacing(8);
+    if bolt12_enabled {
+        let bolt12_choice = radio(
+            "Bolt12",
+            ReceiveMethod::Bolt12,
+            Some(harbor.receive_method),
+            Message::ReceiveMethodChanged,
+        )
+        .text_size(18);
+
+        let bolt12_caption = h_caption_text("Reusable offers. Good for donations and recurring payments.");
+        let bolt12 = column![bolt12_choice, bolt12_caption].spacing(8);
+        choices.push(bolt12);
+    }
+
+    if on_chain_enabled {
+        let onchain_choice = radio(
+            "On-chain",
+            ReceiveMethod::OnChain,
+            Some(harbor.receive_method),
+            Message::ReceiveMethodChanged,
+        )
+        .text_size(18);
+
+        let onchain_caption = h_caption_text(
+            "Good for large amounts. Requires on-chain fees and 10 block confirmations.",
+        );
+        let onchain = column![onchain_choice, onchain_caption].spacing(8);
+        choices.push(onchain);
+    }
 
     let method_choice_label = text("Method").size(24);
+    let mut column = column![method_choice_label];
 
-    column![method_choice_label, lightning, onchain]
-        .spacing(16)
-        .into()
+    for choice in choices {
+        column = column.push(choice);
+    }
+
+    column.spacing(16).into()
 }
 
 /// Renders the view for a generated invoice/address.
 fn render_generated_view(receive_string: String, harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Receive", "Scan this QR or copy the string.");
 
-    let qr_title = if harbor.receive_method == ReceiveMethod::Lightning {
-        "Lightning Invoice"
-    } else {
-        "On-chain Address"
+    let qr_title = match harbor.receive_method {
+        ReceiveMethod::Lightning => "Lightning Invoice",
+        ReceiveMethod::Bolt12 => "Bolt12 Offer",
+        ReceiveMethod::OnChain => "On-chain Address",
     };
 
     let data = harbor
