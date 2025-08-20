@@ -1,3 +1,41 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::default_trait_access,
+    clippy::derive_partial_eq_without_eq,
+    clippy::doc_markdown,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::ignored_unit_patterns,
+    clippy::items_after_statements,
+    clippy::large_futures,
+    clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::or_fun_call,
+    clippy::redundant_clone,
+    clippy::redundant_closure_for_method_calls,
+    clippy::redundant_pub_crate,
+    clippy::semicolon_if_nothing_returned,
+    clippy::significant_drop_in_scrutinee,
+    clippy::significant_drop_tightening,
+    clippy::similar_names,
+    clippy::single_char_pattern,
+    clippy::single_match_else,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_wraps,
+    clippy::unused_async,
+    clippy::use_self
+)]
+
 use crate::cashu_client::{
     TorMintConnector, spawn_lightning_payment_thread, spawn_lightning_receive_thread,
 };
