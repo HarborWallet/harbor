@@ -144,16 +144,14 @@ impl Animation {
                 rotation: rotation.wrapping_add(additional_rotation),
                 last: now,
             },
-            Self::Contracting { rotation, .. } => {
-                Self::Expanding {
-                    start: now,
-                    progress: 0.0,
-                    rotation: rotation.wrapping_add(BASE_ROTATION_SPEED.wrapping_add(
-                        (f64::from(WRAP_ANGLE / (2.0 * Radians::PI)) * f64::MAX) as u32,
-                    )),
-                    last: now,
-                }
-            }
+            Self::Contracting { rotation, .. } => Self::Expanding {
+                start: now,
+                progress: 0.0,
+                rotation: rotation.wrapping_add(BASE_ROTATION_SPEED.wrapping_add(
+                    (f64::from(WRAP_ANGLE / (2.0 * Radians::PI)) * u32::MAX as f64) as u32,
+                )),
+                last: now,
+            },
         }
     }
 
