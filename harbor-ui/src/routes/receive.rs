@@ -78,8 +78,10 @@ fn render_lightning_view(harbor: &HarborWallet) -> Element<Message> {
     });
 
     // Create the "Generate Invoice" button.
-    let generate_invoice_button =
-        h_button("Generate Invoice", SvgIcon::Qr, generating).on_press(Message::GenerateInvoice);
+    let mut generate_invoice_button = h_button("Generate Invoice", SvgIcon::Qr, generating);
+    if !harbor.receive_amount_str.is_empty() {
+        generate_invoice_button = generate_invoice_button.on_press(Message::GenerateInvoice);
+    }
 
     let buttons = if generating {
         // When generating, include a "Start Over" next to the generate button.
