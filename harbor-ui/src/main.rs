@@ -595,13 +595,11 @@ impl HarborWallet {
                         Some(f) => f,
                         None => {
                             error!("No active mint");
-                            return Task::perform(async {}, |_| {
-                                Message::AddToast(Toast {
-                                    title: "Cannot send".to_string(),
-                                    body: Some("No active mint selected".to_string()),
-                                    status: ToastStatus::Bad,
-                                })
-                            });
+                            return Task::done(Message::AddToast(Toast {
+                                title: "Cannot send".to_string(),
+                                body: Some("No active mint selected".to_string()),
+                                status: ToastStatus::Bad,
+                            }));
                         }
                     };
 
@@ -615,16 +613,11 @@ impl HarborWallet {
                             Ok(lnurl) => {
                                 // TODO: can we handle is_max somehow?
                                 let amount = if self.is_max {
-                                    return Task::perform(async {}, |_| {
-                                        Message::AddToast(Toast {
-                                            title: "Cannot send max with Lightning Address"
-                                                .to_string(),
-                                            body: Some(
-                                                "Please enter a specific amount".to_string(),
-                                            ),
-                                            status: ToastStatus::Bad,
-                                        })
-                                    });
+                                    return Task::done(Message::AddToast(Toast {
+                                        title: "Cannot send max with Lightning Address".to_string(),
+                                        body: Some("Please enter a specific amount".to_string()),
+                                        status: ToastStatus::Bad,
+                                    }));
                                 } else {
                                     match self.send_amount_input_str.parse::<u64>() {
                                         Ok(amount) => amount,
@@ -667,13 +660,11 @@ impl HarborWallet {
                                 } else {
                                     error!("Invalid invoice or address");
                                     self.current_send_id = None;
-                                    Task::perform(async {}, |_| {
-                                        Message::AddToast(Toast {
-                                            title: "Failed to send".to_string(),
-                                            body: Some("Invalid invoice or address".to_string()),
-                                            status: ToastStatus::Bad,
-                                        })
-                                    })
+                                    Task::done(Message::AddToast(Toast {
+                                        title: "Failed to send".to_string(),
+                                        body: Some("Invalid invoice or address".to_string()),
+                                        status: ToastStatus::Bad,
+                                    }))
                                 }
                             }
                         }
@@ -706,26 +697,22 @@ impl HarborWallet {
 
                 if from == to {
                     error!("Cannot transfer to same federation");
-                    return Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Cannot transfer".to_string(),
-                            body: Some("Cannot transfer to the same mint".to_string()),
-                            status: ToastStatus::Bad,
-                        })
-                    });
+                    return Task::done(Message::AddToast(Toast {
+                        title: "Cannot transfer".to_string(),
+                        body: Some("Cannot transfer to the same mint".to_string()),
+                        status: ToastStatus::Bad,
+                    }));
                 }
 
                 let amount = match self.transfer_amount_input_str.parse::<u64>() {
                     Ok(a) => a,
                     Err(_) => {
                         error!("Invalid amount");
-                        return Task::perform(async {}, |_| {
-                            Message::AddToast(Toast {
-                                title: "Invalid amount".to_string(),
-                                body: Some("Please enter a valid number of sats".to_string()),
-                                status: ToastStatus::Bad,
-                            })
-                        });
+                        return Task::done(Message::AddToast(Toast {
+                            title: "Invalid amount".to_string(),
+                            body: Some("Please enter a valid number of sats".to_string()),
+                            status: ToastStatus::Bad,
+                        }));
                     }
                 };
 
@@ -761,13 +748,11 @@ impl HarborWallet {
                         Err(e) => {
                             self.receive_amount_str = String::new();
                             error!("Error parsing amount: {e}");
-                            Task::perform(async {}, move |_| {
-                                Message::AddToast(Toast {
-                                    title: "Failed to generate invoice".to_string(),
-                                    body: Some(e.to_string()),
-                                    status: ToastStatus::Bad,
-                                })
-                            })
+                            Task::done(Message::AddToast(Toast {
+                                title: "Failed to generate invoice".to_string(),
+                                body: Some(e.to_string()),
+                                status: ToastStatus::Bad,
+                            }))
                         }
                     }
                 }
@@ -793,13 +778,11 @@ impl HarborWallet {
                 Ok(amount_sats) => {
                     // Check if we have an active mint
                     if self.active_mint.is_none() {
-                        return Task::perform(async {}, |_| {
-                            Message::AddToast(Toast {
-                                title: "Cannot donate".to_string(),
-                                body: Some("No active mint selected".to_string()),
-                                status: ToastStatus::Bad,
-                            })
-                        });
+                        return Task::done(Message::AddToast(Toast {
+                            title: "Cannot donate".to_string(),
+                            body: Some("No active mint selected".to_string()),
+                            status: ToastStatus::Bad,
+                        }));
                     }
 
                     // Clear any existing send state
@@ -819,13 +802,11 @@ impl HarborWallet {
                 }
                 Err(e) => {
                     error!("Error parsing donate amount: {e}");
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Invalid donation amount".to_string(),
-                            body: Some("Please enter a valid number of sats".to_string()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Invalid donation amount".to_string(),
+                        body: Some("Please enter a valid number of sats".to_string()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
             },
             Message::Unlock(password) => match self.unlock_status {
@@ -840,13 +821,11 @@ impl HarborWallet {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
                     if password.is_empty() {
-                        Task::perform(async {}, |_| {
-                            Message::AddToast(Toast {
-                                title: "Error".to_string(),
-                                body: Some("Password cannot be empty".to_string()),
-                                status: ToastStatus::Bad,
-                            })
-                        })
+                        Task::done(Message::AddToast(Toast {
+                            title: "Error".to_string(),
+                            body: Some("Password cannot be empty".to_string()),
+                            status: ToastStatus::Bad,
+                        }))
                     } else {
                         self.unlock_failure_reason = None;
 
@@ -855,13 +834,11 @@ impl HarborWallet {
                             Some(seed) => match Mnemonic::from_str(&seed) {
                                 Ok(seed) => Some(seed),
                                 Err(_) => {
-                                    return Task::perform(async {}, |_| {
-                                        Message::AddToast(Toast {
-                                            title: "Error".to_string(),
-                                            body: Some("Invalid seed words".to_string()),
-                                            status: ToastStatus::Bad,
-                                        })
-                                    });
+                                    return Task::done(Message::AddToast(Toast {
+                                        title: "Error".to_string(),
+                                        body: Some("Invalid seed words".to_string()),
+                                        status: ToastStatus::Bad,
+                                    }));
                                 }
                             },
                         };
@@ -885,13 +862,11 @@ impl HarborWallet {
                         self.current_add_id = Some(id);
                         task
                     }
-                    Err(_) => Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Can't add mint".to_string(),
-                            body: Some("Invalid invite code".to_string()),
-                            status: ToastStatus::Bad,
-                        })
-                    }),
+                    Err(_) => Task::done(Message::AddToast(Toast {
+                        title: "Can't add mint".to_string(),
+                        body: Some("Invalid invite code".to_string()),
+                        status: ToastStatus::Bad,
+                    })),
                 },
             },
             Message::PeekMint(string) => match InviteCode::from_str(&string) {
@@ -902,13 +877,11 @@ impl HarborWallet {
                                 .federation_id()
                                 .is_some_and(|f| f == invite.federation_id())
                     }) {
-                        return Task::perform(async {}, |_| {
-                            Message::AddToast(Toast {
-                                title: "Mint already added".to_string(),
-                                body: None,
-                                status: ToastStatus::Bad,
-                            })
-                        });
+                        return Task::done(Message::AddToast(Toast {
+                            title: "Mint already added".to_string(),
+                            body: None,
+                            status: ToastStatus::Bad,
+                        }));
                     }
 
                     self.peek_status = PeekStatus::Peeking;
@@ -923,38 +896,32 @@ impl HarborWallet {
                             .iter()
                             .any(|m| m.active && m.id.mint_url().is_some_and(|u| u == mint))
                         {
-                            return Task::perform(async {}, |_| {
-                                Message::AddToast(Toast {
-                                    title: "Mint already added".to_string(),
-                                    body: None,
-                                    status: ToastStatus::Bad,
-                                })
-                            });
+                            return Task::done(Message::AddToast(Toast {
+                                title: "Mint already added".to_string(),
+                                body: None,
+                                status: ToastStatus::Bad,
+                            }));
                         }
                         self.peek_status = PeekStatus::Peeking;
                         let (id, task) = self.send_from_ui(UICoreMsg::GetCashuMintInfo(mint));
                         self.current_peek_id = Some(id);
                         task
                     }
-                    Err(_) => Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Can't preview mint".to_string(),
-                            body: Some("Invalid invite code".to_string()),
-                            status: ToastStatus::Bad,
-                        })
-                    }),
+                    Err(_) => Task::done(Message::AddToast(Toast {
+                        title: "Can't preview mint".to_string(),
+                        body: Some("Invalid invite code".to_string()),
+                        status: ToastStatus::Bad,
+                    })),
                 },
             },
             Message::RemoveMint(mint) => {
                 // Check if the federation still exists before trying to remove it
                 if !self.mint_list.iter().any(|f| f.id == mint) {
-                    return Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Federation already removed".to_string(),
-                            body: None,
-                            status: ToastStatus::Neutral,
-                        })
-                    });
+                    return Task::done(Message::AddToast(Toast {
+                        title: "Federation already removed".to_string(),
+                        body: None,
+                        status: ToastStatus::Neutral,
+                    }));
                 }
                 let (_, task) = self.send_from_ui(UICoreMsg::RemoveMint(mint));
                 task
@@ -968,13 +935,11 @@ impl HarborWallet {
             }
             Message::CopyToClipboard(s) => Task::batch([
                 clipboard::write(s),
-                Task::perform(async {}, |_| {
-                    Message::AddToast(Toast {
-                        title: "Copied to clipboard".to_string(),
-                        body: None,
-                        status: ToastStatus::Neutral,
-                    })
-                }),
+                Task::done(Message::AddToast(Toast {
+                    title: "Copied to clipboard".to_string(),
+                    body: None,
+                    status: ToastStatus::Neutral,
+                })),
             ]),
             Message::ShowSeedWords(show) => {
                 if show {
@@ -1052,13 +1017,11 @@ impl HarborWallet {
                     }
                     // Toast success
                     if params != SendSuccessMsg::Transfer {
-                        Task::perform(async {}, move |_| {
-                            Message::AddToast(Toast {
-                                title: "Payment sent".to_string(),
-                                body: None,
-                                status: ToastStatus::Good,
-                            })
-                        })
+                        Task::done(Message::AddToast(Toast {
+                            title: "Payment sent".to_string(),
+                            body: None,
+                            status: ToastStatus::Good,
+                        }))
                     } else {
                         Task::none()
                     }
@@ -1069,13 +1032,11 @@ impl HarborWallet {
                         self.current_send_id = None;
                         // We don't clear the send state here because maybe they want to try again
                     }
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Failed to send".to_string(),
-                            body: Some(reason.clone()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Failed to send".to_string(),
+                        body: Some(reason.clone()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
                 CoreUIMsg::ReceiveSuccess(params) => {
                     info!("Receive success: {params:?}");
@@ -1095,21 +1056,17 @@ impl HarborWallet {
                     }
                     if params != ReceiveSuccessMsg::Transfer {
                         // Toast success
-                        Task::perform(async {}, move |_| {
-                            Message::AddToast(Toast {
-                                title: "Payment received".to_string(),
-                                body: None,
-                                status: ToastStatus::Good,
-                            })
-                        })
+                        Task::done(Message::AddToast(Toast {
+                            title: "Payment received".to_string(),
+                            body: None,
+                            status: ToastStatus::Good,
+                        }))
                     } else {
-                        Task::perform(async {}, move |_| {
-                            Message::AddToast(Toast {
-                                title: "Transfer complete".to_string(),
-                                body: None,
-                                status: ToastStatus::Good,
-                            })
-                        })
+                        Task::done(Message::AddToast(Toast {
+                            title: "Transfer complete".to_string(),
+                            body: None,
+                            status: ToastStatus::Good,
+                        }))
                     }
                 }
                 CoreUIMsg::ReceiveFailed(reason) => {
@@ -1119,26 +1076,22 @@ impl HarborWallet {
                         self.current_receive_id = None;
                         self.clear_receive_state();
                     }
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Failed to receive".to_string(),
-                            body: Some(reason.clone()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Failed to receive".to_string(),
+                        body: Some(reason.clone()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
                 CoreUIMsg::TransferFailure(reason) => {
                     if self.current_transfer_id == msg.id {
                         self.transfer_status = SendStatus::Idle;
                     }
                     error!("Transfer failed: {reason}");
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Failed to transfer".to_string(),
-                            body: Some(reason.clone()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Failed to transfer".to_string(),
+                        body: Some(reason.clone()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
                 CoreUIMsg::TransactionHistoryUpdated(history) => {
                     self.transaction_history = history;
@@ -1177,24 +1130,20 @@ impl HarborWallet {
                 CoreUIMsg::AddMintFailed(reason) => {
                     let reason = reason.clone();
                     self.clear_add_federation_state();
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Failed to join mint".to_string(),
-                            body: Some(reason.clone()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Failed to join mint".to_string(),
+                        body: Some(reason.clone()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
                 CoreUIMsg::RemoveFederationFailed(reason) => {
                     let reason = reason.clone();
                     self.clear_add_federation_state();
-                    Task::perform(async {}, move |_| {
-                        Message::AddToast(Toast {
-                            title: "Failed to remove mint".to_string(),
-                            body: Some(reason.clone()),
-                            status: ToastStatus::Bad,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Failed to remove mint".to_string(),
+                        body: Some(reason.clone()),
+                        status: ToastStatus::Bad,
+                    }))
                 }
                 CoreUIMsg::FederationListNeedsUpdate => {
                     let (_, task) = self.send_from_ui(UICoreMsg::FederationListNeedsUpdate);
@@ -1252,13 +1201,11 @@ impl HarborWallet {
                     // Route to the mints list
                     self.active_route = Route::Mints(routes::MintSubroute::List);
                     self.active_mint = Some(id);
-                    Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Mint added".to_string(),
-                            body: None,
-                            status: ToastStatus::Neutral,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Mint added".to_string(),
+                        body: None,
+                        status: ToastStatus::Neutral,
+                    }))
                 }
                 CoreUIMsg::RemoveFederationSuccess => {
                     self.clear_add_federation_state();
@@ -1266,13 +1213,11 @@ impl HarborWallet {
                     self.active_route = Route::Mints(routes::MintSubroute::List);
                     // We probably got here because of a modal so we should close the modal
                     self.confirm_modal = None;
-                    Task::perform(async {}, |_| {
-                        Message::AddToast(Toast {
-                            title: "Mint removed".to_string(),
-                            body: None,
-                            status: ToastStatus::Neutral,
-                        })
-                    })
+                    Task::done(Message::AddToast(Toast {
+                        title: "Mint removed".to_string(),
+                        body: None,
+                        status: ToastStatus::Neutral,
+                    }))
                 }
                 CoreUIMsg::MintListUpdated(mut list) => {
                     list.sort();
@@ -1359,13 +1304,13 @@ impl HarborWallet {
                 }
                 CoreUIMsg::OnchainReceiveEnabled(enabled) => {
                     self.onchain_receive_enabled = enabled;
-                    Task::perform(async {}, |_| Message::Noop)
+                    Task::done(Message::Noop)
                 }
                 CoreUIMsg::TorEnabled(enabled) => {
                     self.tor_enabled = enabled;
 
                     // After getting confirmation of the Tor setting change, restart the app
-                    Task::perform(async {}, move |_| {
+                    Task::done({
                         lock::restart_app();
                         Message::Noop
                     })
