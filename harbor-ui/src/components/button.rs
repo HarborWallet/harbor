@@ -12,70 +12,32 @@ use crate::{Message, Route};
 use super::{SvgIcon, darken, lighten, link, map_icon, the_spinner};
 
 pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Message, Theme> {
-    let spinner: Element<'static, Message, Theme> = the_spinner();
-    let svg = map_icon(icon, 24., 24.);
-    let content = if loading {
-        row![spinner].align_y(iced::Alignment::Center)
-    } else {
-        row![svg, text(text_str).size(24.)]
-            .align_y(iced::Alignment::Center)
-            .spacing(16)
-    };
-
-    Button::new(center(content))
-        .style(move |theme, status| {
-            let gray = lighten(theme.palette().background, 0.5);
-
-            let border_color = if loading || matches!(status, Status::Disabled) {
-                gray
-            } else {
-                Color::WHITE
-            };
-
-            let border = Border {
-                color: border_color,
-                width: 2.,
-                radius: (8.).into(),
-            };
-
-            let background = if loading {
-                theme.palette().background
-            } else {
-                match status {
-                    Status::Hovered => lighten(theme.palette().background, 0.1),
-                    Status::Pressed => darken(theme.palette().background, 0.05),
-                    _ => theme.palette().background,
-                }
-            };
-
-            let text_color = if loading || matches!(status, Status::Disabled) {
-                gray
-            } else {
-                Color::WHITE
-            };
-
-            button::Style {
-                background: Some(background.into()),
-                text_color,
-                border,
-                shadow: Shadow::default(),
-            }
-        })
-        .width(Length::Fill)
-        .height(Length::Fixed(64.))
+    h_button_inner(text_str, icon, loading, 24., 16., 2., 64.)
 }
 
 pub fn h_small_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Message, Theme> {
+    h_button_inner(text_str, icon, loading, 16., 8., 1.5, 40.)
+}
+
+fn h_button_inner(
+    text_str: &str,
+    icon: SvgIcon,
+    loading: bool,
+    size: f32,
+    spacing: f32,
+    border_width: f32,
+    height: f32,
+) -> Button<'_, Message, Theme> {
     let spinner: Element<'static, Message, Theme> = the_spinner();
-    let svg = map_icon(icon, 16., 16.);
+    let svg = map_icon(icon, size, size);
     let content = if loading {
         row![spinner].align_y(iced::Alignment::Center)
     } else if text_str.is_empty() {
         row![svg].align_y(iced::Alignment::Center)
     } else {
-        row![svg, text(text_str).size(16.)]
+        row![svg, text(text_str).size(size)]
             .align_y(iced::Alignment::Center)
-            .spacing(8)
+            .spacing(spacing)
     };
 
     Button::new(center(content))
@@ -90,7 +52,7 @@ pub fn h_small_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_
 
             let border = Border {
                 color: border_color,
-                width: 1.5,
+                width: border_width,
                 radius: (8.).into(),
             };
 
@@ -118,7 +80,7 @@ pub fn h_small_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_
             }
         })
         .width(Length::Fill)
-        .height(Length::Fixed(40.))
+        .height(Length::Fixed(height))
 }
 
 pub fn sidebar_button(
