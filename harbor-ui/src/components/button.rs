@@ -48,7 +48,11 @@ pub fn h_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_, Mess
                 }
             };
 
-            let text_color = if loading { gray } else { Color::WHITE };
+            let text_color = if loading || matches!(status, Status::Disabled) {
+                gray
+            } else {
+                Color::WHITE
+            };
 
             button::Style {
                 background: Some(background.into()),
@@ -100,7 +104,11 @@ pub fn h_small_button(text_str: &str, icon: SvgIcon, loading: bool) -> Button<'_
                 }
             };
 
-            let text_color = if loading { gray } else { Color::WHITE };
+            let text_color = if loading || matches!(status, Status::Disabled) {
+                gray
+            } else {
+                Color::WHITE
+            };
 
             button::Style {
                 background: Some(background.into()),
