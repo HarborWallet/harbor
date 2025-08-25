@@ -29,7 +29,7 @@ impl Profile {
             enabled
         );
         diesel::update(profile::table)
-            .set(profile::onchain_receive_enabled.eq(enabled as i32))
+            .set(profile::onchain_receive_enabled.eq(i32::from(enabled)))
             .execute(conn)?;
         log::debug!("Successfully updated on-chain receive enabled setting in database");
         Ok(())
@@ -42,7 +42,7 @@ impl Profile {
     pub fn set_tor_enabled(conn: &mut SqliteConnection, enabled: bool) -> anyhow::Result<()> {
         log::debug!("Updating Tor enabled setting in database to: {}", enabled);
         diesel::update(profile::table)
-            .set(profile::tor_enabled.eq(enabled as i32))
+            .set(profile::tor_enabled.eq(i32::from(enabled)))
             .execute(conn)?;
         log::debug!("Successfully updated Tor enabled setting in database");
         Ok(())

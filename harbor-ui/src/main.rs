@@ -1,6 +1,5 @@
 #![warn(clippy::nursery, clippy::pedantic)]
 #![allow(
-    clippy::cast_lossless,
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_precision_loss,
