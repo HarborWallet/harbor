@@ -4,7 +4,6 @@
     clippy::cast_sign_loss,
     clippy::default_trait_access,
     clippy::derive_partial_eq_without_eq,
-    clippy::doc_markdown,
     clippy::explicit_iter_loop,
     clippy::future_not_send,
     clippy::ignored_unit_patterns,

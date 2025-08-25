@@ -50,7 +50,7 @@ const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
 ///
 /// This is the standard way to make HTTPS requests. It:
 /// - Uses a connection pool for better performance
-/// - Handles redirects automatically (up to MAX_REDIRECTS)
+/// - Handles redirects automatically (up to `MAX_REDIRECTS`)
 /// - Enforces a response size limit
 /// - Returns deserialized JSON
 pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
@@ -75,7 +75,7 @@ async fn check_cancel(cancel_handle: Arc<AtomicBool>) {
 /// - Enforcing HTTPS-only connections
 /// - Using fresh circuits for each request
 ///
-/// The request can be cancelled at any time using the cancel_handle.
+/// The request can be cancelled at any time using the `cancel_handle`.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
 pub async fn make_get_request_tor<T>(url: &str, cancel_handle: Arc<AtomicBool>) -> anyhow::Result<T>
@@ -93,7 +93,7 @@ where
 /// - Enforcing HTTPS-only connections
 /// - Using fresh circuits for each request
 ///
-/// The request can be cancelled at any time using the cancel_handle.
+/// The request can be cancelled at any time using the `cancel_handle`.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
 pub(crate) async fn make_tor_request<T, P>(
@@ -450,7 +450,7 @@ where
     handle_response(response, 0, None).await
 }
 
-/// Use what Chrome puts for User Agent for better privacy, copied from: https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+/// Use what Chrome puts for User Agent for better privacy, copied from: `https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome`
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
 
 /// Build a GET request with common headers

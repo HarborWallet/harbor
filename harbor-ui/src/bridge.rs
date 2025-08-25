@@ -74,7 +74,7 @@ pub fn create_handles() -> (UIHandle, CoreHandle) {
     (ui_handle, core_handle)
 }
 
-/// Common setup function for creating a HarborCore instance
+/// Common setup function for creating a `HarborCore` instance
 async fn setup_harbor_core(
     data_dir: PathBuf,
     db_path: &str,

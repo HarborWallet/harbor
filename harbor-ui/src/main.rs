@@ -6,7 +6,6 @@
     clippy::cast_sign_loss,
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
-    clippy::doc_markdown,
     clippy::if_not_else,
     clippy::ignored_unit_patterns,
     clippy::implicit_clone,
