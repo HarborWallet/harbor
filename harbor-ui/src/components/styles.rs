@@ -165,14 +165,14 @@ pub fn checkbox_style(theme: &Theme, status: checkbox::Status) -> checkbox::Styl
 
     let background = match status {
         checkbox::Status::Hovered { is_checked: _ } => lighten(background, 0.1),
-        checkbox::Status::Active { is_checked: _ } => background,
-        checkbox::Status::Disabled { is_checked: _ } => background,
+        checkbox::Status::Active { is_checked: _ }
+        | checkbox::Status::Disabled { is_checked: _ } => background,
     };
 
     let text_color = match status {
         checkbox::Status::Disabled { .. } => gray,
-        checkbox::Status::Active { is_checked: _ } => Color::WHITE,
-        checkbox::Status::Hovered { is_checked: _ } => Color::WHITE,
+        checkbox::Status::Active { is_checked: _ }
+        | checkbox::Status::Hovered { is_checked: _ } => Color::WHITE,
     };
 
     checkbox::Style {

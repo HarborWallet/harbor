@@ -151,7 +151,6 @@ pub fn sidebar_button(
             };
 
             let background = match (status, is_active) {
-                (_, true) => bg_color,
                 (Status::Hovered, false) => lighten(bg_color, 0.05),
                 (Status::Pressed, false) => darken(bg_color, 0.05),
                 _ => bg_color,

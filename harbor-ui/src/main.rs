@@ -7,7 +7,6 @@
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
     clippy::large_futures,
-    clippy::match_same_arms,
     clippy::match_wildcard_for_single_variants,
     clippy::missing_const_for_fn,
     clippy::missing_errors_doc,

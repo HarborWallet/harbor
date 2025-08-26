@@ -187,8 +187,7 @@ pub(crate) async fn get_federation_metadata(
 fn merge_values<T>(a: Option<T>, b: Option<T>) -> Option<T> {
     match (a, b) {
         // If a has value return that; otherwise, use the one from b if available.
-        (Some(val), _) => Some(val),
-        (None, Some(val)) => Some(val),
+        (Some(val), _) | (None, Some(val)) => Some(val),
         (None, None) => None,
     }
 }
