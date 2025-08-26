@@ -80,7 +80,7 @@ async fn setup_harbor_core(
     db_path: &str,
     password: &str,
     network: Network,
-    tx: &mut Sender<Message>,
+    tx: &Sender<Message>,
 ) -> Option<HarborCore> {
     // Setup core message channel
     let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
@@ -389,9 +389,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     // Save password to keyring when successfully unlocked
                     save_to_keyring(&password).await;
 
-                    match setup_harbor_core(path.clone(), &db_path, &password, network, &mut tx)
-                        .await
-                    {
+                    match setup_harbor_core(path.clone(), &db_path, &password, network, &tx).await {
                         Some(core) => {
                             tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
                                 .await
