@@ -7,7 +7,6 @@
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
     clippy::large_futures,
-    clippy::manual_let_else,
     clippy::manual_string_new,
     clippy::map_unwrap_or,
     clippy::match_bool,
@@ -630,16 +629,13 @@ impl HarborWallet {
                 SendStatus::Sending => Task::none(),
                 _ => {
                     self.send_failure_reason = None;
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            error!("No active mint");
-                            return Task::done(Message::AddToast(Toast {
-                                title: "Cannot send".to_string(),
-                                body: Some("No active mint selected".to_string()),
-                                status: ToastStatus::Bad,
-                            }));
-                        }
+                    let Some(mint) = self.active_mint.clone() else {
+                        error!("No active mint");
+                        return Task::done(Message::AddToast(Toast {
+                            title: "Cannot send".to_string(),
+                            body: Some("No active mint selected".to_string()),
+                            status: ToastStatus::Bad,
+                        }));
                     };
 
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
@@ -743,16 +739,13 @@ impl HarborWallet {
                     }));
                 }
 
-                let amount = match self.transfer_amount_input_str.parse::<u64>() {
-                    Ok(a) => a,
-                    Err(_) => {
-                        error!("Invalid amount");
-                        return Task::done(Message::AddToast(Toast {
-                            title: "Invalid amount".to_string(),
-                            body: Some("Please enter a valid number of sats".to_string()),
-                            status: ToastStatus::Bad,
-                        }));
-                    }
+                let Ok(amount) = self.transfer_amount_input_str.parse::<u64>() else {
+                    error!("Invalid amount");
+                    return Task::done(Message::AddToast(Toast {
+                        title: "Invalid amount".to_string(),
+                        body: Some("Please enter a valid number of sats".to_string()),
+                        status: ToastStatus::Bad,
+                    }));
                 };
 
                 let (id, task) = self.send_from_ui(UICoreMsg::Transfer {
@@ -767,12 +760,9 @@ impl HarborWallet {
             Message::GenerateInvoice => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            // This should be unreachable yeah?
-                            panic!("No active federation, but we're trying to generate an invoice");
-                        }
+                    let Some(mint) = self.active_mint.clone() else {
+                        // This should be unreachable yeah?
+                        panic!("No active federation, but we're trying to generate an invoice");
                     };
                     match self.receive_amount_str.parse::<u64>() {
                         Ok(amount) => {
@@ -799,13 +789,10 @@ impl HarborWallet {
             Message::GenerateAddress => match self.receive_status {
                 ReceiveStatus::Generating => Task::none(),
                 _ => {
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            // todo show error
-                            error!("No active federation");
-                            return Task::none();
-                        }
+                    let Some(mint) = self.active_mint.clone() else {
+                        // todo show error
+                        error!("No active federation");
+                        return Task::none();
                     };
                     let (id, task) = self.send_from_ui(UICoreMsg::ReceiveOnChain { mint });
                     self.current_receive_id = Some(id);
