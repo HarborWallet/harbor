@@ -236,10 +236,7 @@ impl DBConnection for SQLConnection {
 
     fn get_profile(&self) -> anyhow::Result<Option<Profile>> {
         let conn = &mut self.db.get()?;
-        match Profile::get_first(conn)? {
-            Some(p) => Ok(Some(p)),
-            None => Ok(None),
-        }
+        Profile::get_first(conn)
     }
 
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile> {
