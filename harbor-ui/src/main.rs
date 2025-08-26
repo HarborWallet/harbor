@@ -6,7 +6,6 @@
     clippy::cast_sign_loss,
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
-    clippy::if_not_else,
     clippy::ignored_unit_patterns,
     clippy::implicit_clone,
     clippy::large_futures,
@@ -1058,14 +1057,14 @@ impl HarborWallet {
                         self.clear_send_state();
                     }
                     // Toast success
-                    if params != SendSuccessMsg::Transfer {
+                    if params == SendSuccessMsg::Transfer {
+                        Task::none()
+                    } else {
                         Task::done(Message::AddToast(Toast {
                             title: "Payment sent".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))
-                    } else {
-                        Task::none()
                     }
                 }
                 CoreUIMsg::SendFailure(reason) => {
@@ -1096,16 +1095,15 @@ impl HarborWallet {
                         self.active_route = Route::History;
                         self.clear_transfer_state();
                     }
-                    if params != ReceiveSuccessMsg::Transfer {
-                        // Toast success
+                    if params == ReceiveSuccessMsg::Transfer {
                         Task::done(Message::AddToast(Toast {
-                            title: "Payment received".to_string(),
+                            title: "Transfer complete".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))
                     } else {
                         Task::done(Message::AddToast(Toast {
-                            title: "Transfer complete".to_string(),
+                            title: "Payment received".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))

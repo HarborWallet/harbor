@@ -64,10 +64,10 @@ pub fn sidebar(harbor: &HarborWallet) -> Element<Message> {
                 Position::Right,
                 harbor.show_add_a_mint_cta
             ),
-            if !transfer_disabled {
-                transfer_button.on_press(Message::Navigate(Route::Transfer))
-            } else {
+            if transfer_disabled {
                 transfer_button
+            } else {
+                transfer_button.on_press(Message::Navigate(Route::Transfer))
             },
             sidebar_button(
                 "History",
