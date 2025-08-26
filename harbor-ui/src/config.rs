@@ -17,8 +17,8 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConfigError::InvalidConfig => write!(f, "Config file is invalid"),
-            ConfigError::IoError(e) => write!(f, "IO error: {}", e),
-            ConfigError::SerdeError(e) => write!(f, "JSON error: {}", e),
+            ConfigError::IoError(e) => write!(f, "IO error: {e}"),
+            ConfigError::SerdeError(e) => write!(f, "JSON error: {e}"),
         }
     }
 }

@@ -109,7 +109,7 @@ pub fn h_transaction_details<'a>(
             Network::Signet => "https://mutinynet.com/tx/",
             _ => panic!("Unsupported network"),
         };
-        let url = format!("{}{}", base_url, txid);
+        let url = format!("{base_url}{txid}");
         details = details.push(
             column![
                 text("TXID").size(16).style(subtitle),

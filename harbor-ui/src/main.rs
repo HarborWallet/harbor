@@ -24,7 +24,6 @@
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
     clippy::too_many_lines,
-    clippy::uninlined_format_args,
     clippy::unreadable_literal,
     clippy::unused_self,
     clippy::use_self
@@ -78,7 +77,7 @@ pub mod routes;
 pub fn main() -> iced::Result {
     // Acquire the app lock - this prevents multiple instances from running
     if let Err(e) = lock::AppLock::acquire() {
-        eprintln!("{}", e);
+        eprintln!("{e}");
         std::process::exit(1);
     }
 
@@ -985,7 +984,7 @@ impl HarborWallet {
                 log::info!("Url clicked: {}", url);
                 self.confirm_modal = Some(ConfirmModalState {
                     title: "Open External Link?".to_string(),
-                    description: format!("This will open {} in your default browser.", url),
+                    description: format!("This will open {url} in your default browser."),
                     confirm_action: Box::new(Message::OpenUrl(url)),
                     cancel_action: Box::new(Message::SetConfirmModal(None)),
                     confirm_button_text: "Open Link".to_string(),
