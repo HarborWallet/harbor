@@ -20,7 +20,6 @@
     clippy::single_char_pattern,
     clippy::single_match_else,
     clippy::too_many_lines,
-    clippy::unnecessary_wraps,
     clippy::unused_async,
     clippy::use_self
 )]
