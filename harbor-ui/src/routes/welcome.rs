@@ -69,7 +69,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
                     label: "Password",
                     value: &harbor.password_input_str,
                     on_input: Message::PasswordInputChanged,
-                    on_submit: action.clone(),
+                    on_submit: action,
                     disabled: harbor.unlock_status == UnlockStatus::Unlocking,
                     secure: true,
                     id: Some("password_init_input"),

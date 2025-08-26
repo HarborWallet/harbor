@@ -13,7 +13,6 @@
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::or_fun_call,
-    clippy::redundant_clone,
     clippy::redundant_closure_for_method_calls,
     clippy::redundant_pub_crate,
     clippy::semicolon_if_nothing_returned,

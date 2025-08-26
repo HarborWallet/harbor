@@ -16,7 +16,6 @@
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::or_fun_call,
-    clippy::redundant_clone,
     clippy::redundant_closure_for_method_calls,
     clippy::redundant_else,
     clippy::ref_option,
@@ -590,7 +589,7 @@ impl HarborWallet {
                 if self.transfer_to_federation_selection == self.transfer_from_federation_selection
                 {
                     let fed = self.next_federation(&s);
-                    self.transfer_to_federation_selection = Some(fed.name.clone());
+                    self.transfer_to_federation_selection = Some(fed.name);
                 }
                 Task::none()
             }
@@ -600,7 +599,7 @@ impl HarborWallet {
                 if self.transfer_from_federation_selection == self.transfer_to_federation_selection
                 {
                     let fed = self.next_federation(&s);
-                    self.transfer_from_federation_selection = Some(fed.name.clone());
+                    self.transfer_from_federation_selection = Some(fed.name);
                 }
                 Task::none()
             }
@@ -1067,7 +1066,7 @@ impl HarborWallet {
                     }
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to send".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1110,7 +1109,7 @@ impl HarborWallet {
                     }
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to receive".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1121,7 +1120,7 @@ impl HarborWallet {
                     error!("Transfer failed: {reason}");
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to transfer".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1160,20 +1159,18 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::AddMintFailed(reason) => {
-                    let reason = reason.clone();
                     self.clear_add_federation_state();
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to join mint".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
                 CoreUIMsg::RemoveFederationFailed(reason) => {
-                    let reason = reason.clone();
                     self.clear_add_federation_state();
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to remove mint".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1362,12 +1359,8 @@ impl HarborWallet {
                     operation_id,
                 } => {
                     if let Some(id) = operation_id {
-                        self.operation_status.insert(
-                            id,
-                            OperationStatus {
-                                message: message.clone(),
-                            },
-                        );
+                        self.operation_status
+                            .insert(id, OperationStatus { message });
                     }
                     Task::none()
                 }

@@ -175,7 +175,7 @@ pub fn sidebar_button(
 pub fn text_link(text_str: String, url: String) -> Element<'static, Message> {
     let svg = map_icon(SvgIcon::ExternalLink, 16., 16.);
     let text = rich_text([span(text_str).link(url).underline(true).color(link())])
-        .on_link_click(|url: String| Message::UrlClicked(url.to_string()));
+        .on_link_click(|url: String| Message::UrlClicked(url));
 
     row![svg, text]
         .align_y(iced::Alignment::Center)
