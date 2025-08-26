@@ -74,13 +74,13 @@ pub fn create_handles() -> (UIHandle, CoreHandle) {
     (ui_handle, core_handle)
 }
 
-/// Common setup function for creating a HarborCore instance
+/// Common setup function for creating a `HarborCore` instance
 async fn setup_harbor_core(
     data_dir: PathBuf,
     db_path: &str,
     password: &str,
     network: Network,
-    tx: &mut Sender<Message>,
+    tx: &Sender<Message>,
 ) -> Option<HarborCore> {
     // Setup core message channel
     let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
@@ -389,15 +389,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     // Save password to keyring when successfully unlocked
                     save_to_keyring(&password).await;
 
-                    match setup_harbor_core(
-                        path.to_path_buf(),
-                        &db_path,
-                        &password,
-                        network,
-                        &mut tx,
-                    )
-                    .await
-                    {
+                    match setup_harbor_core(path.clone(), &db_path, &password, network, &tx).await {
                         Some(core) => {
                             tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
                                 .await
@@ -469,7 +461,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     let core = HarborCore::new(
                         network,
                         db.generate_mnemonic(seed).expect("should generate words"),
-                        path.to_path_buf(),
+                        path.clone(),
                         core_tx,
                         Arc::new(RwLock::new(HashMap::new())),
                         Arc::new(RwLock::new(HashMap::new())),
@@ -489,7 +481,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                 }
 
                 _ => {
-                    warn!("Ignoring unrelated message to locked core")
+                    warn!("Ignoring unrelated message to locked core");
                 }
             }
         }
@@ -648,38 +640,28 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                     }
                     UICoreMsg::AddFederation(invite_code) => {
                         let id = invite_code.federation_id();
-                        match core.add_federation(msg.id, invite_code).await {
-                            Err(e) => {
-                                error!("Error adding federation: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(_) => {
-                                if let Ok(new_federation_list) = core.get_mint_items().await {
-                                    core.msg(
-                                        msg.id,
-                                        CoreUIMsg::MintListUpdated(new_federation_list),
-                                    )
-                                    .await;
-                                }
-                                core.msg(
-                                    msg.id,
-                                    CoreUIMsg::AddMintSuccess(MintIdentifier::Fedimint(id)),
-                                )
+                        if let Err(e) = core.add_federation(msg.id, invite_code).await {
+                            error!("Error adding federation: {e}");
+                            core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                 .await;
+                        } else {
+                            if let Ok(new_federation_list) = core.get_mint_items().await {
+                                core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
+                                    .await;
                             }
+                            core.msg(
+                                msg.id,
+                                CoreUIMsg::AddMintSuccess(MintIdentifier::Fedimint(id)),
+                            )
+                            .await;
                         }
                     }
-                    UICoreMsg::AddCashuMint(url) => match core
-                        .add_cashu_mint(msg.id, url.clone())
-                        .await
-                    {
-                        Err(e) => {
+                    UICoreMsg::AddCashuMint(url) => {
+                        if let Err(e) = core.add_cashu_mint(msg.id, url.clone()).await {
                             error!("Error adding mint: {e}");
                             core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                 .await;
-                        }
-                        Ok(_) => {
+                        } else {
                             if let Ok(new_federation_list) = core.get_mint_items().await {
                                 core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
                                     .await;
@@ -690,7 +672,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             )
                             .await;
                         }
-                    },
+                    }
                     UICoreMsg::RemoveMint(id) => {
                         // Send status update before attempting removal
                         core.msg(
@@ -704,51 +686,43 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
 
                         match id {
                             MintIdentifier::Fedimint(id) => {
-                                match core.remove_federation(msg.id, id).await {
-                                    Err(e) => {
-                                        error!("Error removing federation: {e}");
+                                if let Err(e) = core.remove_federation(msg.id, id).await {
+                                    error!("Error removing federation: {e}");
+                                    core.msg(
+                                        msg.id,
+                                        CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                                    )
+                                    .await;
+                                } else {
+                                    log::info!("Removed federation: {id}");
+                                    if let Ok(new_federation_list) = core.get_mint_items().await {
                                         core.msg(
                                             msg.id,
-                                            CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                                            CoreUIMsg::MintListUpdated(new_federation_list),
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
-                                        log::info!("Removed federation: {id}");
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
-                                    }
+                                    core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
                                 }
                             }
                             MintIdentifier::Cashu(url) => {
-                                match core.remove_cashu_mint(msg.id, &url).await {
-                                    Err(e) => {
-                                        error!("Error removing cashu mint: {e}");
+                                if let Err(e) = core.remove_cashu_mint(msg.id, &url).await {
+                                    error!("Error removing cashu mint: {e}");
+                                    core.msg(
+                                        msg.id,
+                                        CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                                    )
+                                    .await;
+                                } else {
+                                    log::info!("Removed cashu mint: {url}");
+                                    if let Ok(new_federation_list) = core.get_mint_items().await {
                                         core.msg(
                                             msg.id,
-                                            CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                                            CoreUIMsg::MintListUpdated(new_federation_list),
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
-                                        log::info!("Removed cashu mint: {url}");
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
-                                    }
+                                    core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
                                 }
                             }
                         }
@@ -758,42 +732,34 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             if let Ok(Some(invite_code)) =
                                 core.storage.get_federation_invite_code(id)
                             {
-                                match core.add_federation(msg.id, invite_code).await {
-                                    Err(e) => {
-                                        error!("Error adding federation: {e}");
-                                        core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                            .await;
+                                if let Err(e) = core.add_federation(msg.id, invite_code).await {
+                                    error!("Error adding federation: {e}");
+                                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                                        .await;
+                                } else {
+                                    if let Ok(new_federation_list) = core.get_mint_items().await {
+                                        core.msg(
+                                            msg.id,
+                                            CoreUIMsg::MintListUpdated(new_federation_list),
+                                        )
+                                        .await;
                                     }
-                                    Ok(_) => {
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
-                                        info!("Rejoined federation: {id}");
-                                    }
+                                    core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
+                                    info!("Rejoined federation: {id}");
                                 }
                             }
                         }
                         MintIdentifier::Cashu(ref mint_url) => {
-                            match core.add_cashu_mint(msg.id, mint_url.clone()).await {
-                                Err(e) => {
-                                    error!("Error adding cashu mint: {e}");
-                                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                        .await;
+                            if let Err(e) = core.add_cashu_mint(msg.id, mint_url.clone()).await {
+                                error!("Error adding cashu mint: {e}");
+                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                                    .await;
+                            } else {
+                                if let Ok(new_list) = core.get_mint_items().await {
+                                    core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list)).await;
                                 }
-                                Ok(_) => {
-                                    if let Ok(new_list) = core.get_mint_items().await {
-                                        core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list))
-                                            .await;
-                                    }
-                                    info!("Rejoined cashu mint: {mint_url}");
-                                    core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
-                                }
+                                info!("Rejoined cashu mint: {mint_url}");
+                                core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
                             }
                         }
                     },
@@ -804,11 +770,11 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::GetSeedWords => {
-                        let seed_words = core.get_seed_words().await;
+                        let seed_words = core.get_seed_words();
                         core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                     UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
-                        match core.set_onchain_receive_enabled(enabled).await {
+                        match core.set_onchain_receive_enabled(enabled) {
                             Err(e) => {
                                 error!("error setting onchain receive enabled: {e}");
                             }
@@ -818,16 +784,14 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
-                    UICoreMsg::SetTorEnabled(enabled) => {
-                        match core.set_tor_enabled(enabled).await {
-                            Err(e) => {
-                                error!("error setting tor enabled: {e}");
-                            }
-                            _ => {
-                                core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
-                            }
+                    UICoreMsg::SetTorEnabled(enabled) => match core.set_tor_enabled(enabled) {
+                        Err(e) => {
+                            error!("error setting tor enabled: {e}");
                         }
-                    }
+                        _ => {
+                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+                        }
+                    },
                     UICoreMsg::TestStatusUpdates => {
                         core.test_status_updates(msg.id).await;
                     }

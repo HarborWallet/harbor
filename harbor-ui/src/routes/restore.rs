@@ -30,8 +30,7 @@ pub fn restore(harbor: &HarborWallet) -> Element<Message> {
                     harbor_logo(),
                     welcome_message,
                     text(format!(
-                        "Failed to initialize wallet. Config error: {}",
-                        error
+                        "Failed to initialize wallet. Config error: {error}"
                     ))
                     .size(24)
                     .color(iced::Color::from_rgb8(250, 0, 80))
@@ -76,7 +75,7 @@ pub fn restore(harbor: &HarborWallet) -> Element<Message> {
                     SvgIcon::Restart,
                     harbor.unlock_status == UnlockStatus::Unlocking,
                 )
-                .on_press_maybe(action.clone())
+                .on_press_maybe(action)
                 .width(Length::Fill);
 
                 column![

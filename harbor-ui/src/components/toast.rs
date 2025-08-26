@@ -35,9 +35,9 @@ impl ToastStatus {
 impl fmt::Display for ToastStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ToastStatus::Neutral => "Neutral",
-            ToastStatus::Good => "Good",
-            ToastStatus::Bad => "Bad",
+            Self::Neutral => "Neutral",
+            Self::Good => "Good",
+            Self::Bad => "Bad",
         }
         .fmt(f)
     }

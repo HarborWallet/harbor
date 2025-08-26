@@ -42,13 +42,13 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
         .width(Length::Fixed(256.));
 
     let page_column = page_column.push_maybe(harbor.unlock_failure_reason.as_ref().map(|r| {
-        text(format!("Error: {:?}", r))
+        text(format!("Error: {r:?}"))
             .size(24)
             .color(Color::from_rgb8(250, 0, 80))
     }));
 
     let page_column = page_column.push_maybe(harbor.init_failure_reason.as_ref().map(|r| {
-        text(format!("Init Error: {:?}", r))
+        text(format!("Init Error: {r:?}"))
             .size(24)
             .color(Color::from_rgb8(250, 0, 80))
     }));

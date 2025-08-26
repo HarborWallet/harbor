@@ -1,3 +1,27 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cognitive_complexity,
+    clippy::derive_partial_eq_without_eq,
+    clippy::large_futures,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::or_fun_call,
+    clippy::redundant_else,
+    clippy::ref_option,
+    clippy::return_self_not_must_use,
+    clippy::struct_excessive_bools,
+    clippy::suboptimal_flops,
+    clippy::too_many_lines,
+    clippy::unused_self
+)]
 #![windows_subsystem = "windows"]
 
 use crate::bridge::run_core;
@@ -47,7 +71,7 @@ pub mod routes;
 pub fn main() -> iced::Result {
     // Acquire the app lock - this prevents multiple instances from running
     if let Err(e) = lock::AppLock::acquire() {
-        eprintln!("{}", e);
+        eprintln!("{e}");
         std::process::exit(1);
     }
 
@@ -366,9 +390,9 @@ impl HarborWallet {
         let id = Uuid::new_v4();
         let task = Task::perform(
             Self::with_ui_handle(self.ui_handle.clone(), move |h| async move {
-                h.send_msg(id, msg).await
+                h.send_msg(id, msg).await;
             }),
-            |_| Message::Noop,
+            |()| Message::Noop,
         );
         (id, task)
     }
@@ -484,7 +508,7 @@ impl HarborWallet {
                 if let Some(amt) = msats {
                     self.send_amount_input_str = (amt / 1_000).to_string();
                 } else {
-                    self.send_amount_input_str = String::from("");
+                    self.send_amount_input_str = String::new();
                 }
                 self.send_dest_input_str = input;
                 Task::none()
@@ -557,7 +581,7 @@ impl HarborWallet {
                 if self.transfer_to_federation_selection == self.transfer_from_federation_selection
                 {
                     let fed = self.next_federation(&s);
-                    self.transfer_to_federation_selection = Some(fed.name.clone());
+                    self.transfer_to_federation_selection = Some(fed.name);
                 }
                 Task::none()
             }
@@ -567,7 +591,7 @@ impl HarborWallet {
                 if self.transfer_from_federation_selection == self.transfer_to_federation_selection
                 {
                     let fed = self.next_federation(&s);
-                    self.transfer_from_federation_selection = Some(fed.name.clone());
+                    self.transfer_from_federation_selection = Some(fed.name);
                 }
                 Task::none()
             }
@@ -589,18 +613,15 @@ impl HarborWallet {
             Message::Noop => Task::none(),
             Message::Send(invoice_str) => match self.send_status {
                 SendStatus::Sending => Task::none(),
-                _ => {
+                SendStatus::Idle => {
                     self.send_failure_reason = None;
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            error!("No active mint");
-                            return Task::done(Message::AddToast(Toast {
-                                title: "Cannot send".to_string(),
-                                body: Some("No active mint selected".to_string()),
-                                status: ToastStatus::Bad,
-                            }));
-                        }
+                    let Some(mint) = self.active_mint.clone() else {
+                        error!("No active mint");
+                        return Task::done(Message::AddToast(Toast {
+                            title: "Cannot send".to_string(),
+                            body: Some("No active mint selected".to_string()),
+                            status: ToastStatus::Bad,
+                        }));
                     };
 
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
@@ -704,16 +725,13 @@ impl HarborWallet {
                     }));
                 }
 
-                let amount = match self.transfer_amount_input_str.parse::<u64>() {
-                    Ok(a) => a,
-                    Err(_) => {
-                        error!("Invalid amount");
-                        return Task::done(Message::AddToast(Toast {
-                            title: "Invalid amount".to_string(),
-                            body: Some("Please enter a valid number of sats".to_string()),
-                            status: ToastStatus::Bad,
-                        }));
-                    }
+                let Ok(amount) = self.transfer_amount_input_str.parse::<u64>() else {
+                    error!("Invalid amount");
+                    return Task::done(Message::AddToast(Toast {
+                        title: "Invalid amount".to_string(),
+                        body: Some("Please enter a valid number of sats".to_string()),
+                        status: ToastStatus::Bad,
+                    }));
                 };
 
                 let (id, task) = self.send_from_ui(UICoreMsg::Transfer {
@@ -725,15 +743,13 @@ impl HarborWallet {
                 self.transfer_status = SendStatus::Sending;
                 task
             }
-            Message::GenerateInvoice => match self.receive_status {
-                ReceiveStatus::Generating => Task::none(),
-                _ => {
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            // This should be unreachable yeah?
-                            panic!("No active federation, but we're trying to generate an invoice");
-                        }
+            Message::GenerateInvoice => {
+                if self.receive_status == ReceiveStatus::Generating {
+                    Task::none()
+                } else {
+                    let Some(mint) = self.active_mint.clone() else {
+                        // This should be unreachable yeah?
+                        panic!("No active federation, but we're trying to generate an invoice");
                     };
                     match self.receive_amount_str.parse::<u64>() {
                         Ok(amount) => {
@@ -756,24 +772,22 @@ impl HarborWallet {
                         }
                     }
                 }
-            },
-            Message::GenerateAddress => match self.receive_status {
-                ReceiveStatus::Generating => Task::none(),
-                _ => {
-                    let mint = match self.active_mint.clone() {
-                        Some(f) => f,
-                        None => {
-                            // todo show error
-                            error!("No active federation");
-                            return Task::none();
-                        }
+            }
+            Message::GenerateAddress => {
+                if self.receive_status == ReceiveStatus::Generating {
+                    Task::none()
+                } else {
+                    let Some(mint) = self.active_mint.clone() else {
+                        // todo show error
+                        error!("No active federation");
+                        return Task::none();
                     };
                     let (id, task) = self.send_from_ui(UICoreMsg::ReceiveOnChain { mint });
                     self.current_receive_id = Some(id);
                     self.receive_failure_reason = None;
                     task
                 }
-            },
+            }
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
                 Ok(amount_sats) => {
                     // Check if we have an active mint
@@ -809,14 +823,15 @@ impl HarborWallet {
                     }))
                 }
             },
-            Message::Unlock(password) => match self.unlock_status {
-                UnlockStatus::Unlocking => Task::none(),
-                _ => {
+            Message::Unlock(password) => {
+                if self.unlock_status == UnlockStatus::Unlocking {
+                    Task::none()
+                } else {
                     self.unlock_failure_reason = None;
                     let (_, task) = self.send_from_ui(UICoreMsg::Unlock(password));
                     task
                 }
-            },
+            }
             Message::Init { password, seed } => match self.unlock_status {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {
@@ -954,7 +969,7 @@ impl HarborWallet {
                 log::info!("Url clicked: {}", url);
                 self.confirm_modal = Some(ConfirmModalState {
                     title: "Open External Link?".to_string(),
-                    description: format!("This will open {} in your default browser.", url),
+                    description: format!("This will open {url} in your default browser."),
                     confirm_action: Box::new(Message::OpenUrl(url)),
                     cancel_action: Box::new(Message::SetConfirmModal(None)),
                     confirm_button_text: "Open Link".to_string(),
@@ -1016,14 +1031,14 @@ impl HarborWallet {
                         self.clear_send_state();
                     }
                     // Toast success
-                    if params != SendSuccessMsg::Transfer {
+                    if params == SendSuccessMsg::Transfer {
+                        Task::none()
+                    } else {
                         Task::done(Message::AddToast(Toast {
                             title: "Payment sent".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))
-                    } else {
-                        Task::none()
                     }
                 }
                 CoreUIMsg::SendFailure(reason) => {
@@ -1034,7 +1049,7 @@ impl HarborWallet {
                     }
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to send".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1054,16 +1069,15 @@ impl HarborWallet {
                         self.active_route = Route::History;
                         self.clear_transfer_state();
                     }
-                    if params != ReceiveSuccessMsg::Transfer {
-                        // Toast success
+                    if params == ReceiveSuccessMsg::Transfer {
                         Task::done(Message::AddToast(Toast {
-                            title: "Payment received".to_string(),
+                            title: "Transfer complete".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))
                     } else {
                         Task::done(Message::AddToast(Toast {
-                            title: "Transfer complete".to_string(),
+                            title: "Payment received".to_string(),
                             body: None,
                             status: ToastStatus::Good,
                         }))
@@ -1078,7 +1092,7 @@ impl HarborWallet {
                     }
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to receive".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1089,7 +1103,7 @@ impl HarborWallet {
                     error!("Transfer failed: {reason}");
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to transfer".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1128,20 +1142,18 @@ impl HarborWallet {
                     Task::none()
                 }
                 CoreUIMsg::AddMintFailed(reason) => {
-                    let reason = reason.clone();
                     self.clear_add_federation_state();
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to join mint".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
                 CoreUIMsg::RemoveFederationFailed(reason) => {
-                    let reason = reason.clone();
                     self.clear_add_federation_state();
                     Task::done(Message::AddToast(Toast {
                         title: "Failed to remove mint".to_string(),
-                        body: Some(reason.clone()),
+                        body: Some(reason),
                         status: ToastStatus::Bad,
                     }))
                 }
@@ -1330,12 +1342,8 @@ impl HarborWallet {
                     operation_id,
                 } => {
                     if let Some(id) = operation_id {
-                        self.operation_status.insert(
-                            id,
-                            OperationStatus {
-                                message: message.clone(),
-                            },
-                        );
+                        self.operation_status
+                            .insert(id, OperationStatus { message });
                     }
                     Task::none()
                 }

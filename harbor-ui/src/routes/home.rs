@@ -18,15 +18,15 @@ pub fn home(harbor: &HarborWallet) -> Element<Message> {
     let receive_button = h_button("Deposit", SvgIcon::DownLeft, false);
 
     let buttons = row![
-        if !send_disabled {
-            send_button.on_press(Message::Navigate(Route::Send))
-        } else {
+        if send_disabled {
             send_button
-        },
-        if !receive_disabled {
-            receive_button.on_press(Message::Navigate(Route::Receive))
         } else {
+            send_button.on_press(Message::Navigate(Route::Send))
+        },
+        if receive_disabled {
             receive_button
+        } else {
+            receive_button.on_press(Message::Navigate(Route::Receive))
         }
     ]
     .spacing(32);

@@ -236,10 +236,7 @@ impl DBConnection for SQLConnection {
 
     fn get_profile(&self) -> anyhow::Result<Option<Profile>> {
         let conn = &mut self.db.get()?;
-        match Profile::get_first(conn)? {
-            Some(p) => Ok(Some(p)),
-            None => Ok(None),
-        }
+        Profile::get_first(conn)
     }
 
     fn insert_new_profile(&self, new_profile: NewProfile) -> anyhow::Result<Profile> {
@@ -518,15 +515,12 @@ impl DBConnection for SQLConnection {
     }
 
     fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic> {
-        match self.get_seed()? {
-            Some(m) => {
-                info!("retrieved existing seed");
-                Ok(Mnemonic::from_str(&m)?)
-            }
-            None => {
-                error!("Tried to retrieve seed but none was stored");
-                Err(anyhow!("No seed stored"))
-            }
+        if let Some(m) = self.get_seed()? {
+            info!("retrieved existing seed");
+            Ok(Mnemonic::from_str(&m)?)
+        } else {
+            error!("Tried to retrieve seed but none was stored");
+            Err(anyhow!("No seed stored"))
         }
     }
 
@@ -595,7 +589,7 @@ impl DBConnection for SQLConnection {
 
     fn get_federation_metadata(&self, id: FederationId) -> anyhow::Result<Option<FederationMeta>> {
         let conn = &mut self.db.get()?;
-        let meta = MintMetadata::get(conn, id.to_string())?.map(|i| i.into());
+        let meta = MintMetadata::get(conn, id.to_string())?.map(Into::into);
         Ok(meta)
     }
 

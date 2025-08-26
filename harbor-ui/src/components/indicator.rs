@@ -347,10 +347,8 @@ where
     Theme: container::Catalog + 'a,
     Renderer: iced::advanced::text::Renderer + 'a,
 {
-    fn from(
-        indicator: Indicator<'a, Message, Theme, Renderer>,
-    ) -> Element<'a, Message, Theme, Renderer> {
-        Element::new(indicator)
+    fn from(indicator: Indicator<'a, Message, Theme, Renderer>) -> Self {
+        Self::new(indicator)
     }
 }
 

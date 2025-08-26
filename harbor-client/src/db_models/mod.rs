@@ -87,10 +87,10 @@ pub enum PaymentStatus {
 impl PaymentStatus {
     pub fn from_i32(status: i32) -> Self {
         match status {
-            0 => PaymentStatus::Pending,
-            1 => PaymentStatus::WaitingConfirmation,
-            2 => PaymentStatus::Success,
-            3 => PaymentStatus::Failed,
+            0 => Self::Pending,
+            1 => Self::WaitingConfirmation,
+            2 => Self::Success,
+            3 => Self::Failed,
             _ => panic!("invalid status"),
         }
     }

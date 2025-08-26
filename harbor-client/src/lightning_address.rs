@@ -128,7 +128,7 @@ mod tests {
         // Test with Tor, but don't fail the whole test if Tor fails
         log::debug!("Starting Tor test");
         match try_with_tor_mode(&ln_address, true).await {
-            Ok(_) => {
+            Ok(()) => {
                 log::debug!("Tor test completed successfully");
             }
             Err(e) => {

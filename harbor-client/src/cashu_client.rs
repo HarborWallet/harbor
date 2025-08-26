@@ -51,10 +51,10 @@ impl TorMintConnector {
     }
 
     #[inline]
-    async fn http_post<P: Serialize + ?Sized, R: DeserializeOwned + Send + 'static>(
+    async fn http_post<P: Serialize, R: DeserializeOwned + Send + 'static>(
         &self,
         url: Url,
-        payload: &P,
+        payload: P,
     ) -> Result<R, Error> {
         let res: R = make_tor_request(url.as_str(), Some(payload), self.cancel_handle.clone())
             .await

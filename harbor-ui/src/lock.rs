@@ -13,7 +13,7 @@ impl AppLock {
         let data_dir = data_dir(None);
         if !data_dir.exists() {
             std::fs::create_dir_all(&data_dir)
-                .map_err(|e| format!("Failed to create data directory: {}", e))?;
+                .map_err(|e| format!("Failed to create data directory: {e}"))?;
         }
 
         let lock_file_path = data_dir.join("harbor.lock");
@@ -24,7 +24,7 @@ impl AppLock {
             .create(true)
             .truncate(true)
             .open(&lock_file_path)
-            .map_err(|e| format!("Failed to create/open lock file: {}", e))?;
+            .map_err(|e| format!("Failed to create/open lock file: {e}"))?;
 
         let mut lock = RwLock::new(file);
 
@@ -37,7 +37,7 @@ impl AppLock {
         std::mem::forget(guard);
         std::mem::forget(lock);
 
-        Ok(AppLock {})
+        Ok(Self {})
     }
 }
 
@@ -52,7 +52,7 @@ pub fn restart_app() {
     let executable = &args[0];
 
     if let Err(e) = Command::new(executable).args(&args[1..]).spawn() {
-        eprintln!("Failed to relaunch: {}", e);
+        eprintln!("Failed to relaunch: {e}");
         std::process::exit(1);
     }
 

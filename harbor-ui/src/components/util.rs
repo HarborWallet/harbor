@@ -61,25 +61,16 @@ pub fn format_amount(amount: u64) -> String {
 }
 
 pub fn truncate_text(input: &str, max_len: usize, center: bool) -> String {
-    match center {
+    if input.len() <= max_len {
+        input.to_string()
+    } else if center {
         // center the elllipses around middle of the string
-        true => {
-            if input.len() > max_len {
-                format!(
-                    "{}...{}",
-                    &input[..(max_len / 2)],
-                    &input[(input.len() - max_len / 2)..]
-                )
-            } else {
-                input.to_string()
-            }
-        }
-        false => {
-            if input.len() > max_len {
-                format!("{}...", &input[input.len() - max_len..])
-            } else {
-                input.to_string()
-            }
-        }
+        format!(
+            "{}...{}",
+            &input[..(max_len / 2)],
+            &input[(input.len() - max_len / 2)..]
+        )
+    } else {
+        format!("{}...", &input[input.len() - max_len..])
     }
 }

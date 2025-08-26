@@ -8,8 +8,8 @@ use std::sync::LazyLock;
 
 pub static EMPHASIZED: LazyLock<Easing> = LazyLock::new(|| {
     Easing::builder()
-        .cubic_bezier_to([0.05, 0.0], [0.133333, 0.06], [0.166666, 0.4])
-        .cubic_bezier_to([0.208333, 0.82], [0.25, 1.0], [1.0, 1.0])
+        .cubic_bezier_to([0.05, 0.0], [0.133_333, 0.06], [0.166_666, 0.4])
+        .cubic_bezier_to([0.208_333, 0.82], [0.25, 1.0], [1.0, 1.0])
         .build()
 });
 
