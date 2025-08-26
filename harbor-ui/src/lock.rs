@@ -37,7 +37,7 @@ impl AppLock {
         std::mem::forget(guard);
         std::mem::forget(lock);
 
-        Ok(AppLock {})
+        Ok(Self {})
     }
 }
 

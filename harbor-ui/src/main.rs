@@ -24,8 +24,7 @@
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
     clippy::too_many_lines,
-    clippy::unused_self,
-    clippy::use_self
+    clippy::unused_self
 )]
 #![windows_subsystem = "windows"]
 

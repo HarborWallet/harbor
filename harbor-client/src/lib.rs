@@ -19,8 +19,7 @@
     clippy::similar_names,
     clippy::single_char_pattern,
     clippy::single_match_else,
-    clippy::too_many_lines,
-    clippy::use_self
+    clippy::too_many_lines
 )]
 
 use crate::cashu_client::{
@@ -115,15 +114,15 @@ pub enum MintIdentifier {
 impl MintIdentifier {
     pub fn federation_id(&self) -> Option<FederationId> {
         match self {
-            MintIdentifier::Fedimint(id) => Some(*id),
-            MintIdentifier::Cashu(_) => None,
+            Self::Fedimint(id) => Some(*id),
+            Self::Cashu(_) => None,
         }
     }
 
     pub fn mint_url(&self) -> Option<MintUrl> {
         match self {
-            MintIdentifier::Cashu(url) => Some(url.clone()),
-            MintIdentifier::Fedimint(_) => None,
+            Self::Cashu(url) => Some(url.clone()),
+            Self::Fedimint(_) => None,
         }
     }
 }

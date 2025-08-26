@@ -56,15 +56,15 @@ pub enum FederationInviteOrId {
 impl FederationInviteOrId {
     pub fn federation_id(&self) -> FederationId {
         match self {
-            FederationInviteOrId::Invite(i) => i.federation_id(),
-            FederationInviteOrId::Id(i) => *i,
+            Self::Invite(i) => i.federation_id(),
+            Self::Id(i) => *i,
         }
     }
 
     pub fn invite_code(&self) -> Option<InviteCode> {
         match self {
-            FederationInviteOrId::Invite(i) => Some(i.clone()),
-            FederationInviteOrId::Id(_) => None,
+            Self::Invite(i) => Some(i.clone()),
+            Self::Id(_) => None,
         }
     }
 }
@@ -276,7 +276,7 @@ impl FedimintClient {
 
         debug!("Built fedimint client");
 
-        Ok(FedimintClient {
+        Ok(Self {
             fedimint_client,
             stop,
         })
