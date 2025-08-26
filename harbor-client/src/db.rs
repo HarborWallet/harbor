@@ -135,6 +135,16 @@ pub trait DBConnection {
         fee: Amount,
     ) -> anyhow::Result<()>;
 
+    fn create_bolt12_receive(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()>;
+
     fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()>;
 
     fn mark_ln_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
@@ -145,6 +155,16 @@ pub trait DBConnection {
         fedimint_id: Option<FederationId>,
         cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()>;
+
+    fn create_bolt12_payment(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
         amount: Amount,
         fee: Amount,
     ) -> anyhow::Result<()>;
@@ -226,7 +246,7 @@ pub trait DBConnection {
 }
 
 pub struct SQLConnection {
-    db: Pool<ConnectionManager<SqliteConnection>>,
+    db: Pool<ConnectionManager<SqliteConnection>>, 
 }
 
 impl DBConnection for SQLConnection {
@@ -320,6 +340,28 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
+    fn create_bolt12_receive(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        LightningReceive::create_bolt12(
+            conn,
+            operation_id,
+            fedimint_id,
+            cashu_mint_url,
+            offer,
+            amount,
+            fee,
+        )?;
+        Ok(())
+    }
+
     fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
@@ -357,6 +399,28 @@ impl DBConnection for SQLConnection {
             fee,
         )?;
 
+        Ok(())
+    }
+
+    fn create_bolt12_payment(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        LightningPayment::create_bolt12(
+            conn,
+            operation_id,
+            fedimint_id,
+            cashu_mint_url,
+            offer,
+            amount,
+            fee,
+        )?;
         Ok(())
     }
 

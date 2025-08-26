@@ -867,6 +867,17 @@ impl HarborCore {
         self.status_update(msg_id, "Creating payment transaction")
             .await;
 
+        // Persist the outgoing bolt12 payment so completion can update it later
+        let amount = Amount::from_msats(amount_msats.unwrap_or(0));
+        self.storage.create_bolt12_payment(
+            quote.id.clone(),
+            None,
+            Some(mint_url.clone()),
+            offer.clone(),
+            amount,
+            Amount::from_msats(quote.fee_reserve.into()),
+        )?;
+
         spawn_lightning_payment_thread(
             self.tx.clone(),
             client,
@@ -929,6 +940,17 @@ impl HarborCore {
         let offer = quote.request.clone();
 
         log::info!("Bolt12 offer created: {offer}");
+
+        // Save receive record in DB for bolt12
+        let amt = amount.unwrap_or(Amount::ZERO);
+        self.storage.create_bolt12_receive(
+            quote.id.clone(),
+            None,
+            Some(mint.clone()),
+            offer.clone(),
+            amt,
+            Amount::ZERO,
+        )?;
 
         // Spawn the bolt12 receive thread to monitor for payment
         spawn_bolt12_receive_thread(
