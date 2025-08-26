@@ -389,14 +389,8 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     // Save password to keyring when successfully unlocked
                     save_to_keyring(&password).await;
 
-                    match setup_harbor_core(
-                        path.to_path_buf(),
-                        &db_path,
-                        &password,
-                        network,
-                        &mut tx,
-                    )
-                    .await
+                    match setup_harbor_core(path.clone(), &db_path, &password, network, &mut tx)
+                        .await
                     {
                         Some(core) => {
                             tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
@@ -469,7 +463,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     let core = HarborCore::new(
                         network,
                         db.generate_mnemonic(seed).expect("should generate words"),
-                        path.to_path_buf(),
+                        path.clone(),
                         core_tx,
                         Arc::new(RwLock::new(HashMap::new())),
                         Arc::new(RwLock::new(HashMap::new())),

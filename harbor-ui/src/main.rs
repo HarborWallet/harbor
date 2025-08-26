@@ -6,7 +6,6 @@
     clippy::cast_sign_loss,
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
-    clippy::implicit_clone,
     clippy::large_futures,
     clippy::manual_let_else,
     clippy::manual_string_new,
