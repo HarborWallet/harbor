@@ -564,8 +564,8 @@ mod tests {
                 assert!(!res.federations.is_empty());
             }
             Err(e) => {
-                log::error!("Failed to fetch metadata: {:?}", e);
-                panic!("Failed to fetch metadata: {:?}", e);
+                log::error!("Failed to fetch metadata: {e:?}");
+                panic!("Failed to fetch metadata: {e:?}");
             }
         }
     }
@@ -585,8 +585,8 @@ mod tests {
                 assert!(!res.federations.is_empty());
             }
             Err(e) => {
-                log::error!("Failed to fetch metadata: {:?}", e);
-                panic!("Failed to fetch metadata: {:?}", e);
+                log::error!("Failed to fetch metadata: {e:?}");
+                panic!("Failed to fetch metadata: {e:?}");
             }
         }
     }
@@ -630,8 +630,8 @@ mod tests {
                 assert!(res.get("url").is_some(), "Expected 'url' field in response");
             }
             Err(e) => {
-                log::error!("Failed to follow redirect: {:?}", e);
-                panic!("Failed to follow redirect: {:?}", e);
+                log::error!("Failed to follow redirect: {e:?}");
+                panic!("Failed to follow redirect: {e:?}");
             }
         }
     }
