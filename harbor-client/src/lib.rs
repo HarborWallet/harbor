@@ -12,7 +12,6 @@
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::or_fun_call,
-    clippy::semicolon_if_nothing_returned,
     clippy::significant_drop_in_scrutinee,
     clippy::significant_drop_tightening,
     clippy::similar_names,
@@ -364,10 +363,10 @@ impl HarborCore {
                             )
                             .await;
                         } else {
-                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                            storage.mark_ln_receive_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                        storage.mark_ln_receive_as_failed(item.operation_id)?;
                     }
                 }
                 MintIdentifier::Cashu(mint_url) => {
@@ -384,10 +383,10 @@ impl HarborCore {
                                 false,
                             );
                         } else {
-                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                            storage.mark_ln_receive_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                        storage.mark_ln_receive_as_failed(item.operation_id)?;
                     }
                 }
             }
@@ -428,10 +427,10 @@ impl HarborCore {
                             )
                             .await;
                         } else {
-                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?;
                     }
                 }
                 MintIdentifier::Cashu(mint_url) => {
@@ -448,10 +447,10 @@ impl HarborCore {
                                 false,
                             );
                         } else {
-                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?;
                     }
                 }
             }
@@ -475,13 +474,13 @@ impl HarborCore {
     // Initial setup messages that don't have an id
     // Panics if fails to send
     async fn send_system_msg(&self, msg: CoreUIMsg) {
-        Self::send_msg(&mut self.tx.clone(), None, msg).await
+        Self::send_msg(&mut self.tx.clone(), None, msg).await;
     }
 
     // Standard core->ui communication with an id
     // Panics if fails to send
     pub async fn msg(&self, id: Uuid, msg: CoreUIMsg) {
-        Self::send_msg(&mut self.tx.clone(), Some(id), msg).await
+        Self::send_msg(&mut self.tx.clone(), Some(id), msg).await;
     }
 
     pub async fn send_msg(sender: &mut Sender<CoreUIMsgPacket>, id: Option<Uuid>, msg: CoreUIMsg) {

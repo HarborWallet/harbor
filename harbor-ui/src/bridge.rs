@@ -481,7 +481,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                 }
 
                 _ => {
-                    warn!("Ignoring unrelated message to locked core")
+                    warn!("Ignoring unrelated message to locked core");
                 }
             }
         }

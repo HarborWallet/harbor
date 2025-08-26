@@ -17,7 +17,6 @@
     clippy::redundant_else,
     clippy::ref_option,
     clippy::return_self_not_must_use,
-    clippy::semicolon_if_nothing_returned,
     clippy::single_match_else,
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
@@ -395,7 +394,7 @@ impl HarborWallet {
         let id = Uuid::new_v4();
         let task = Task::perform(
             Self::with_ui_handle(self.ui_handle.clone(), move |h| async move {
-                h.send_msg(id, msg).await
+                h.send_msg(id, msg).await;
             }),
             |()| Message::Noop,
         );
