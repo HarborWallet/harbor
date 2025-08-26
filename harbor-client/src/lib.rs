@@ -4,7 +4,6 @@
     clippy::cast_sign_loss,
     clippy::default_trait_access,
     clippy::derive_partial_eq_without_eq,
-    clippy::items_after_statements,
     clippy::large_futures,
     clippy::match_same_arms,
     clippy::match_wildcard_for_single_variants,
@@ -847,6 +846,8 @@ impl HarborCore {
         msg_id: Uuid,
         amount: Amount,
     ) -> anyhow::Result<(Bolt11Invoice, OperationId)> {
+        const DEFAULT_EXPIRY_TIME_SECS: u32 = 86400;
+
         let enable_lnv2 = cfg!(feature = "lnv2");
         if !enable_lnv2 {
             return Err(anyhow::anyhow!("LNv2 is not enabled"));
@@ -855,7 +856,6 @@ impl HarborCore {
         log::info!("Trying to pay receive {amount} with LNv2...");
         let lnv2_module =
             client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
-        const DEFAULT_EXPIRY_TIME_SECS: u32 = 86400;
         self.status_update(msg_id, "Generating invoice").await;
         let receive = lnv2_module
             .receive(
