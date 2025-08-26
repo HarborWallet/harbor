@@ -64,7 +64,7 @@ pub fn h_transaction_details<'a>(
 
     let mint_section = column![
         text(mint_label).size(16).style(subtitle),
-        row![mint_icon, text(mint.name.clone()).size(16)]
+        row![mint_icon, text(mint.name).size(16)]
             .align_y(Alignment::Center)
             .spacing(8)
     ]

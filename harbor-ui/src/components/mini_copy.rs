@@ -14,7 +14,7 @@ pub fn mini_copy(text: String) -> Button<'static, Message, Theme> {
     let icon = map_icon(SvgIcon::Copy, 24., 24.);
 
     Button::new(icon)
-        .on_press(Message::CopyToClipboard(text.to_string()))
+        .on_press(Message::CopyToClipboard(text))
         .style(|theme: &Theme, status| {
             let border = Border {
                 color: Color::WHITE,

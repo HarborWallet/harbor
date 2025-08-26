@@ -76,7 +76,7 @@ pub fn restore(harbor: &HarborWallet) -> Element<Message> {
                     SvgIcon::Restart,
                     harbor.unlock_status == UnlockStatus::Unlocking,
                 )
-                .on_press_maybe(action.clone())
+                .on_press_maybe(action)
                 .width(Length::Fill);
 
                 column![
