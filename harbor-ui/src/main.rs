@@ -24,7 +24,6 @@
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
     clippy::too_many_lines,
-    clippy::unreadable_literal,
     clippy::unused_self,
     clippy::use_self
 )]
