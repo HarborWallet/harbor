@@ -53,7 +53,7 @@ const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
 /// - Handles redirects automatically (up to `MAX_REDIRECTS`)
 /// - Enforces a response size limit
 /// - Returns deserialized JSON
-pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
+pub async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
 where
     T: DeserializeOwned + Send + 'static,
 {
@@ -96,7 +96,7 @@ where
 /// The request can be cancelled at any time using the `cancel_handle`.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
-pub(crate) async fn make_tor_request<T, P>(
+pub async fn make_tor_request<T, P>(
     url: &str,
     payload: Option<P>,
     cancel_handle: Arc<AtomicBool>,
