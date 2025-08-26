@@ -8,7 +8,6 @@
     clippy::derive_partial_eq_without_eq,
     clippy::large_futures,
     clippy::manual_let_else,
-    clippy::manual_string_new,
     clippy::map_unwrap_or,
     clippy::match_bool,
     clippy::match_same_arms,
@@ -523,7 +522,7 @@ impl HarborWallet {
                 if let Some(amt) = msats {
                     self.send_amount_input_str = (amt / 1_000).to_string();
                 } else {
-                    self.send_amount_input_str = String::from("");
+                    self.send_amount_input_str = String::new();
                 }
                 self.send_dest_input_str = input;
                 Task::none()

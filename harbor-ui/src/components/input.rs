@@ -114,7 +114,7 @@ pub fn h_input(args: InputArgs<'_>) -> Element<Message, Theme> {
                     // If the value is already 0, typing 1 turns it into 10
                     // Which is annoying, so we'll just clear it
                     if num == 0 {
-                        "".to_string()
+                        String::new()
                     } else {
                         num.to_string()
                     }
