@@ -134,8 +134,8 @@ fn render_bolt12_view(harbor: &HarborWallet) -> Element<Message> {
     });
 
     // Create the "Generate Bolt12 Offer" button.
-    let generate_offer_button =
-        h_button("Generate Bolt12 Offer", SvgIcon::Qr, generating).on_press(Message::GenerateBolt12Offer);
+    let generate_offer_button = h_button("Generate Bolt12 Offer", SvgIcon::Qr, generating)
+        .on_press(Message::GenerateBolt12Offer);
 
     let buttons = if generating {
         // When generating, include a "Start Over" next to the generate button.
@@ -185,7 +185,11 @@ fn render_onchain_view(harbor: &HarborWallet) -> Element<Message> {
 }
 
 /// Renders the method selector for enabled payment methods.
-fn render_method_choice(harbor: &HarborWallet, on_chain_enabled: bool, bolt12_enabled: bool) -> Element<Message> {
+fn render_method_choice(
+    harbor: &HarborWallet,
+    on_chain_enabled: bool,
+    bolt12_enabled: bool,
+) -> Element<Message> {
     let lightning_choice = radio(
         "Lightning",
         ReceiveMethod::Lightning,
@@ -208,7 +212,8 @@ fn render_method_choice(harbor: &HarborWallet, on_chain_enabled: bool, bolt12_en
         )
         .text_size(18);
 
-        let bolt12_caption = h_caption_text("Reusable offers. Good for donations and recurring payments.");
+        let bolt12_caption =
+            h_caption_text("Reusable offers. Good for donations and recurring payments.");
         let bolt12 = column![bolt12_choice, bolt12_caption].spacing(8);
         choices.push(bolt12);
     }
