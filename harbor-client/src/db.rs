@@ -592,7 +592,7 @@ impl DBConnection for SQLConnection {
 
     fn get_federation_metadata(&self, id: FederationId) -> anyhow::Result<Option<FederationMeta>> {
         let conn = &mut self.db.get()?;
-        let meta = MintMetadata::get(conn, id.to_string())?.map(|i| i.into());
+        let meta = MintMetadata::get(conn, id.to_string())?.map(Into::into);
         Ok(meta)
     }
 

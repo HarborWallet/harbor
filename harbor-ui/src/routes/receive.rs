@@ -13,8 +13,8 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
     if let Some(receive_string) = harbor
         .receive_invoice
         .as_ref()
-        .map(|s| s.to_string())
-        .or_else(|| harbor.receive_address.as_ref().map(|a| a.to_string()))
+        .map(ToString::to_string)
+        .or_else(|| harbor.receive_address.as_ref().map(ToString::to_string))
     {
         render_generated_view(receive_string, harbor)
     } else {

@@ -14,7 +14,6 @@
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::or_fun_call,
-    clippy::redundant_closure_for_method_calls,
     clippy::redundant_else,
     clippy::ref_option,
     clippy::return_self_not_must_use,
