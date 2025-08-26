@@ -12,7 +12,6 @@
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::or_fun_call,
-    clippy::redundant_pub_crate,
     clippy::semicolon_if_nothing_returned,
     clippy::significant_drop_in_scrutinee,
     clippy::significant_drop_tightening,
