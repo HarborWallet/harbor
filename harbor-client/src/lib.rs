@@ -6,7 +6,6 @@
     clippy::derive_partial_eq_without_eq,
     clippy::large_futures,
     clippy::match_same_arms,
-    clippy::match_wildcard_for_single_variants,
     clippy::missing_const_for_fn,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
@@ -123,14 +122,14 @@ impl MintIdentifier {
     pub fn federation_id(&self) -> Option<FederationId> {
         match self {
             MintIdentifier::Fedimint(id) => Some(*id),
-            _ => None,
+            MintIdentifier::Cashu(_) => None,
         }
     }
 
     pub fn mint_url(&self) -> Option<MintUrl> {
         match self {
             MintIdentifier::Cashu(url) => Some(url.clone()),
-            _ => None,
+            MintIdentifier::Fedimint(_) => None,
         }
     }
 }

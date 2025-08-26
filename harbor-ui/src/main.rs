@@ -9,7 +9,6 @@
     clippy::large_futures,
     clippy::manual_let_else,
     clippy::match_same_arms,
-    clippy::match_wildcard_for_single_variants,
     clippy::missing_const_for_fn,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
@@ -625,7 +624,7 @@ impl HarborWallet {
             Message::Noop => Task::none(),
             Message::Send(invoice_str) => match self.send_status {
                 SendStatus::Sending => Task::none(),
-                _ => {
+                SendStatus::Idle => {
                     self.send_failure_reason = None;
                     let mint = match self.active_mint.clone() {
                         Some(f) => f,
