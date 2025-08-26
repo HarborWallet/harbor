@@ -1394,7 +1394,7 @@ impl HarborCore {
 
         self.status_update(msg_id, "Retrieving mint metadata").await;
 
-        let info = wallet.get_mint_info().await?;
+        let info = wallet.fetch_mint_info().await?;
 
         self.status_update(msg_id, "Checking mint network").await;
 
