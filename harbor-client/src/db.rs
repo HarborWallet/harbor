@@ -515,15 +515,12 @@ impl DBConnection for SQLConnection {
     }
 
     fn retrieve_mnemonic(&self) -> anyhow::Result<Mnemonic> {
-        match self.get_seed()? {
-            Some(m) => {
-                info!("retrieved existing seed");
-                Ok(Mnemonic::from_str(&m)?)
-            }
-            None => {
-                error!("Tried to retrieve seed but none was stored");
-                Err(anyhow!("No seed stored"))
-            }
+        if let Some(m) = self.get_seed()? {
+            info!("retrieved existing seed");
+            Ok(Mnemonic::from_str(&m)?)
+        } else {
+            error!("Tried to retrieve seed but none was stored");
+            Err(anyhow!("No seed stored"))
         }
     }
 

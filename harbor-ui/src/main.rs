@@ -17,7 +17,6 @@
     clippy::redundant_else,
     clippy::ref_option,
     clippy::return_self_not_must_use,
-    clippy::single_match_else,
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
     clippy::too_many_lines,
@@ -747,9 +746,10 @@ impl HarborWallet {
                 self.transfer_status = SendStatus::Sending;
                 task
             }
-            Message::GenerateInvoice => match self.receive_status {
-                ReceiveStatus::Generating => Task::none(),
-                _ => {
+            Message::GenerateInvoice => {
+                if self.receive_status == ReceiveStatus::Generating {
+                    Task::none()
+                } else {
                     let Some(mint) = self.active_mint.clone() else {
                         // This should be unreachable yeah?
                         panic!("No active federation, but we're trying to generate an invoice");
@@ -775,10 +775,11 @@ impl HarborWallet {
                         }
                     }
                 }
-            },
-            Message::GenerateAddress => match self.receive_status {
-                ReceiveStatus::Generating => Task::none(),
-                _ => {
+            }
+            Message::GenerateAddress => {
+                if self.receive_status == ReceiveStatus::Generating {
+                    Task::none()
+                } else {
                     let Some(mint) = self.active_mint.clone() else {
                         // todo show error
                         error!("No active federation");
@@ -789,7 +790,7 @@ impl HarborWallet {
                     self.receive_failure_reason = None;
                     task
                 }
-            },
+            }
             Message::Donate => match self.donate_amount_str.parse::<u64>() {
                 Ok(amount_sats) => {
                     // Check if we have an active mint
@@ -825,14 +826,15 @@ impl HarborWallet {
                     }))
                 }
             },
-            Message::Unlock(password) => match self.unlock_status {
-                UnlockStatus::Unlocking => Task::none(),
-                _ => {
+            Message::Unlock(password) => {
+                if self.unlock_status == UnlockStatus::Unlocking {
+                    Task::none()
+                } else {
                     self.unlock_failure_reason = None;
                     let (_, task) = self.send_from_ui(UICoreMsg::Unlock(password));
                     task
                 }
-            },
+            }
             Message::Init { password, seed } => match self.unlock_status {
                 UnlockStatus::Unlocking => Task::none(),
                 _ => {

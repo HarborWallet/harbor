@@ -16,7 +16,6 @@
     clippy::significant_drop_tightening,
     clippy::similar_names,
     clippy::single_char_pattern,
-    clippy::single_match_else,
     clippy::too_many_lines,
     clippy::uninlined_format_args,
     clippy::unnecessary_wraps,
@@ -1092,36 +1091,33 @@ impl HarborCore {
             .get_first_module::<WalletClientModule>()
             .expect("must have wallet module");
 
-        let (fees, amount) = match sats {
-            Some(sats) => {
-                let amount = bitcoin::Amount::from_sat(sats);
-                let fees = onchain.get_withdraw_fees(&address, amount).await?;
-                (fees, amount)
+        let (fees, amount) = if let Some(sats) = sats {
+            let amount = bitcoin::Amount::from_sat(sats);
+            let fees = onchain.get_withdraw_fees(&address, amount).await?;
+            (fees, amount)
+        } else {
+            let balance = client.get_balance().await;
+
+            if balance.sats_round_down() == 0 {
+                return Err(anyhow!("No funds in wallet"));
             }
-            None => {
-                let balance = client.get_balance().await;
 
-                if balance.sats_round_down() == 0 {
-                    return Err(anyhow!("No funds in wallet"));
-                }
+            // get fees for the entire balance
+            let fees = onchain
+                .get_withdraw_fees(
+                    &address,
+                    bitcoin::Amount::from_sat(balance.sats_round_down()),
+                )
+                .await?;
 
-                // get fees for the entire balance
-                let fees = onchain
-                    .get_withdraw_fees(
-                        &address,
-                        bitcoin::Amount::from_sat(balance.sats_round_down()),
-                    )
-                    .await?;
+            let fees_paid = Amount::from_sats(fees.amount().to_sat());
+            let amount = balance.saturating_sub(fees_paid);
 
-                let fees_paid = Amount::from_sats(fees.amount().to_sat());
-                let amount = balance.saturating_sub(fees_paid);
-
-                if amount.sats_round_down() < 546 {
-                    return Err(anyhow!("Not enough funds to send"));
-                }
-
-                (fees, bitcoin::Amount::from_sat(amount.sats_round_down()))
+            if amount.sats_round_down() < 546 {
+                return Err(anyhow!("Not enough funds to send"));
             }
+
+            (fees, bitcoin::Amount::from_sat(amount.sats_round_down()))
         };
 
         let total = fees.amount() + amount;

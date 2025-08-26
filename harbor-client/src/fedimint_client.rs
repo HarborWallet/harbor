@@ -238,9 +238,10 @@ impl FedimintClient {
         spawn(async move {
             info!("Creating backup to federation");
             let start = Instant::now();
-            match client.backup_to_federation(Metadata::empty()).await {
-                Err(e) => error!("Could not create backup to federation: {e}"),
-                Ok(()) => info!("Successfully created backup to federation"),
+            if let Err(e) = client.backup_to_federation(Metadata::empty()).await {
+                error!("Could not create backup to federation: {e}");
+            } else {
+                info!("Successfully created backup to federation");
             }
 
             info!("Creating backup took: {}ms", start.elapsed().as_millis());
@@ -1009,20 +1010,17 @@ impl FedimintStorage {
 
         // get the fedimint data or create a new fedimint entry if it doesn't exist
         let fedimint_data: Vec<(Vec<u8>, Vec<u8>)> =
-            match storage.get_federation_value(federation_id.to_string())? {
-                Some(v) => {
-                    storage.set_federation_active(federation_id)?;
-                    bincode::deserialize(&v)?
-                }
-                None => {
-                    let invite_code = invite_code.ok_or(anyhow::anyhow!("invite_code missing"))?;
-                    storage.insert_new_federation(NewFedimint {
-                        id: federation_id.to_string(),
-                        value: vec![],
-                        invite_code: invite_code.to_string(),
-                    })?;
-                    vec![]
-                }
+            if let Some(v) = storage.get_federation_value(federation_id.to_string())? {
+                storage.set_federation_active(federation_id)?;
+                bincode::deserialize(&v)?
+            } else {
+                let invite_code = invite_code.ok_or(anyhow::anyhow!("invite_code missing"))?;
+                storage.insert_new_federation(NewFedimint {
+                    id: federation_id.to_string(),
+                    value: vec![],
+                    invite_code: invite_code.to_string(),
+                })?;
+                vec![]
             };
 
         // get the value and load it into fedimint memory

@@ -32,14 +32,13 @@ async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntim
 
 /// Get or initialize the Tor client
 async fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
-    match TOR_CLIENT.get() {
-        Some(client) => Ok(client.clone()),
-        _ => {
-            let client = initialize_tor_client().await?;
-            // It's okay if another thread beat us to initialization
-            let _ = TOR_CLIENT.set(client.clone());
-            Ok(client)
-        }
+    if let Some(client) = TOR_CLIENT.get() {
+        Ok(client.clone())
+    } else {
+        let client = initialize_tor_client().await?;
+        // It's okay if another thread beat us to initialization
+        let _ = TOR_CLIENT.set(client.clone());
+        Ok(client)
     }
 }
 
