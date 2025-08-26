@@ -1153,8 +1153,9 @@ source = "git+https://github.com/benthecarman/arti.git?rev=e0f1f7a9a44ae0543c0b6
 
 [[package]]
 name = "cashu"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2b5eada71b5675fea6ae15f5d0aeb76d6d0c8ae057fed2f9afc491b3d2e741c"
 dependencies = [
  "bitcoin",
  "cbor-diag",
@@ -1173,6 +1174,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -1216,8 +1218,9 @@ dependencies = [
 
 [[package]]
 name = "cdk"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c3f3b7e0485c9d1f5b9ae28096ec8945a636a8f4d1f69a6ba9baa57d76e25b4"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1228,6 +1231,7 @@ dependencies = [
  "cdk-common",
  "cdk-signatory",
  "ciborium",
+ "futures",
  "getrandom 0.2.15",
  "lightning 0.1.5",
  "lightning-invoice 0.33.2",
@@ -1242,15 +1246,18 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tokio-tungstenite 0.26.2",
+ "tokio-util",
  "tracing",
  "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
 name = "cdk-common"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51417f6e891a83a6093065ca52d17ea2e1371d6952f2a209b76e7ecd45977622"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1273,8 +1280,9 @@ dependencies = [
 
 [[package]]
 name = "cdk-signatory"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f5a3079d8c86ad41961d7910eff164731952ebb9abd30add3c7548af9c1c6f1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1294,8 +1302,9 @@ dependencies = [
 
 [[package]]
 name = "cdk-sql-common"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d05c7ae82839052fe425347f05ad0f110b99a253af205975ce8ee185026b4aea"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -1312,8 +1321,9 @@ dependencies = [
 
 [[package]]
 name = "cdk-sqlite"
-version = "0.11.0"
-source = "git+https://github.com/thesimplekid/cdk?branch=bip353_examples#2a2a1de998ca100bdb765de850afe687880795ae"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a62363768b26cbebb7bd7b731dbb0287f195bd16068abf486c50c0b2f208eacc"
 dependencies = [
  "async-trait",
  "bitcoin",
@@ -5345,10 +5355,11 @@ checksum = "f5d4a7da358eff58addd2877a45865158f0d78c911d43a5784ceb7bbf52833b0"
 
 [[package]]
 name = "js-sys"
-version = "0.3.72"
+version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a88f1bda2bd75b0452a14784937d796722fdebfe50df998aeb3f0b7603019a9"
+checksum = "1cfaf33c695fc6e08064efbc1f72ec937429614f25eef83af942d0e227c3a28f"
 dependencies = [
+ "once_cell",
  "wasm-bindgen",
 ]
 
@@ -10847,12 +10858,14 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.12.1"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3758f5e68192bb96cc8f9b7e2c2cfdabb435499a28499a42f8f984092adad4b"
+checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
 dependencies = [
- "getrandom 0.2.15",
+ "getrandom 0.3.2",
+ "js-sys",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -10941,24 +10954,24 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "128d1e363af62632b8eb57219c8fd7877144af57558fb2ef0368d0087bddeb2e"
+checksum = "1edc8929d7499fc4e8f0be2262a241556cfc54a0bea223790e71446f2aab1ef5"
 dependencies = [
  "cfg-if",
  "once_cell",
+ "rustversion",
  "wasm-bindgen-macro",
 ]
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb6dd4d3ca0ddffd1dd1c9c04f94b868c37ff5fac97c30b97cff2d74fce3a358"
+checksum = "2f0a0651a5c2bc21487bde11ee802ccaf4c51935d0d3d42a6101f98161700bc6"
 dependencies = [
  "bumpalo",
  "log",
- "once_cell",
  "proc-macro2",
  "quote",
  "syn 2.0.95",
@@ -10979,9 +10992,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e79384be7f8f5a9dd5d7167216f022090cf1f9ec128e6e6a482a2cb5c5422c56"
+checksum = "7fe63fc6d09ed3792bd0897b314f53de8e16568c2b3f7982f468c0bf9bd0b407"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -10989,9 +11002,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26c6ab57572f7a24a4985830b120de1594465e5d500f24afe89e16b4e833ef68"
+checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11002,9 +11015,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65fc09f10666a9f147042251e0dda9c18f166ff7de300607007e96bdebc1068d"
+checksum = "1a05d73b933a847d6cccdda8f838a22ff101ad9bf93e33684f39c1f5f0eece3d"
+dependencies = [
+ "unicode-ident",
+]
 
 [[package]]
 name = "wasm-streams"

@@ -28,11 +28,11 @@ once_cell = "1.20.2"
 httparse = "1.8.0"
 url = "2.5.0"
 
-# cdk = { version = "0.11.1", default-features = false, features = ["wallet"] }
-# cdk-sqlite = { version = "0.11.1", default-features = false, features = ["wallet", "sqlcipher"] }
+cdk = { version = "0.12.0", default-features = false, features = ["wallet"] }
+cdk-sqlite = { version = "0.12.0", default-features = false, features = ["wallet", "sqlcipher"] }
 
-cdk = { git = "https://github.com/thesimplekid/cdk", branch = "bip353_examples", default-features = false, features = ["wallet"] }
-cdk-sqlite = { git = "https://github.com/thesimplekid/cdk/", branch = "bip353_examples", default-features = false, features = ["wallet", "sqlcipher"] }
+# cdk = { git = "https://github.com/thesimplekid/cdk", branch = "bip353_examples", default-features = false, features = ["wallet"] }
+# cdk-sqlite = { git = "https://github.com/thesimplekid/cdk/", branch = "bip353_examples", default-features = false, features = ["wallet", "sqlcipher"] }
 
 
 bitcoin = { version = "0.32.4", features = ["base64"] }
