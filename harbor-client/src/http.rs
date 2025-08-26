@@ -335,11 +335,9 @@ where
 }
 
 // Create a new Hyper client with TLS support and reasonable defaults
-fn create_https_client() -> anyhow::Result<
-    Client<
-        hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
-        Empty<Bytes>,
-    >,
+fn create_https_client() -> Client<
+    hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
+    Empty<Bytes>,
 > {
     let https = HttpsConnectorBuilder::new()
         .with_webpki_roots()
@@ -347,12 +345,10 @@ fn create_https_client() -> anyhow::Result<
         .enable_http1()
         .build();
 
-    let client = Client::builder(TokioExecutor::new())
+    Client::builder(TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(30))
         .pool_max_idle_per_host(1)
-        .build(https);
-
-    Ok(client)
+        .build(https)
 }
 
 /// Common response handling logic
@@ -520,7 +516,7 @@ where
 
         log::debug!("Making direct get request to: {}", url);
 
-        let client = create_https_client()?;
+        let client = create_https_client();
         let uri: Uri = url
             .parse()
             .map_err(|e| anyhow!("Invalid URL '{}': {}", url, e))?;

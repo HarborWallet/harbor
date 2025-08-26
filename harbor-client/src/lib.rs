@@ -17,7 +17,6 @@
     clippy::similar_names,
     clippy::single_char_pattern,
     clippy::too_many_lines,
-    clippy::unnecessary_wraps,
     clippy::unused_async,
     clippy::use_self
 )]
