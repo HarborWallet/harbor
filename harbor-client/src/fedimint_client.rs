@@ -294,7 +294,7 @@ pub(crate) async fn select_gateway(client: &ClientHandleArc) -> Option<Lightning
 
     let gateways = ln.list_gateways().await;
     let mut selected_gateway: Option<LightningGateway> = None;
-    for gateway in gateways.iter() {
+    for gateway in &gateways {
         // first try to find a vetted gateway
         if gateway.vetted {
             // if we can select the gateway, return it
