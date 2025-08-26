@@ -23,7 +23,7 @@ use url::Url;
 static TOR_CLIENT: OnceCell<Arc<TorClient<PreferredRuntime>>> = OnceCell::new();
 
 /// Initialize the Tor client if not already initialized
-async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
+fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
     let client = TorClient::builder()
         .bootstrap_behavior(arti_client::BootstrapBehavior::OnDemand)
         .create_unbootstrapped()?;
@@ -31,11 +31,11 @@ async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntim
 }
 
 /// Get or initialize the Tor client
-async fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
+fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
     match TOR_CLIENT.get() {
         Some(client) => Ok(client.clone()),
         _ => {
-            let client = initialize_tor_client().await?;
+            let client = initialize_tor_client()?;
             // It's okay if another thread beat us to initialization
             let _ = TOR_CLIENT.set(client.clone());
             Ok(client)
@@ -113,7 +113,7 @@ where
     }
 
     // Get a reference to the global TorClient
-    let tor_client = get_tor_client().await?;
+    let tor_client = get_tor_client()?;
 
     log::debug!("Starting bootstrap if needed");
 

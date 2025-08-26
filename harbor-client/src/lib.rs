@@ -20,7 +20,6 @@
     clippy::single_char_pattern,
     clippy::single_match_else,
     clippy::too_many_lines,
-    clippy::unused_async,
     clippy::use_self
 )]
 
@@ -1686,11 +1685,11 @@ impl HarborCore {
         }
     }
 
-    pub async fn get_seed_words(&self) -> String {
+    pub fn get_seed_words(&self) -> String {
         self.mnemonic.to_string()
     }
 
-    pub async fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         log::info!("Setting on-chain receive enabled to: {}", enabled);
         self.storage.set_onchain_receive_enabled(enabled)?;
         log::info!(
@@ -1700,7 +1699,7 @@ impl HarborCore {
         Ok(())
     }
 
-    pub async fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         log::info!("Setting Tor enabled to: {}", enabled);
         self.tor_enabled.swap(enabled, Ordering::Relaxed);
         self.storage.set_tor_enabled(enabled)?;

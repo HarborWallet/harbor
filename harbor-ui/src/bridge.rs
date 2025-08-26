@@ -796,11 +796,11 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::GetSeedWords => {
-                        let seed_words = core.get_seed_words().await;
+                        let seed_words = core.get_seed_words();
                         core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                     UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
-                        match core.set_onchain_receive_enabled(enabled).await {
+                        match core.set_onchain_receive_enabled(enabled) {
                             Err(e) => {
                                 error!("error setting onchain receive enabled: {e}");
                             }
@@ -810,16 +810,14 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
-                    UICoreMsg::SetTorEnabled(enabled) => {
-                        match core.set_tor_enabled(enabled).await {
-                            Err(e) => {
-                                error!("error setting tor enabled: {e}");
-                            }
-                            _ => {
-                                core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
-                            }
+                    UICoreMsg::SetTorEnabled(enabled) => match core.set_tor_enabled(enabled) {
+                        Err(e) => {
+                            error!("error setting tor enabled: {e}");
                         }
-                    }
+                        _ => {
+                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+                        }
+                    },
                     UICoreMsg::TestStatusUpdates => {
                         core.test_status_updates(msg.id).await;
                     }
