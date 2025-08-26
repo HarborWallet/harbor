@@ -83,7 +83,7 @@ impl FederationMeta {
 
 impl From<Option<MintInfo>> for FederationMeta {
     fn from(info: Option<MintInfo>) -> Self {
-        FederationMeta {
+        Self {
             federation_name: info.as_ref().and_then(|i| i.name.clone()),
             federation_expiry_timestamp: None,
             welcome_message: None,

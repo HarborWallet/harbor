@@ -17,15 +17,15 @@ impl Fedimint {
     pub fn get_value(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<Vec<u8>>> {
         Ok(fedimint::table
             .filter(fedimint::id.eq(id))
-            .first::<Fedimint>(conn)
+            .first::<Self>(conn)
             .optional()?
             .map(|v| v.value))
     }
 
-    pub fn get(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<Fedimint>> {
+    pub fn get(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<Self>> {
         Ok(fedimint::table
             .filter(fedimint::id.eq(id))
-            .first::<Fedimint>(conn)
+            .first::<Self>(conn)
             .optional()?)
     }
 
@@ -34,7 +34,7 @@ impl Fedimint {
         let exists = fedimint::table
             .filter(fedimint::id.eq(&id))
             .filter(fedimint::active.eq(1))
-            .first::<Fedimint>(conn)
+            .first::<Self>(conn)
             .optional()?
             .is_some();
 
@@ -101,7 +101,7 @@ pub struct NewFedimint {
 
 impl From<&NewFedimint> for Fedimint {
     fn from(new_fedimint: &NewFedimint) -> Self {
-        Fedimint {
+        Self {
             id: new_fedimint.id.clone(),
             invite_code: new_fedimint.invite_code.clone(),
             value: new_fedimint.value.clone(),

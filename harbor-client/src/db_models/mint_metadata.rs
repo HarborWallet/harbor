@@ -21,7 +21,7 @@ pub struct MintMetadata {
 
 impl MintMetadata {
     pub fn from(id: FederationId, meta: FederationMeta) -> Self {
-        MintMetadata {
+        Self {
             id: id.to_string(),
             federation_expiry_timestamp: meta
                 .federation_expiry_timestamp()
@@ -38,10 +38,10 @@ impl MintMetadata {
         }
     }
 
-    pub fn get(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<MintMetadata>> {
+    pub fn get(conn: &mut SqliteConnection, id: String) -> anyhow::Result<Option<Self>> {
         Ok(mint_metadata::table
             .filter(mint_metadata::id.eq(id))
-            .first::<MintMetadata>(conn)
+            .first::<Self>(conn)
             .optional()?)
     }
 
@@ -73,8 +73,8 @@ impl MintMetadata {
 }
 
 impl From<MintMetadata> for FederationMeta {
-    fn from(value: MintMetadata) -> FederationMeta {
-        FederationMeta {
+    fn from(value: MintMetadata) -> Self {
+        Self {
             federation_name: value.name,
             federation_expiry_timestamp: value.federation_expiry_timestamp.map(|f| f.to_string()),
             welcome_message: value.welcome_message,

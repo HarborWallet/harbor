@@ -16,8 +16,8 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn get_first(conn: &mut SqliteConnection) -> anyhow::Result<Option<Profile>> {
-        Ok(profile::table.first::<Profile>(conn).optional()?)
+    pub fn get_first(conn: &mut SqliteConnection) -> anyhow::Result<Option<Self>> {
+        Ok(profile::table.first::<Self>(conn).optional()?)
     }
 
     pub fn set_onchain_receive_enabled(
@@ -66,7 +66,7 @@ pub struct NewProfile {
 
 impl From<&NewProfile> for Profile {
     fn from(new_profile: &NewProfile) -> Self {
-        Profile {
+        Self {
             id: new_profile.id.clone(),
             seed_words: new_profile.seed_words.clone(),
             onchain_receive_enabled: 0,
