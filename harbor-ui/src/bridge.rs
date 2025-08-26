@@ -654,7 +654,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                     .await;
                             }
-                            Ok(_) => {
+                            Ok(()) => {
                                 if let Ok(new_federation_list) = core.get_mint_items().await {
                                     core.msg(
                                         msg.id,
@@ -679,7 +679,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                 .await;
                         }
-                        Ok(_) => {
+                        Ok(()) => {
                             if let Ok(new_federation_list) = core.get_mint_items().await {
                                 core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
                                     .await;
@@ -713,7 +713,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         log::info!("Removed federation: {id}");
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
@@ -737,7 +737,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         log::info!("Removed cashu mint: {url}");
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
@@ -764,7 +764,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                             .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
                                             core.msg(
@@ -786,7 +786,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                     core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                         .await;
                                 }
-                                Ok(_) => {
+                                Ok(()) => {
                                     if let Ok(new_list) = core.get_mint_items().await {
                                         core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list))
                                             .await;

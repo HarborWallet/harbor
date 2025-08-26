@@ -6,7 +6,6 @@
     clippy::cast_sign_loss,
     clippy::cognitive_complexity,
     clippy::derive_partial_eq_without_eq,
-    clippy::ignored_unit_patterns,
     clippy::implicit_clone,
     clippy::large_futures,
     clippy::manual_let_else,
@@ -409,7 +408,7 @@ impl HarborWallet {
             Self::with_ui_handle(self.ui_handle.clone(), move |h| async move {
                 h.send_msg(id, msg).await
             }),
-            |_| Message::Noop,
+            |()| Message::Noop,
         );
         (id, task)
     }

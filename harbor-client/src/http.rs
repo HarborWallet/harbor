@@ -123,14 +123,14 @@ where
     // Use select! to handle cancellation during bootstrap
     let bootstrap_result = tokio::select! {
         biased;  // Check cancellation first
-        _ = check_cancel(cancel_handle.clone()) => {
+        () = check_cancel(cancel_handle.clone()) => {
             return Err(anyhow!("Request cancelled during bootstrap"));
         }
         result = tokio::time::timeout(bootstrap_timeout, tor_client.bootstrap()) => result,
     };
 
     match bootstrap_result {
-        Ok(Ok(_)) => log::debug!("Successfully bootstrapped Tor client"),
+        Ok(Ok(())) => log::debug!("Successfully bootstrapped Tor client"),
         Ok(Err(e)) => return Err(anyhow!("Failed to bootstrap Tor client: {:?}", e)),
         Err(_) => {
             return Err(anyhow!(
@@ -173,7 +173,7 @@ where
         // Use select! to handle cancellation during onion connection
         let stream_result = tokio::select! {
             biased;
-            _ = check_cancel(cancel_handle.clone()) => {
+            () = check_cancel(cancel_handle.clone()) => {
                 return Err(anyhow!("Request cancelled during onion connection"));
             }
             result = tokio::time::timeout(
@@ -199,7 +199,7 @@ where
         // Use select! to handle cancellation during regular connection
         let stream_result = tokio::select! {
             biased;
-            _ = check_cancel(cancel_handle.clone()) => {
+            () = check_cancel(cancel_handle.clone()) => {
                 return Err(anyhow!("Request cancelled during connection"));
             }
             result = tokio::time::timeout(connect_timeout, tor_client.connect(tor_addr)) => result,
@@ -239,7 +239,7 @@ where
     // Use select! to handle cancellation during TLS handshake
     let tls_result = tokio::select! {
         biased;
-        _ = check_cancel(cancel_handle.clone()) => {
+        () = check_cancel(cancel_handle.clone()) => {
             return Err(anyhow!("Request cancelled during TLS handshake"));
         }
         result = tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)) => result,

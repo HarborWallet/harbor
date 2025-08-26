@@ -170,7 +170,7 @@ impl FedimintClient {
                     )
                     .await;
                     match client.wait_for_all_recoveries().await {
-                        Ok(_) => {
+                        Ok(()) => {
                             info!("Federation successfully recovered");
                             HarborCore::send_msg(
                                 &mut sender,
@@ -240,7 +240,7 @@ impl FedimintClient {
             let start = Instant::now();
             match client.backup_to_federation(Metadata::empty()).await {
                 Err(e) => error!("Could not create backup to federation: {e}"),
-                Ok(_) => info!("Successfully created backup to federation"),
+                Ok(()) => info!("Successfully created backup to federation"),
             }
 
             info!("Creating backup took: {}ms", start.elapsed().as_millis());
@@ -255,7 +255,7 @@ impl FedimintClient {
                 .expect("must have ln module");
 
             match lightning_module.update_gateway_cache().await {
-                Ok(_) => {
+                Ok(()) => {
                     trace!("Updated lightning gateway cache");
                 }
                 Err(e) => {
