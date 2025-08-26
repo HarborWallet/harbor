@@ -246,7 +246,7 @@ pub trait DBConnection {
 }
 
 pub struct SQLConnection {
-    db: Pool<ConnectionManager<SqliteConnection>>, 
+    db: Pool<ConnectionManager<SqliteConnection>>,
 }
 
 impl DBConnection for SQLConnection {
