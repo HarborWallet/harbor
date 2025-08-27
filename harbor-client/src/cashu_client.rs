@@ -253,8 +253,8 @@ pub fn spawn_lightning_payment_thread(
                     quote.id,
                     outgoing.preimage
                 );
-                let preimage: [u8; 32] = FromHex::from_hex(&outgoing.preimage.unwrap())
-                    .expect("preimage must be valid hex");
+                let preimage: [u8; 32] = FromHex::from_hex(&outgoing.preimage.unwrap_or_default())
+                    .unwrap_or_else(|_| [0u8; 32]);
                 let params = if is_transfer {
                     SendSuccessMsg::Transfer
                 } else {

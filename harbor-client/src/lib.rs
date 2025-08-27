@@ -148,10 +148,16 @@ pub enum UICoreMsg {
     ReceiveBolt12 {
         mint: MintIdentifier,
         amount: Option<Amount>,
+        // NOTE: The following block was accidentally duplicated during merge. Removing to fix mismatched delimiters.
     },
     SendLnurlPay {
         mint: MintIdentifier,
         lnurl: LnUrl,
+        amount_sats: u64,
+    },
+    SendBip353 {
+        mint: MintIdentifier,
+        address: String,
         amount_sats: u64,
     },
     ReceiveLightning {
@@ -868,14 +874,14 @@ impl HarborCore {
             .await;
 
         // Persist the outgoing bolt12 payment so completion can update it later
-        let amount = Amount::from_msats(amount_msats.unwrap_or(0));
+        let amount = Amount::from_sats(quote.amount.into());
         self.storage.create_bolt12_payment(
             quote.id.clone(),
             None,
             Some(mint_url.clone()),
             offer.clone(),
             amount,
-            Amount::from_msats(quote.fee_reserve.into()),
+            Amount::from_sats(quote.fee_reserve.into()),
         )?;
 
         spawn_lightning_payment_thread(
@@ -1010,6 +1016,89 @@ impl HarborCore {
         // Now we'll let send_lightning handle the rest of the status updates
         self.send_lightning(msg_id, mint_identifier, invoice, false)
             .await?;
+
+        Ok(())
+    }
+
+    pub async fn send_bip353(
+        &self,
+        msg_id: Uuid,
+        from: MintIdentifier,
+        address: String,
+        amount_sats: u64,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        self.status_update(msg_id, "Preparing to send BIP-353 payment")
+            .await;
+
+        match from {
+            MintIdentifier::Cashu(mint_url) => {
+                self.send_bip353_from_cashu(msg_id, mint_url, address, amount_sats, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(_id) => {
+                Err(anyhow!("BIP-353 payments are not supported on Fedimint"))
+            }
+        }
+    }
+
+    pub async fn send_bip353_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint_url: MintUrl,
+        address: String,
+        amount_sats: u64,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        log::info!(
+            "Paying BIP-353 address: {} from cashu mint: {}",
+            address,
+            mint_url
+        );
+
+        let client = self.get_cashu_client(&mint_url).await;
+
+        self.status_update(msg_id, "Resolving address and getting quote")
+            .await;
+
+        // BIP353 expects msats, convert sats->msats
+        let amount_msats = amount_sats
+            .checked_mul(1_000)
+            .ok_or_else(|| anyhow!("amount overflow"))?;
+
+        // Use CDK's BIP-353 melt flow to get a quote
+        let quote = client
+            .melt_bip353_quote(&address, cdk::Amount::from(amount_msats))
+            .await?;
+
+        log::info!("Sending BIP-353 payment");
+
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+
+        // Persist the outgoing payment, re-using bolt12 columns with address stored in offer column
+        self.storage.create_bolt12_payment(
+            quote.id.clone(),
+            None,
+            Some(mint_url.clone()),
+            address.clone(),
+            Amount::from_sats(amount_sats),
+            Amount::from_msats(quote.fee_reserve.into()),
+        )?;
+
+        spawn_lightning_payment_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
+
+        log::info!("BIP-353 payment sent");
 
         Ok(())
     }

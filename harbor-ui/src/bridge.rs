@@ -550,6 +550,22 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
+                    UICoreMsg::SendBip353 {
+                        mint,
+                        address,
+                        amount_sats,
+                    } => {
+                        log::info!("Got UICoreMsg::SendBip353");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
+                        if let Err(e) = core
+                            .send_bip353(msg.id, mint, address, amount_sats, false)
+                            .await
+                        {
+                            error!("Error sending: {e}");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
+                        }
+                    }
                     UICoreMsg::SendLnurlPay {
                         mint,
                         lnurl,
@@ -558,26 +574,6 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         log::info!("Got UICoreMsg::SendLnurlPay");
                         core.msg(msg.id, CoreUIMsg::Sending).await;
                         if let Err(e) = core.send_lnurl_pay(msg.id, mint, lnurl, amount_sats).await
-                        {
-                            error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::SendOnChain {
-                        mint,
-                        address,
-                        amount_sats,
-                    } => {
-                        log::info!("Got UICoreMsg::SendOnChain");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        let federation_id = match mint {
-                            MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
-                            MintIdentifier::Fedimint(mint) => mint,
-                        };
-                        if let Err(e) = core
-                            .send_onchain(msg.id, federation_id, address, amount_sats)
-                            .await
                         {
                             error!("Error sending: {e}");
                             core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
@@ -600,6 +596,26 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address))
                                     .await;
                             }
+                        }
+                    }
+                    UICoreMsg::SendOnChain {
+                        mint,
+                        address,
+                        amount_sats,
+                    } => {
+                        log::info!("Got UICoreMsg::SendOnChain");
+                        core.msg(msg.id, CoreUIMsg::Sending).await;
+                        let federation_id = match mint {
+                            MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
+                            MintIdentifier::Fedimint(mint) => mint,
+                        };
+                        if let Err(e) = core
+                            .send_onchain(msg.id, federation_id, address, amount_sats)
+                            .await
+                        {
+                            error!("Error sending: {e}");
+                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                                .await;
                         }
                     }
                     UICoreMsg::Transfer { to, from, amount } => {

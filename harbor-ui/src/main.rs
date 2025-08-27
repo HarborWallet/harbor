@@ -670,6 +670,30 @@ impl HarborWallet {
                         });
                         self.current_send_id = Some(id);
                         task
+                    } else if invoice_str.contains('@') {
+                        // BIP353 address
+                        if self.is_max {
+                            return Task::done(Message::AddToast(Toast {
+                                title: "Cannot send max with BIP-353 address".to_string(),
+                                body: Some("Please enter a specific amount".to_string()),
+                                status: ToastStatus::Bad,
+                            }));
+                        }
+                        let amount_sats = match self.send_amount_input_str.parse::<u64>() {
+                            Ok(amount) => amount,
+                            Err(e) => {
+                                error!("Error parsing amount: {e}");
+                                self.send_failure_reason = Some(e.to_string());
+                                return Task::none();
+                            }
+                        };
+                        let (id, task) = self.send_from_ui(UICoreMsg::SendBip353 {
+                            mint,
+                            address: invoice_str,
+                            amount_sats,
+                        });
+                        self.current_send_id = Some(id);
+                        task
                     } else {
                         match parse_lnurl(&invoice_str) {
                             Ok(lnurl) => {
