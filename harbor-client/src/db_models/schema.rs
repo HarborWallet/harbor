@@ -1,4 +1,15 @@
 // @generated automatically by Diesel CLI.
+diesel::table! {
+    lightning_receive_payments (id) {
+        id -> Integer,
+        receive_operation_id -> Text,
+        amount_msats -> BigInt,
+        fee_msats -> BigInt,
+        payment_hash -> Nullable<Text>,
+        created_at -> Timestamp,
+    }
+}
+
 
 diesel::table! {
     cashu_mint (mint_url) {
@@ -106,6 +117,7 @@ diesel::joinable!(lightning_payments -> cashu_mint (cashu_mint_url));
 diesel::joinable!(lightning_payments -> fedimint (fedimint_id));
 diesel::joinable!(lightning_receives -> cashu_mint (cashu_mint_url));
 diesel::joinable!(lightning_receives -> fedimint (fedimint_id));
+diesel::joinable!(lightning_receive_payments -> lightning_receives (receive_operation_id));
 diesel::joinable!(on_chain_payments -> cashu_mint (cashu_mint_url));
 diesel::joinable!(on_chain_payments -> fedimint (fedimint_id));
 diesel::joinable!(on_chain_receives -> cashu_mint (cashu_mint_url));
@@ -116,8 +128,10 @@ diesel::allow_tables_to_appear_in_same_query!(
     fedimint,
     lightning_payments,
     lightning_receives,
+    lightning_receive_payments,
     mint_metadata,
     on_chain_payments,
     on_chain_receives,
     profile,
 );
+

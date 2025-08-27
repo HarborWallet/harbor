@@ -12,8 +12,8 @@ use cdk::nuts::{
     CheckStateRequest, CheckStateResponse, Id, KeySet, KeysResponse, KeysetResponse,
     MeltQuoteBolt11Request, MeltQuoteBolt11Response, MeltQuoteBolt12Request, MeltRequest, MintInfo,
     MintQuoteBolt11Request, MintQuoteBolt11Response, MintQuoteBolt12Request,
-    MintQuoteBolt12Response, MintQuoteState, MintRequest, MintResponse, RestoreRequest,
-    RestoreResponse, SwapRequest, SwapResponse,
+    MintQuoteBolt12Response, MintQuoteState, MintRequest, MintResponse, ProofsMethods,
+    RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
 };
 use cdk::util::unix_time;
 use cdk::wallet::{MeltQuote, MintConnector, MintQuote};
@@ -343,7 +343,7 @@ pub fn spawn_lightning_receive_thread(
                 HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::ReceiveSuccess(params))
                     .await;
 
-                if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
+                if let Err(e) = storage.mark_ln_receive_as_success(quote.id, None) {
                     error!("Could not mark lightning receive as success: {e}");
                 }
 
@@ -390,9 +390,10 @@ pub fn spawn_bolt12_receive_thread(
     spawn(async move {
         let mut error_counter = 0;
         loop {
+            let quote_clone = quote.clone();
             // For bolt12, we'll check using the regular mint quote state method
             // The wallet should handle bolt12 quotes the same way as bolt11 quotes
-            let mint_quote_response = match client.mint_bolt12_quote_state(&quote.id).await {
+            let mint_quote_response = match client.mint_bolt12_quote_state(&quote_clone.id).await {
                 Ok(response) => response,
                 Err(e) => {
                     error!("Error getting mint quote state for bolt12: {e}");
@@ -410,19 +411,25 @@ pub fn spawn_bolt12_receive_thread(
                 mint_quote_response.amount_paid - mint_quote_response.amount_issued;
 
             if amount_mintable > 0.into() {
-                log::info!("Bolt12 quote {} has been paid, minting tokens", quote.id);
+                log::info!(
+                    "Bolt12 quote {} has been paid, minting tokens",
+                    quote_clone.id
+                );
 
                 match client
                     .mint_bolt12(
-                        &quote.id,
+                        &quote_clone.id,
                         Some(amount_mintable),
                         SplitTarget::default(),
                         None,
                     )
                     .await
                 {
-                    Ok(_) => {
-                        log::info!("Successfully minted tokens for bolt12 quote {}", quote.id);
+                    Ok(proofs) => {
+                        log::info!(
+                            "Successfully minted tokens for bolt12 quote {}",
+                            quote_clone.id
+                        );
 
                         let params = if is_transfer {
                             ReceiveSuccessMsg::Transfer
@@ -436,10 +443,10 @@ pub fn spawn_bolt12_receive_thread(
                         )
                         .await;
 
-                        // Note: For now we're using the bolt11 database methods since bolt12 quotes
-                        // are compatible with the same structure. In a future version, the database
-                        // schema should be updated to properly handle bolt12 quotes.
-                        if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
+                        if let Err(e) = storage.mark_ln_receive_as_success(
+                            quote_clone.id,
+                            proofs.total_amount().ok().map(|a| u64::from(a) * 1_000),
+                        ) {
                             error!("Could not mark bolt12 receive as success: {e}");
                         }
 
@@ -455,9 +462,7 @@ pub fn spawn_bolt12_receive_thread(
                         )
                         .await;
 
-                        update_history(storage, msg_id, &mut sender).await;
-
-                        break;
+                        update_history(Arc::clone(&storage), msg_id, &mut sender).await;
                     }
                     Err(e) => {
                         error!(
