@@ -1,7 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 
+use crate::db_models::PaymentStatus;
 use crate::db_models::mint_metadata::MintMetadata;
 use crate::db_models::transaction_item::TransactionItem;
+use crate::db_models::transaction_item::{TransactionDirection, TransactionItemKind};
+
 use crate::db_models::{
     CashuMint, Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile,
     OnChainPayment, OnChainReceive, Profile,
@@ -145,7 +148,11 @@ pub trait DBConnection {
         fee: Amount,
     ) -> anyhow::Result<()>;
 
-    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()>;
+    fn mark_ln_receive_as_success(
+        &self,
+        operation_id: String,
+        amount_msats: Option<u64>,
+    ) -> anyhow::Result<()>;
 
     fn mark_ln_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
@@ -362,10 +369,14 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()> {
+    fn mark_ln_receive_as_success(
+        &self,
+        operation_id: String,
+        amount_msats: Option<u64>,
+    ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        LightningReceive::mark_as_success(conn, operation_id)?;
+        LightningReceive::mark_as_success(conn, operation_id, amount_msats)?;
 
         Ok(())
     }
@@ -536,6 +547,8 @@ impl DBConnection for SQLConnection {
         let onchain_receives = OnChainReceive::get_history(conn)?;
         let lightning_payments = LightningPayment::get_history(conn)?;
         let lightning_receives = LightningReceive::get_history(conn)?;
+        // Also include bolt12 individual payments (each payment for a bolt12 receive)
+        let bolt12_payments = LightningReceive::get_bolt12_payments_history(conn)?;
 
         let mut items: Vec<TransactionItem> = Vec::with_capacity(
             onchain_payments.len()
@@ -557,10 +570,30 @@ impl DBConnection for SQLConnection {
         }
 
         for lightning_receive in lightning_receives {
-            items.push(lightning_receive.into());
+            if lightning_receive.bolt12_offer().is_none() {
+                items.push(lightning_receive.into());
+            }
         }
 
-        // sort by timestamp so that the most recent items are at the top
+        // Convert bolt12 joined results into transaction items
+        for (payment, receive) in bolt12_payments {
+            // Build transaction item from payment + parent receive
+            let item = TransactionItem {
+                kind: TransactionItemKind::Lightning,
+                amount: fedimint_core::Amount::from_msats(payment.amount_msats as u64)
+                    .sats_round_down(),
+                fee_msats: payment.fee_msats as u64,
+                txid: None,
+                preimage: None,
+                direction: TransactionDirection::Incoming,
+                mint_identifier: receive.mint_identifier(),
+                status: PaymentStatus::Success,
+                timestamp: payment.created_at.and_utc().timestamp() as u64,
+            };
+
+            items.push(item);
+        }
+
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(items)

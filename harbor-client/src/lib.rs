@@ -384,7 +384,7 @@ impl HarborCore {
                             client.localstore.get_mint_quote(&item.operation_id).await
                         {
                             // Check if this might be a bolt12 quote by examining the request
-                            if quote.request.starts_with("lno") {
+                            if quote.payment_method == cdk::nuts::PaymentMethod::Bolt12 {
                                 // This is likely a bolt12 quote
                                 spawn_bolt12_receive_thread(
                                     tx.clone(),
