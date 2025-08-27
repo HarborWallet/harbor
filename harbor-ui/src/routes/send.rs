@@ -10,12 +10,12 @@ use crate::{HarborWallet, Message, SendStatus};
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header(
         "Send",
-        "Send to an on-chain address, lightning invoice, or Bolt12 offer.",
+        "Send to an on-chain address, lightning invoice, Bolt12 offer, or BIP353 address.",
     );
 
     let dest_input = h_input(InputArgs {
         label: "Destination",
-        placeholder: "lnbc1... or lno... or bc1...",
+        placeholder: "lnbc1... or lno... or ₿user@example.com or bc1...",
         value: &harbor.send_dest_input_str,
         on_input: Message::SendDestInputChanged,
         ..InputArgs::default()
