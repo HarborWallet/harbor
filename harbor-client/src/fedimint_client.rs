@@ -422,8 +422,8 @@ pub(crate) async fn spawn_invoice_receive_subscription(
                     )
                     .await;
 
-                    if let Err(e) =
-                        storage.mark_ln_receive_as_success(operation_id.fmt_full().to_string(), None)
+                    if let Err(e) = storage
+                        .mark_ln_receive_as_success(operation_id.fmt_full().to_string(), None)
                     {
                         error!("Could not mark lightning receive as success: {e}");
                     }
@@ -485,8 +485,8 @@ pub(crate) async fn spawn_lnv2_receive_subscription(
                     )
                     .await;
 
-                    if let Err(e) =
-                        storage.mark_ln_receive_as_success(operation_id.fmt_full().to_string(), None)
+                    if let Err(e) = storage
+                        .mark_ln_receive_as_success(operation_id.fmt_full().to_string(), None)
                     {
                         error!("Could not mark lightning receive as success: {e}");
                     }

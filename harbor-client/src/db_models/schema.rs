@@ -10,7 +10,6 @@ diesel::table! {
     }
 }
 
-
 diesel::table! {
     cashu_mint (mint_url) {
         mint_url -> Text,
@@ -134,4 +133,3 @@ diesel::allow_tables_to_appear_in_same_query!(
     on_chain_receives,
     profile,
 );
-

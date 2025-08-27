@@ -31,10 +31,6 @@ url = "2.5.0"
 cdk = { version = "0.12.0", default-features = false, features = ["wallet", "bip353"] }
 cdk-sqlite = { version = "0.12.0", default-features = false, features = ["wallet", "sqlcipher"] }
 
-# cdk = { git = "https://github.com/thesimplekid/cdk", branch = "bip353_examples", default-features = false, features = ["wallet", "bip353"] }
-# cdk-sqlite = { git = "https://github.com/thesimplekid/cdk/", branch = "bip353_examples", default-features = false, features = ["wallet", "sqlcipher"] }
-
-
 bitcoin = { version = "0.32.4", features = ["base64"] }
 bip39 = "2.0.0"
 

@@ -15,10 +15,8 @@ pub fn receive(harbor: &HarborWallet) -> Element<Message> {
         Some(invoice.to_string())
     } else if let Some(address) = &harbor.receive_address {
         Some(address.to_string())
-    } else if let Some(offer) = &harbor.receive_bolt12_offer {
-        Some(offer.clone())
     } else {
-        None
+        harbor.receive_bolt12_offer.clone()
     };
 
     if let Some(receive_string) = receive_string {
