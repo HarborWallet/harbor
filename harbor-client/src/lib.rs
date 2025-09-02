@@ -1,3 +1,27 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::default_trait_access,
+    clippy::derive_partial_eq_without_eq,
+    clippy::large_futures,
+    clippy::match_same_arms,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::or_fun_call,
+    clippy::redundant_closure_for_method_calls,
+    clippy::significant_drop_in_scrutinee,
+    clippy::significant_drop_tightening,
+    clippy::similar_names,
+    clippy::single_char_pattern,
+    clippy::single_match_else,
+    clippy::too_many_lines
+)]
+
 use crate::cashu_client::{
     TorMintConnector, spawn_lightning_payment_thread, spawn_lightning_receive_thread,
 };
@@ -90,15 +114,15 @@ pub enum MintIdentifier {
 impl MintIdentifier {
     pub fn federation_id(&self) -> Option<FederationId> {
         match self {
-            MintIdentifier::Fedimint(id) => Some(*id),
-            _ => None,
+            Self::Fedimint(id) => Some(*id),
+            Self::Cashu(_) => None,
         }
     }
 
     pub fn mint_url(&self) -> Option<MintUrl> {
         match self {
-            MintIdentifier::Cashu(url) => Some(url.clone()),
-            _ => None,
+            Self::Cashu(url) => Some(url.clone()),
+            Self::Fedimint(_) => None,
         }
     }
 }
@@ -337,10 +361,10 @@ impl HarborCore {
                             )
                             .await;
                         } else {
-                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                            storage.mark_ln_receive_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                        storage.mark_ln_receive_as_failed(item.operation_id)?;
                     }
                 }
                 MintIdentifier::Cashu(mint_url) => {
@@ -357,10 +381,10 @@ impl HarborCore {
                                 false,
                             );
                         } else {
-                            storage.mark_ln_receive_as_failed(item.operation_id)?
+                            storage.mark_ln_receive_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_ln_receive_as_failed(item.operation_id)?
+                        storage.mark_ln_receive_as_failed(item.operation_id)?;
                     }
                 }
             }
@@ -401,10 +425,10 @@ impl HarborCore {
                             )
                             .await;
                         } else {
-                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?;
                     }
                 }
                 MintIdentifier::Cashu(mint_url) => {
@@ -421,10 +445,10 @@ impl HarborCore {
                                 false,
                             );
                         } else {
-                            storage.mark_lightning_payment_as_failed(item.operation_id)?
+                            storage.mark_lightning_payment_as_failed(item.operation_id)?;
                         }
                     } else {
-                        storage.mark_lightning_payment_as_failed(item.operation_id)?
+                        storage.mark_lightning_payment_as_failed(item.operation_id)?;
                     }
                 }
             }
@@ -448,13 +472,13 @@ impl HarborCore {
     // Initial setup messages that don't have an id
     // Panics if fails to send
     async fn send_system_msg(&self, msg: CoreUIMsg) {
-        Self::send_msg(&mut self.tx.clone(), None, msg).await
+        Self::send_msg(&mut self.tx.clone(), None, msg).await;
     }
 
     // Standard core->ui communication with an id
     // Panics if fails to send
     pub async fn msg(&self, id: Uuid, msg: CoreUIMsg) {
-        Self::send_msg(&mut self.tx.clone(), Some(id), msg).await
+        Self::send_msg(&mut self.tx.clone(), Some(id), msg).await;
     }
 
     pub async fn send_msg(sender: &mut Sender<CoreUIMsgPacket>, id: Option<Uuid>, msg: CoreUIMsg) {
@@ -814,6 +838,8 @@ impl HarborCore {
         msg_id: Uuid,
         amount: Amount,
     ) -> anyhow::Result<(Bolt11Invoice, OperationId)> {
+        const DEFAULT_EXPIRY_TIME_SECS: u32 = 86400;
+
         let enable_lnv2 = cfg!(feature = "lnv2");
         if !enable_lnv2 {
             return Err(anyhow::anyhow!("LNv2 is not enabled"));
@@ -822,7 +848,6 @@ impl HarborCore {
         log::info!("Trying to pay receive {amount} with LNv2...");
         let lnv2_module =
             client.get_first_module::<fedimint_lnv2_client::LightningClientModule>()?;
-        const DEFAULT_EXPIRY_TIME_SECS: u32 = 86400;
         self.status_update(msg_id, "Generating invoice").await;
         let receive = lnv2_module
             .receive(
@@ -1659,11 +1684,11 @@ impl HarborCore {
         }
     }
 
-    pub async fn get_seed_words(&self) -> String {
+    pub fn get_seed_words(&self) -> String {
         self.mnemonic.to_string()
     }
 
-    pub async fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_onchain_receive_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         log::info!("Setting on-chain receive enabled to: {}", enabled);
         self.storage.set_onchain_receive_enabled(enabled)?;
         log::info!(
@@ -1673,7 +1698,7 @@ impl HarborCore {
         Ok(())
     }
 
-    pub async fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
+    pub fn set_tor_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         log::info!("Setting Tor enabled to: {}", enabled);
         self.tor_enabled.swap(enabled, Ordering::Relaxed);
         self.storage.set_tor_enabled(enabled)?;

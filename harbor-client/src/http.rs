@@ -23,7 +23,7 @@ use url::Url;
 static TOR_CLIENT: OnceCell<Arc<TorClient<PreferredRuntime>>> = OnceCell::new();
 
 /// Initialize the Tor client if not already initialized
-async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
+fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
     let client = TorClient::builder()
         .bootstrap_behavior(arti_client::BootstrapBehavior::OnDemand)
         .create_unbootstrapped()?;
@@ -31,11 +31,11 @@ async fn initialize_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntim
 }
 
 /// Get or initialize the Tor client
-async fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
+fn get_tor_client() -> anyhow::Result<Arc<TorClient<PreferredRuntime>>> {
     match TOR_CLIENT.get() {
         Some(client) => Ok(client.clone()),
         _ => {
-            let client = initialize_tor_client().await?;
+            let client = initialize_tor_client()?;
             // It's okay if another thread beat us to initialization
             let _ = TOR_CLIENT.set(client.clone());
             Ok(client)
@@ -50,10 +50,10 @@ const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
 ///
 /// This is the standard way to make HTTPS requests. It:
 /// - Uses a connection pool for better performance
-/// - Handles redirects automatically (up to MAX_REDIRECTS)
+/// - Handles redirects automatically (up to `MAX_REDIRECTS`)
 /// - Enforces a response size limit
 /// - Returns deserialized JSON
-pub(crate) async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
+pub async fn make_get_request_direct<T>(url: &str) -> anyhow::Result<T>
 where
     T: DeserializeOwned + Send + 'static,
 {
@@ -75,7 +75,7 @@ async fn check_cancel(cancel_handle: Arc<AtomicBool>) {
 /// - Enforcing HTTPS-only connections
 /// - Using fresh circuits for each request
 ///
-/// The request can be cancelled at any time using the cancel_handle.
+/// The request can be cancelled at any time using the `cancel_handle`.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
 pub async fn make_get_request_tor<T>(url: &str, cancel_handle: Arc<AtomicBool>) -> anyhow::Result<T>
@@ -93,10 +93,10 @@ where
 /// - Enforcing HTTPS-only connections
 /// - Using fresh circuits for each request
 ///
-/// The request can be cancelled at any time using the cancel_handle.
+/// The request can be cancelled at any time using the `cancel_handle`.
 ///
 /// Note: This is slower than direct requests due to Tor routing.
-pub(crate) async fn make_tor_request<T, P>(
+pub async fn make_tor_request<T, P>(
     url: &str,
     payload: Option<P>,
     cancel_handle: Arc<AtomicBool>,
@@ -113,7 +113,7 @@ where
     }
 
     // Get a reference to the global TorClient
-    let tor_client = get_tor_client().await?;
+    let tor_client = get_tor_client()?;
 
     log::debug!("Starting bootstrap if needed");
 
@@ -123,14 +123,14 @@ where
     // Use select! to handle cancellation during bootstrap
     let bootstrap_result = tokio::select! {
         biased;  // Check cancellation first
-        _ = check_cancel(cancel_handle.clone()) => {
+        () = check_cancel(cancel_handle.clone()) => {
             return Err(anyhow!("Request cancelled during bootstrap"));
         }
         result = tokio::time::timeout(bootstrap_timeout, tor_client.bootstrap()) => result,
     };
 
     match bootstrap_result {
-        Ok(Ok(_)) => log::debug!("Successfully bootstrapped Tor client"),
+        Ok(Ok(())) => log::debug!("Successfully bootstrapped Tor client"),
         Ok(Err(e)) => return Err(anyhow!("Failed to bootstrap Tor client: {:?}", e)),
         Err(_) => {
             return Err(anyhow!(
@@ -173,7 +173,7 @@ where
         // Use select! to handle cancellation during onion connection
         let stream_result = tokio::select! {
             biased;
-            _ = check_cancel(cancel_handle.clone()) => {
+            () = check_cancel(cancel_handle.clone()) => {
                 return Err(anyhow!("Request cancelled during onion connection"));
             }
             result = tokio::time::timeout(
@@ -199,7 +199,7 @@ where
         // Use select! to handle cancellation during regular connection
         let stream_result = tokio::select! {
             biased;
-            _ = check_cancel(cancel_handle.clone()) => {
+            () = check_cancel(cancel_handle.clone()) => {
                 return Err(anyhow!("Request cancelled during connection"));
             }
             result = tokio::time::timeout(connect_timeout, tor_client.connect(tor_addr)) => result,
@@ -239,7 +239,7 @@ where
     // Use select! to handle cancellation during TLS handshake
     let tls_result = tokio::select! {
         biased;
-        _ = check_cancel(cancel_handle.clone()) => {
+        () = check_cancel(cancel_handle.clone()) => {
             return Err(anyhow!("Request cancelled during TLS handshake"));
         }
         result = tokio::time::timeout(tls_timeout, connector.connect(server_name, stream)) => result,
@@ -336,11 +336,9 @@ where
 }
 
 // Create a new Hyper client with TLS support and reasonable defaults
-fn create_https_client() -> anyhow::Result<
-    Client<
-        hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
-        Empty<Bytes>,
-    >,
+fn create_https_client() -> Client<
+    hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
+    Empty<Bytes>,
 > {
     let https = HttpsConnectorBuilder::new()
         .with_webpki_roots()
@@ -348,12 +346,10 @@ fn create_https_client() -> anyhow::Result<
         .enable_http1()
         .build();
 
-    let client = Client::builder(TokioExecutor::new())
+    Client::builder(TokioExecutor::new())
         .pool_idle_timeout(Duration::from_secs(30))
         .pool_max_idle_per_host(1)
-        .build(https);
-
-    Ok(client)
+        .build(https)
 }
 
 /// Common response handling logic
@@ -450,7 +446,7 @@ where
     handle_response(response, 0, None).await
 }
 
-/// Use what Chrome puts for User Agent for better privacy, copied from: https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+/// Use what Chrome puts for User Agent for better privacy, copied from: `https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome`
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
 
 /// Build a GET request with common headers
@@ -521,7 +517,7 @@ where
 
         log::debug!("Making direct get request to: {}", url);
 
-        let client = create_https_client()?;
+        let client = create_https_client();
         let uri: Uri = url
             .parse()
             .map_err(|e| anyhow!("Invalid URL '{}': {}", url, e))?;
@@ -565,8 +561,8 @@ mod tests {
                 assert!(!res.federations.is_empty());
             }
             Err(e) => {
-                log::error!("Failed to fetch metadata: {:?}", e);
-                panic!("Failed to fetch metadata: {:?}", e);
+                log::error!("Failed to fetch metadata: {e:?}");
+                panic!("Failed to fetch metadata: {e:?}");
             }
         }
     }
@@ -586,8 +582,8 @@ mod tests {
                 assert!(!res.federations.is_empty());
             }
             Err(e) => {
-                log::error!("Failed to fetch metadata: {:?}", e);
-                panic!("Failed to fetch metadata: {:?}", e);
+                log::error!("Failed to fetch metadata: {e:?}");
+                panic!("Failed to fetch metadata: {e:?}");
             }
         }
     }
@@ -631,8 +627,8 @@ mod tests {
                 assert!(res.get("url").is_some(), "Expected 'url' field in response");
             }
             Err(e) => {
-                log::error!("Failed to follow redirect: {:?}", e);
-                panic!("Failed to follow redirect: {:?}", e);
+                log::error!("Failed to follow redirect: {e:?}");
+                panic!("Failed to follow redirect: {e:?}");
             }
         }
     }

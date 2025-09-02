@@ -16,9 +16,9 @@ pub enum ConfigError {
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigError::InvalidConfig => write!(f, "Config file is invalid"),
-            ConfigError::IoError(e) => write!(f, "IO error: {}", e),
-            ConfigError::SerdeError(e) => write!(f, "JSON error: {}", e),
+            Self::InvalidConfig => write!(f, "Config file is invalid"),
+            Self::IoError(e) => write!(f, "IO error: {e}"),
+            Self::SerdeError(e) => write!(f, "JSON error: {e}"),
         }
     }
 }
@@ -27,13 +27,13 @@ impl Error for ConfigError {}
 
 impl From<io::Error> for ConfigError {
     fn from(error: io::Error) -> Self {
-        ConfigError::IoError(error)
+        Self::IoError(error)
     }
 }
 
 impl From<serde_json::Error> for ConfigError {
     fn from(error: serde_json::Error) -> Self {
-        ConfigError::SerdeError(error)
+        Self::SerdeError(error)
     }
 }
 

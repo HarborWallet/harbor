@@ -89,7 +89,7 @@ pub fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::S
     let background = match status {
         pick_list::Status::Hovered => lighten(theme.palette().background, 0.05),
         pick_list::Status::Opened { .. } => darken(Color::BLACK, 0.1),
-        _ => theme.palette().background,
+        pick_list::Status::Active => theme.palette().background,
     };
 
     pick_list::Style {

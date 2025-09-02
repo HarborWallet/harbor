@@ -121,8 +121,7 @@ pub fn render_seed_words(seed_words: &str) -> Element<'static, Message> {
             .iter()
             .take(6)
             .enumerate()
-            .map(|(i, word)| text(format!("{}. {}", i + 1, word)).into())
-            .collect::<Vec<Element<'_, Message>>>(),
+            .map(|(i, word)| text(format!("{}. {}", i + 1, word)).into()),
     )
     .spacing(10);
 
@@ -133,8 +132,7 @@ pub fn render_seed_words(seed_words: &str) -> Element<'static, Message> {
             .skip(6)
             .take(6)
             .enumerate()
-            .map(|(i, word)| text(format!("{}. {}", i + 7, word)).into())
-            .collect::<Vec<Element<'_, Message>>>(),
+            .map(|(i, word)| text(format!("{}. {}", i + 7, word)).into()),
     )
     .spacing(10);
 

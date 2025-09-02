@@ -83,7 +83,7 @@ impl FederationMeta {
 
 impl From<Option<MintInfo>> for FederationMeta {
     fn from(info: Option<MintInfo>) -> Self {
-        FederationMeta {
+        Self {
             federation_name: info.as_ref().and_then(|i| i.name.clone()),
             federation_expiry_timestamp: None,
             welcome_message: None,
@@ -148,7 +148,7 @@ pub(crate) async fn get_federation_metadata(
     FederationMeta {
         meta_external_url, // Already set...
         federation_name: merge_values(
-            data.get_meta("federation_name").clone(),
+            data.get_meta("federation_name"),
             config.as_ref().and_then(|c| c.federation_name.clone()),
         ),
         federation_expiry_timestamp: merge_values(
@@ -175,8 +175,7 @@ pub(crate) async fn get_federation_metadata(
             config.as_ref().and_then(|c| c.popup_end_timestamp.clone()),
         ),
         popup_countdown_message: merge_values(
-            data.get_meta("popup_countdown_message")
-                .map(|v| v.to_string()),
+            data.get_meta("popup_countdown_message"),
             config
                 .as_ref()
                 .and_then(|c| c.popup_countdown_message.clone()),

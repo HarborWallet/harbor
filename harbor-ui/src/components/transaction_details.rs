@@ -64,7 +64,7 @@ pub fn h_transaction_details<'a>(
 
     let mint_section = column![
         text(mint_label).size(16).style(subtitle),
-        row![mint_icon, text(mint.name.clone()).size(16)]
+        row![mint_icon, text(mint.name).size(16)]
             .align_y(Alignment::Center)
             .spacing(8)
     ]
@@ -109,7 +109,7 @@ pub fn h_transaction_details<'a>(
             Network::Signet => "https://mutinynet.com/tx/",
             _ => panic!("Unsupported network"),
         };
-        let url = format!("{}{}", base_url, txid);
+        let url = format!("{base_url}{txid}");
         details = details.push(
             column![
                 text("TXID").size(16).style(subtitle),

@@ -74,13 +74,13 @@ pub fn create_handles() -> (UIHandle, CoreHandle) {
     (ui_handle, core_handle)
 }
 
-/// Common setup function for creating a HarborCore instance
+/// Common setup function for creating a `HarborCore` instance
 async fn setup_harbor_core(
     data_dir: PathBuf,
     db_path: &str,
     password: &str,
     network: Network,
-    tx: &mut Sender<Message>,
+    tx: &Sender<Message>,
 ) -> Option<HarborCore> {
     // Setup core message channel
     let (core_tx, mut core_rx) = iced::futures::channel::mpsc::channel::<CoreUIMsgPacket>(128);
@@ -389,15 +389,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     // Save password to keyring when successfully unlocked
                     save_to_keyring(&password).await;
 
-                    match setup_harbor_core(
-                        path.to_path_buf(),
-                        &db_path,
-                        &password,
-                        network,
-                        &mut tx,
-                    )
-                    .await
-                    {
+                    match setup_harbor_core(path.clone(), &db_path, &password, network, &tx).await {
                         Some(core) => {
                             tx.send(Message::core_msg(id, CoreUIMsg::UnlockSuccess))
                                 .await
@@ -469,7 +461,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                     let core = HarborCore::new(
                         network,
                         db.generate_mnemonic(seed).expect("should generate words"),
-                        path.to_path_buf(),
+                        path.clone(),
                         core_tx,
                         Arc::new(RwLock::new(HashMap::new())),
                         Arc::new(RwLock::new(HashMap::new())),
@@ -489,7 +481,7 @@ pub fn run_core() -> impl Stream<Item = Message> {
                 }
 
                 _ => {
-                    warn!("Ignoring unrelated message to locked core")
+                    warn!("Ignoring unrelated message to locked core");
                 }
             }
         }
@@ -654,7 +646,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                 core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                     .await;
                             }
-                            Ok(_) => {
+                            Ok(()) => {
                                 if let Ok(new_federation_list) = core.get_mint_items().await {
                                     core.msg(
                                         msg.id,
@@ -679,7 +671,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                 .await;
                         }
-                        Ok(_) => {
+                        Ok(()) => {
                             if let Ok(new_federation_list) = core.get_mint_items().await {
                                 core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
                                     .await;
@@ -713,7 +705,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         log::info!("Removed federation: {id}");
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
@@ -737,7 +729,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         )
                                         .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         log::info!("Removed cashu mint: {url}");
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
@@ -764,7 +756,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                         core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                             .await;
                                     }
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         if let Ok(new_federation_list) = core.get_mint_items().await
                                         {
                                             core.msg(
@@ -786,7 +778,7 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                                     core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
                                         .await;
                                 }
-                                Ok(_) => {
+                                Ok(()) => {
                                     if let Ok(new_list) = core.get_mint_items().await {
                                         core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list))
                                             .await;
@@ -804,11 +796,11 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                         }
                     }
                     UICoreMsg::GetSeedWords => {
-                        let seed_words = core.get_seed_words().await;
+                        let seed_words = core.get_seed_words();
                         core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
                     }
                     UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
-                        match core.set_onchain_receive_enabled(enabled).await {
+                        match core.set_onchain_receive_enabled(enabled) {
                             Err(e) => {
                                 error!("error setting onchain receive enabled: {e}");
                             }
@@ -818,16 +810,14 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
                             }
                         }
                     }
-                    UICoreMsg::SetTorEnabled(enabled) => {
-                        match core.set_tor_enabled(enabled).await {
-                            Err(e) => {
-                                error!("error setting tor enabled: {e}");
-                            }
-                            _ => {
-                                core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
-                            }
+                    UICoreMsg::SetTorEnabled(enabled) => match core.set_tor_enabled(enabled) {
+                        Err(e) => {
+                            error!("error setting tor enabled: {e}");
                         }
-                    }
+                        _ => {
+                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+                        }
+                    },
                     UICoreMsg::TestStatusUpdates => {
                         core.test_status_updates(msg.id).await;
                     }

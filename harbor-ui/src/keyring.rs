@@ -28,7 +28,7 @@ pub async fn save_to_keyring(password: &str) {
     set_global_service_name(KEYRING_SERVICE);
     match KeyringEntry::try_new(KEYRING_USERNAME) {
         Ok(entry) => match entry.set_secret(password).await {
-            Ok(_) => {
+            Ok(()) => {
                 info!("Successfully saved password to keyring");
             }
             Err(e) => {

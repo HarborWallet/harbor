@@ -17,8 +17,7 @@ pub fn history(harbor: &HarborWallet) -> Element<Message> {
                 let is_selected = harbor
                     .selected_transaction
                     .as_ref()
-                    .map(|selected| selected == item)
-                    .unwrap_or(false);
+                    .is_some_and(|selected| selected == item);
                 column
                     .push(h_transaction_item(item, is_selected))
                     .push(hr())

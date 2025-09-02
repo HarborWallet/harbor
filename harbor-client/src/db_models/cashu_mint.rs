@@ -20,10 +20,10 @@ pub struct CashuMint {
 }
 
 impl CashuMint {
-    pub fn get(conn: &mut SqliteConnection, url: String) -> anyhow::Result<Option<CashuMint>> {
+    pub fn get(conn: &mut SqliteConnection, url: String) -> anyhow::Result<Option<Self>> {
         Ok(cashu_mint::table
             .filter(cashu_mint::mint_url.eq(url))
-            .first::<CashuMint>(conn)
+            .first::<Self>(conn)
             .optional()?)
     }
 
@@ -32,7 +32,7 @@ impl CashuMint {
         let exists = cashu_mint::table
             .filter(cashu_mint::mint_url.eq(&url))
             .filter(cashu_mint::active.eq(1))
-            .first::<CashuMint>(conn)
+            .first::<Self>(conn)
             .optional()?
             .is_some();
 
@@ -79,7 +79,7 @@ impl CashuMint {
         // First check if the federation exists and is active
         let exists = cashu_mint::table
             .filter(cashu_mint::mint_url.eq(&mint_url))
-            .first::<CashuMint>(conn)
+            .first::<Self>(conn)
             .optional()?
             .is_some();
 
@@ -87,7 +87,7 @@ impl CashuMint {
             Self::set_active(conn, &mint_url)?;
         }
 
-        let mint = CashuMint {
+        let mint = Self {
             mint_url,
             active: 1,
         };

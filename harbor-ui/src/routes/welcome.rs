@@ -30,8 +30,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
                     harbor_logo(),
                     welcome_message,
                     text(format!(
-                        "Failed to initialize wallet. Config error: {}",
-                        error
+                        "Failed to initialize wallet. Config error: {error}"
                     ))
                     .size(24)
                     .color(iced::Color::from_rgb8(250, 0, 80))
@@ -69,7 +68,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
                     label: "Password",
                     value: &harbor.password_input_str,
                     on_input: Message::PasswordInputChanged,
-                    on_submit: action.clone(),
+                    on_submit: action,
                     disabled: harbor.unlock_status == UnlockStatus::Unlocking,
                     secure: true,
                     id: Some("password_init_input"),
