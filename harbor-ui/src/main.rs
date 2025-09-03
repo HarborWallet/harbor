@@ -37,16 +37,14 @@ use components::{MUTINY_GREEN, MUTINY_RED};
 use harbor_client::Bolt11Invoice;
 use harbor_client::bip39::Mnemonic;
 use harbor_client::bitcoin::{Address, Network};
-use harbor_client::cdk::mint_url::MintUrl;
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::fedimint_core::Amount;
 use harbor_client::fedimint_core::core::ModuleKind;
-use harbor_client::fedimint_core::invite_code::InviteCode;
 use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
-    CoreUIMsg, CoreUIMsgPacket, MintIdentifier, ReceiveSuccessMsg, SendSuccessMsg, UICoreMsg,
-    data_dir,
+    CoreUIMsg, CoreUIMsgPacket, MintConnectionInfo, MintIdentifier, ReceiveSuccessMsg,
+    SendSuccessMsg, UICoreMsg, data_dir,
 };
 use iced::Font;
 use iced::Subscription;
@@ -212,9 +210,9 @@ pub enum Message {
         password: String,
         seed: Option<String>,
     },
-    AddMint(String),
+    AddMint(MintConnectionInfo),
     RejoinMint(MintIdentifier),
-    PeekMint(String),
+    PeekMint(MintConnectionInfo),
     RemoveMint(MintIdentifier),
     ChangeMint(MintIdentifier),
     Donate,
@@ -876,53 +874,43 @@ impl HarborWallet {
                     }
                 }
             },
-            Message::AddMint(string) => match InviteCode::from_str(&string) {
-                Ok(invite) => {
-                    self.add_federation_status = AddFederationStatus::Adding;
-                    let (id, task) = self.send_from_ui(UICoreMsg::AddFederation(invite));
-                    self.current_add_id = Some(id);
-                    task
-                }
-                Err(_) => match MintUrl::from_str(&string) {
-                    Ok(mint_url) => {
-                        self.add_federation_status = AddFederationStatus::Adding;
-                        let (id, task) = self.send_from_ui(UICoreMsg::AddCashuMint(mint_url));
-                        self.current_add_id = Some(id);
-                        task
-                    }
-                    Err(_) => Task::done(Message::AddToast(Toast {
-                        title: "Can't add mint".to_string(),
-                        body: Some("Invalid invite code".to_string()),
-                        status: ToastStatus::Bad,
-                    })),
-                },
-            },
-            Message::PeekMint(string) => match InviteCode::from_str(&string) {
-                Ok(invite) => {
-                    if self.mint_list.iter().any(|m| {
-                        m.active
-                            && m.id
-                                .federation_id()
-                                .is_some_and(|f| f == invite.federation_id())
-                    }) {
-                        return Task::done(Message::AddToast(Toast {
-                            title: "Mint already added".to_string(),
-                            body: None,
-                            status: ToastStatus::Bad,
-                        }));
-                    }
+            Message::AddMint(connection_info) => {
+                self.add_federation_status = AddFederationStatus::Adding;
 
-                    self.peek_status = PeekStatus::Peeking;
-                    let (id, task) = self.send_from_ui(UICoreMsg::GetFederationInfo(invite));
-                    self.current_peek_id = Some(id);
-                    task
-                }
-                Err(_) => match MintUrl::from_str(&string) {
-                    Ok(mint) => {
+                let (id, task) = match connection_info {
+                    MintConnectionInfo::Fedimint(invite_code) => {
+                        self.send_from_ui(UICoreMsg::AddFederation(invite_code))
+                    }
+                    MintConnectionInfo::Cashu(mint_url) => {
+                        self.send_from_ui(UICoreMsg::AddCashuMint(mint_url))
+                    }
+                };
+
+                self.current_add_id = Some(id);
+                task
+            }
+            Message::PeekMint(connection_info) => {
+                let (id, task) = match connection_info {
+                    MintConnectionInfo::Fedimint(invite_code) => {
+                        if self.mint_list.iter().any(|m| {
+                            m.active
+                                && m.id
+                                    .federation_id()
+                                    .is_some_and(|f| f == invite_code.federation_id())
+                        }) {
+                            return Task::done(Message::AddToast(Toast {
+                                title: "Mint already added".to_string(),
+                                body: None,
+                                status: ToastStatus::Bad,
+                            }));
+                        }
+                        self.send_from_ui(UICoreMsg::GetFederationInfo(invite_code))
+                    }
+                    MintConnectionInfo::Cashu(mint_url) => {
                         if self
                             .mint_list
                             .iter()
-                            .any(|m| m.active && m.id.mint_url().is_some_and(|u| u == mint))
+                            .any(|m| m.active && m.id.mint_url().is_some_and(|u| u == mint_url))
                         {
                             return Task::done(Message::AddToast(Toast {
                                 title: "Mint already added".to_string(),
@@ -930,18 +918,14 @@ impl HarborWallet {
                                 status: ToastStatus::Bad,
                             }));
                         }
-                        self.peek_status = PeekStatus::Peeking;
-                        let (id, task) = self.send_from_ui(UICoreMsg::GetCashuMintInfo(mint));
-                        self.current_peek_id = Some(id);
-                        task
+                        self.send_from_ui(UICoreMsg::GetCashuMintInfo(mint_url))
                     }
-                    Err(_) => Task::done(Message::AddToast(Toast {
-                        title: "Can't preview mint".to_string(),
-                        body: Some("Invalid invite code".to_string()),
-                        status: ToastStatus::Bad,
-                    })),
-                },
-            },
+                };
+
+                self.peek_status = PeekStatus::Peeking;
+                self.current_peek_id = Some(id);
+                task
+            }
             Message::RemoveMint(mint) => {
                 // Check if the federation still exists before trying to remove it
                 if !self.mint_list.iter().any(|f| f.id == mint) {
