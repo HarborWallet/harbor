@@ -4,6 +4,8 @@ use iced::{
     widget::{checkbox, container::Style as ContainerStyle, pick_list, text::Style},
 };
 
+use crate::components::BACKGROUND_GREY;
+
 use super::{darken, lighten};
 
 use iced::{
@@ -22,8 +24,8 @@ pub fn very_subtle(theme: &Theme) -> Style {
 }
 
 pub fn link() -> Color {
-    // This is the same theme.pallette().background just without needing `Theme`
-    lighten(Color::from_rgb8(23, 23, 25), 0.7)
+    // This is the same theme.palette().background just without needing `Theme`
+    lighten(BACKGROUND_GREY, 0.7)
 }
 
 const REGULAR_FONT: Font = Font {
@@ -49,15 +51,7 @@ pub fn regular_text(content: String, size: u16) -> Text<'static> {
 }
 
 pub fn gray() -> Color {
-    lighten(Color::from_rgb8(23, 23, 25), 0.5)
-}
-
-pub fn green() -> Color {
-    Color::from_rgb8(40, 164, 127)
-}
-
-pub fn red() -> Color {
-    Color::from_rgb8(250, 0, 80)
+    lighten(BACKGROUND_GREY, 0.5)
 }
 
 pub fn menu_style(theme: &Theme) -> menu::Style {

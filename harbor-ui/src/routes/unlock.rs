@@ -1,12 +1,9 @@
 use crate::{
     UnlockStatus,
-    components::{InputArgs, SvgIcon, h_button, h_input, harbor_logo},
+    components::{InputArgs, MUTINY_RED, SvgIcon, h_button, h_input, harbor_logo},
 };
+use iced::widget::{center, column, container, text};
 use iced::{Alignment, Element, Length};
-use iced::{
-    Color,
-    widget::{center, column, container, text},
-};
 
 use crate::{HarborWallet, Message};
 
@@ -41,16 +38,17 @@ pub fn unlock(harbor: &HarborWallet) -> Element<Message> {
         .align_x(Alignment::Center)
         .width(Length::Fixed(256.));
 
-    let page_column = page_column.push_maybe(harbor.unlock_failure_reason.as_ref().map(|r| {
-        text(format!("Error: {r:?}"))
-            .size(24)
-            .color(Color::from_rgb8(250, 0, 80))
-    }));
+    let page_column = page_column.push_maybe(
+        harbor
+            .unlock_failure_reason
+            .as_ref()
+            .map(|r| text(format!("Error: {r:?}")).size(24).color(MUTINY_RED)),
+    );
 
     let page_column = page_column.push_maybe(harbor.init_failure_reason.as_ref().map(|r| {
         text(format!("Init Error: {r:?}"))
             .size(24)
-            .color(Color::from_rgb8(250, 0, 80))
+            .color(MUTINY_RED)
     }));
 
     container(center(page_column)).into()

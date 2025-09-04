@@ -30,7 +30,7 @@
 
 use crate::bridge::run_core;
 use crate::components::confirm_modal::{BasicModalState, ConfirmModalState};
-use crate::components::focus_input_id;
+use crate::components::{BACKGROUND_GREY, WARNING_YELLOW, focus_input_id};
 use crate::components::{Toast, ToastManager, ToastStatus};
 use crate::config::{Config, write_config};
 use components::{MUTINY_GREEN, MUTINY_RED};
@@ -1396,13 +1396,12 @@ impl HarborWallet {
         iced::Theme::custom(
             String::from("Custom"),
             iced::theme::Palette {
-                background: Color::from_rgb8(23, 23, 25),
+                background: BACKGROUND_GREY,
                 primary: MUTINY_RED,
                 text: Color::WHITE,
                 success: MUTINY_GREEN,
                 danger: MUTINY_RED,
-                // TODO: do we need a warning yellow?
-                warning: Color::from_rgb8(255, 165, 0),
+                warning: WARNING_YELLOW,
             },
         )
     }

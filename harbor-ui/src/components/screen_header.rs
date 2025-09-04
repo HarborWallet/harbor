@@ -1,7 +1,7 @@
 use super::{
-    SvgIcon, borderless_pick_list_style, format_amount, gray, green, hr, map_icon, menu_style, red,
-    vr,
+    SvgIcon, borderless_pick_list_style, format_amount, gray, hr, map_icon, menu_style, vr,
 };
+use crate::components::{MUTINY_GREEN, MUTINY_RED};
 use crate::{HarborWallet, Message, ReceiveStatus};
 use harbor_client::MintIdentifier;
 use harbor_client::db_models::MintItem;
@@ -73,7 +73,7 @@ pub fn h_screen_header(
         let tor_enabled = harbor.tor_enabled;
         let rich_tor = rich_text([
             span("Tor ").size(16).color(gray()),
-            span("enabled").size(16).color(green()),
+            span("enabled").size(16).color(MUTINY_GREEN),
         ])
         .on_link_click(never);
         let secured = if tor_enabled {
@@ -82,7 +82,7 @@ pub fn h_screen_header(
             row![
                 rich_text([
                     span("Tor ").size(16).color(gray()),
-                    span("disabled").size(16).color(red()),
+                    span("disabled").size(16).color(MUTINY_RED),
                 ])
                 .on_link_click(never),
                 shield_alert_icon
