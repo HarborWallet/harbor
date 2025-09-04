@@ -200,15 +200,15 @@ impl LightningReceive {
         use crate::db_models::schema::lightning_receives::dsl as lr;
 
         // fetch the existing receive record
-        let existing: Option<LightningReceive> = lr::lightning_receives
+        let existing: Option<Self> = lr::lightning_receives
             .filter(lr::operation_id.eq(&operation_id))
             .order(lr::updated_at.desc())
-            .first::<LightningReceive>(conn)
+            .first(conn)
             .optional()?;
 
         if let Some(rec) = existing {
             if rec.bolt12_offer.is_some() {
-                let new_amount = amount_msats.map(|a| a as i64).unwrap_or(rec.amount_msats);
+                let new_amount = amount_msats.map_or(rec.amount_msats, |a| a as i64);
 
                 let new_payment = NewLightningReceivePayment {
                     receive_operation_id: rec.operation_id.clone(),
@@ -223,7 +223,7 @@ impl LightningReceive {
 
                 // Update the receive summary row to Success so it appears in history and update timestamp
                 diesel::update(
-                    lr::lightning_receives.filter(lr::operation_id.eq(rec.operation_id.clone())),
+                    lr::lightning_receives.filter(lr::operation_id.eq(rec.operation_id)),
                 )
                 .set(lr::status.eq(PaymentStatus::Success as i32))
                 .execute(conn)?;
@@ -272,7 +272,7 @@ impl LightningReceive {
 
     pub fn get_bolt12_payments_history(
         conn: &mut SqliteConnection,
-    ) -> anyhow::Result<Vec<(LightningReceivePayment, LightningReceive)>> {
+    ) -> anyhow::Result<Vec<(LightningReceivePayment, Self)>> {
         use crate::db_models::schema::lightning_receive_payments::dsl as lrp;
         use crate::db_models::schema::lightning_receives::dsl as lr;
 
@@ -301,7 +301,7 @@ impl LightningReceive {
                     lr::updated_at,
                 ),
             ))
-            .load::<(LightningReceivePayment, LightningReceive)>(conn)?;
+            .load::<(LightningReceivePayment, Self)>(conn)?;
 
         Ok(results)
     }

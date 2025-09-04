@@ -426,7 +426,7 @@ impl HarborWallet {
             Ok(amount) => amount,
             Err(e) => {
                 error!("Error parsing amount: {e}");
-                self.send_failure_reason = Some(e.to_string());
+                self.send_failure_reason = Some(e);
                 return Task::none();
             }
         };
@@ -450,7 +450,7 @@ impl HarborWallet {
         offer_amount_sats: Option<u64>,
     ) -> Result<Option<u64>, Task<Message>> {
         if self.is_max {
-            return Err(Task::perform(async {}, |_| {
+            return Err(Task::perform(async {}, |()| {
                 Message::AddToast(Toast {
                     title: "Cannot send max with BOLT12 offer".to_string(),
                     body: Some("Please enter a specific amount".to_string()),
@@ -503,7 +503,7 @@ impl HarborWallet {
                 error!("Amount-less offer requires amount input");
                 self.send_failure_reason =
                     Some("Enter an amount for this type of offer".to_string());
-                Err(Task::perform(async {}, |_| {
+                Err(Task::perform(async {}, |()| {
                     Message::AddToast(Toast {
                         title: "Amountless offer".to_string(),
                         body: Some("Please enter a specific amount".to_string()),
@@ -943,7 +943,7 @@ impl HarborWallet {
                         Some(f) => f,
                         None => {
                             error!("No active mint");
-                            return Task::perform(async {}, |_| {
+                            return Task::perform(async {}, |()| {
                                 Message::AddToast(Toast {
                                     title: "Cannot generate Bolt12 offer".to_string(),
                                     body: Some("No active mint selected".to_string()),
@@ -961,7 +961,7 @@ impl HarborWallet {
                             Ok(amount) => Some(Amount::from_sats(amount)),
                             Err(e) => {
                                 error!("Error parsing amount: {e}");
-                                return Task::perform(async {}, move |_| {
+                                return Task::perform(async {}, move |()| {
                                     Message::AddToast(Toast {
                                         title: "Failed to generate Bolt12 offer".to_string(),
                                         body: Some(e.to_string()),
