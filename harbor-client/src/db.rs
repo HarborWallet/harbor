@@ -899,9 +899,9 @@ mod tests {
         );
         assert_eq!(
             payment.payment_hash(),
-            invoice.payment_hash().to_byte_array()
+            Some(invoice.payment_hash().to_byte_array())
         );
-        assert_eq!(payment.bolt11(), invoice);
+        assert_eq!(payment.bolt11(), Some(invoice));
         assert_eq!(payment.amount(), Amount::from_sats(1_000));
         assert_eq!(payment.fee(), Amount::from_sats(1));
         assert_eq!(payment.preimage(), None);
@@ -955,9 +955,9 @@ mod tests {
         );
         assert_eq!(
             receive.payment_hash(),
-            invoice.payment_hash().to_byte_array()
+            Some(invoice.payment_hash().to_byte_array())
         );
-        assert_eq!(receive.bolt11(), invoice);
+        assert_eq!(receive.bolt11(), Some(invoice));
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));
         assert_eq!(receive.status(), PaymentStatus::Pending);

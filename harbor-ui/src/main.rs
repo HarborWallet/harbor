@@ -1422,6 +1422,7 @@ impl HarborWallet {
                         module_kinds: Some(module_kinds),
                         metadata,
                         on_chain_supported: false,
+                        bolt12_supported: false,
                         active: true,
                     };
 

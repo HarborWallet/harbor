@@ -42,7 +42,7 @@ use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
 use cdk::cdk_database::WalletDatabase;
 use cdk::mint_url::MintUrl;
-use cdk::nuts::{CurrencyUnit, MintInfo};
+use cdk::nuts::{CurrencyUnit, MintInfo, PaymentMethod};
 use cdk::wallet::WalletBuilder;
 use cdk_sqlite::WalletSqliteDatabase;
 use fedimint_client::{spawn_lnv2_payment_subscription, spawn_lnv2_receive_subscription};
@@ -1823,6 +1823,7 @@ impl HarborCore {
                 module_kinds: Some(module_kinds),
                 metadata: metadata.unwrap_or_default(),
                 on_chain_supported,
+                bolt12_supported: false,
                 active: true,
             });
         }
@@ -1847,6 +1848,15 @@ impl HarborCore {
                 popup_countdown_message: None,
             };
 
+            let bolt12_supported = if let Some(info) = info {
+                info.nuts
+                    .nut04
+                    .get_settings(&CurrencyUnit::Sat, &PaymentMethod::Bolt12)
+                    .is_some()
+            } else {
+                false
+            };
+
             res.push(MintItem {
                 id: MintIdentifier::Cashu(c.mint_url.clone()),
                 name: metadata
@@ -1858,6 +1868,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata,
                 on_chain_supported: false,
+                bolt12_supported,
                 active: true,
             });
         }
@@ -1893,6 +1904,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata: m.into(),
                 on_chain_supported: false,
+                bolt12_supported: false,
                 active: false,
             };
             res.push(item);
@@ -1913,6 +1925,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata: info.into(),
                 on_chain_supported: false,
+                bolt12_supported: false,
                 active: false,
             };
             res.push(item);

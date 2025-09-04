@@ -39,6 +39,7 @@ pub struct MintItem {
     pub module_kinds: Option<Vec<ModuleKind>>,
     pub metadata: FederationMeta,
     pub on_chain_supported: bool,
+    pub bolt12_supported: bool,
     pub active: bool,
 }
 
@@ -52,6 +53,7 @@ impl MintItem {
             module_kinds: None,
             metadata: FederationMeta::default(),
             on_chain_supported: false,
+            bolt12_supported: false,
             active: true,
         }
     }

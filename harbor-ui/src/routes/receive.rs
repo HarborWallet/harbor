@@ -39,14 +39,16 @@ fn render_receive_form(harbor: &HarborWallet) -> Element<Message> {
                 .active_federation()
                 .is_some_and(|x| x.on_chain_supported));
 
-    // Bolt12 is only available for Cashu mints
-    let bolt12_enabled = harbor
-        .active_mint
-        .as_ref()
-        .is_some_and(|a| a.mint_url().is_some());
+    let bolt12_enabled = if let Some(info) = harbor.active_federation() {
+        info.bolt12_supported
+    } else {
+        false
+    };
 
-    let header = if on_chain_enabled || bolt12_enabled {
-        h_header("Deposit", "Receive via lightning, Bolt12, or on-chain.")
+    let header = if on_chain_enabled {
+        h_header("Deposit", "Receive via lightning or on-chain.")
+    } else if bolt12_enabled {
+        h_header("Deposit", "Receive via lightning; bolt11 or bolt12.")
     } else {
         h_header("Deposit", "Receive via lightning.")
     };
