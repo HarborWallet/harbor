@@ -488,6 +488,394 @@ pub fn run_core() -> impl Stream<Item = Message> {
     })
 }
 
+async fn handle_core_message(msg: UICoreMsgPacket, core: HarborCore) {
+    match msg.msg {
+        UICoreMsg::SendLightning { mint, invoice } => {
+            log::info!("Got UICoreMsg::Send");
+            core.msg(msg.id, CoreUIMsg::Sending).await;
+            if let Err(e) = core.send_lightning(msg.id, mint, invoice, false).await {
+                error!("Error sending: {e}");
+                core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::SendBolt12 {
+            mint,
+            offer,
+            amount_msats,
+        } => {
+            log::info!("Got UICoreMsg::SendBolt12");
+            core.msg(msg.id, CoreUIMsg::Sending).await;
+            if let Err(e) = core
+                .send_bolt12(msg.id, mint, offer, amount_msats, false)
+                .await
+            {
+                error!("Error sending bolt12: {e}");
+                core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::ReceiveBolt12 { mint, amount } => {
+            core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
+            match core.receive_bolt12(msg.id, mint, amount, false).await {
+                Err(e) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                        .await;
+                }
+                Ok(offer) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveBolt12OfferGenerated(offer))
+                        .await;
+                }
+            }
+        }
+        UICoreMsg::ReceiveLightning { mint, amount } => {
+            core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
+            match core.receive_lightning(msg.id, mint, amount, false).await {
+                Err(e) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                        .await;
+                }
+                Ok(invoice) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveInvoiceGenerated(invoice))
+                        .await;
+                }
+            }
+        }
+        UICoreMsg::SendBip353 {
+            mint,
+            address,
+            amount_sats,
+        } => {
+            log::info!("Got UICoreMsg::SendBip353");
+            core.msg(msg.id, CoreUIMsg::Sending).await;
+            if let Err(e) = core
+                .send_bip353(msg.id, mint, address, amount_sats, false)
+                .await
+            {
+                error!("Error sending: {e}");
+                core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::SendLnurlPay {
+            mint,
+            lnurl,
+            amount_sats,
+        } => {
+            log::info!("Got UICoreMsg::SendLnurlPay");
+            core.msg(msg.id, CoreUIMsg::Sending).await;
+            if let Err(e) = core.send_lnurl_pay(msg.id, mint, lnurl, amount_sats).await
+            {
+                error!("Error sending: {e}");
+                core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::ReceiveOnChain { mint } => {
+            core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
+            let federation_id = match mint {
+                MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
+                MintIdentifier::Fedimint(mint) => mint,
+            };
+
+            match core.receive_onchain(msg.id, federation_id).await {
+                Err(e) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
+                        .await;
+                }
+                Ok(address) => {
+                    core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address))
+                        .await;
+                }
+            }
+        }
+        UICoreMsg::SendOnChain {
+            mint,
+            address,
+            amount_sats,
+        } => {
+            log::info!("Got UICoreMsg::SendOnChain");
+            core.msg(msg.id, CoreUIMsg::Sending).await;
+            let federation_id = match mint {
+                MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
+                MintIdentifier::Fedimint(mint) => mint,
+            };
+            if let Err(e) = core
+                .send_onchain(msg.id, federation_id, address, amount_sats)
+                .await
+            {
+                error!("Error sending: {e}");
+                core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::Transfer { to, from, amount } => {
+            if let Err(e) = core.transfer(msg.id, to, from, amount).await {
+                error!("Error transferring: {e}");
+                core.msg(msg.id, CoreUIMsg::TransferFailure(e.to_string()))
+                    .await;
+            }
+        }
+        UICoreMsg::GetFederationInfo(invite_code) => {
+            match core.get_federation_info(msg.id, invite_code).await {
+                Err(e) => {
+                    error!("Error getting federation info: {e}");
+                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                        .await;
+                }
+                Ok((config, metadata)) => {
+                    core.msg(
+                        msg.id,
+                        CoreUIMsg::MintInfo {
+                            id: MintIdentifier::Fedimint(
+                                config.calculate_federation_id(),
+                            ),
+                            config: Some(config),
+                            metadata,
+                        },
+                    )
+                    .await;
+                }
+            }
+        }
+        UICoreMsg::GetCashuMintInfo(mint_url) => {
+            match core.get_cashu_mint_info(msg.id, mint_url.clone()).await {
+                Err(e) => {
+                    error!("Error getting cashu mint info: {e}");
+                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                        .await;
+                }
+                Ok(info) => {
+                    let metadata = FederationMeta {
+                        federation_name: info
+                            .as_ref()
+                            .and_then(|i| i.name.clone())
+                            .or(Some(mint_url.to_string())),
+                        federation_expiry_timestamp: None,
+                        welcome_message: None,
+                        vetted_gateways: None,
+                        federation_icon_url: info
+                            .as_ref()
+                            .and_then(|i| i.icon_url.clone()),
+                        meta_external_url: None,
+                        preview_message: info.and_then(|i| i.description),
+                        popup_end_timestamp: None,
+                        popup_countdown_message: None,
+                    };
+                    core.msg(
+                        msg.id,
+                        CoreUIMsg::MintInfo {
+                            id: MintIdentifier::Cashu(mint_url),
+                            config: None,
+                            metadata,
+                        },
+                    )
+                    .await;
+                }
+            }
+        }
+        UICoreMsg::AddFederation(invite_code) => {
+            let id = invite_code.federation_id();
+            match core.add_federation(msg.id, invite_code).await {
+                Err(e) => {
+                    error!("Error adding federation: {e}");
+                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                        .await;
+                }
+                Ok(()) => {
+                    if let Ok(new_federation_list) = core.get_mint_items().await {
+                        core.msg(
+                            msg.id,
+                            CoreUIMsg::MintListUpdated(new_federation_list),
+                        )
+                        .await;
+                    }
+                    core.msg(
+                        msg.id,
+                        CoreUIMsg::AddMintSuccess(MintIdentifier::Fedimint(id)),
+                    )
+                    .await;
+                }
+            }
+        }
+        UICoreMsg::AddCashuMint(url) => match core
+            .add_cashu_mint(msg.id, url.clone())
+            .await
+        {
+            Err(e) => {
+                error!("Error adding mint: {e}");
+                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
+                    .await;
+            }
+            Ok(()) => {
+                if let Ok(new_federation_list) = core.get_mint_items().await {
+                    core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
+                        .await;
+                }
+                core.msg(
+                    msg.id,
+                    CoreUIMsg::AddMintSuccess(MintIdentifier::Cashu(url)),
+                )
+                .await;
+            }
+        },
+        UICoreMsg::RemoveMint(id) => {
+            handle_remove_mint(&core, msg.id, id).await;
+        }
+        UICoreMsg::RejoinMint(mint) => {
+            handle_rejoin_mint(&core, msg.id, mint).await;
+        }
+        UICoreMsg::FederationListNeedsUpdate => {
+            if let Ok(new_federation_list) = core.get_mint_items().await {
+                core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
+                    .await;
+            }
+        }
+        UICoreMsg::GetSeedWords => {
+            let seed_words = core.get_seed_words();
+            core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
+        }
+        UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
+            match core.set_onchain_receive_enabled(enabled) {
+                Err(e) => {
+                    error!("error setting onchain receive enabled: {e}");
+                }
+                _ => {
+                    core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
+                        .await;
+                }
+            }
+        }
+        UICoreMsg::SetTorEnabled(enabled) => match core.set_tor_enabled(enabled) {
+            Err(e) => {
+                error!("error setting tor enabled: {e}");
+            }
+            _ => {
+                core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
+            }
+        },
+        UICoreMsg::TestStatusUpdates => {
+            core.test_status_updates(msg.id).await;
+        }
+        UICoreMsg::Unlock(_password) => {
+            unreachable!("should already be unlocked")
+        }
+        UICoreMsg::Init { .. } => {
+            unreachable!("should already be inited")
+        }
+    }
+}
+
+async fn handle_remove_mint(core: &HarborCore, msg_id: Uuid, id: MintIdentifier) {
+    // Send status update before attempting removal
+    core.msg(
+        msg_id,
+        CoreUIMsg::StatusUpdate {
+            message: "Removing mint...".to_string(),
+            operation_id: Some(msg_id),
+        },
+    )
+    .await;
+
+    match id {
+        MintIdentifier::Fedimint(id) => {
+            match core.remove_federation(msg_id, id).await {
+                Err(e) => {
+                    error!("Error removing federation: {e}");
+                    core.msg(
+                        msg_id,
+                        CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                    )
+                    .await;
+                }
+                Ok(()) => {
+                    log::info!("Removed federation: {id}");
+                    if let Ok(new_federation_list) = core.get_mint_items().await
+                    {
+                        core.msg(
+                            msg_id,
+                            CoreUIMsg::MintListUpdated(new_federation_list),
+                        )
+                        .await;
+                    }
+                    core.msg(msg_id, CoreUIMsg::RemoveFederationSuccess).await;
+                }
+            }
+        }
+        MintIdentifier::Cashu(url) => {
+            match core.remove_cashu_mint(msg_id, &url).await {
+                Err(e) => {
+                    error!("Error removing cashu mint: {e}");
+                    core.msg(
+                        msg_id,
+                        CoreUIMsg::RemoveFederationFailed(e.to_string()),
+                    )
+                    .await;
+                }
+                Ok(()) => {
+                    log::info!("Removed cashu mint: {url}");
+                    if let Ok(new_federation_list) = core.get_mint_items().await
+                    {
+                        core.msg(
+                            msg_id,
+                            CoreUIMsg::MintListUpdated(new_federation_list),
+                        )
+                        .await;
+                    }
+                    core.msg(msg_id, CoreUIMsg::RemoveFederationSuccess).await;
+                }
+            }
+        }
+    }
+}
+
+async fn handle_rejoin_mint(core: &HarborCore, msg_id: Uuid, mint: MintIdentifier) {
+    match mint {
+        MintIdentifier::Fedimint(id) => {
+            if let Ok(Some(invite_code)) =
+                core.storage.get_federation_invite_code(id)
+            {
+                match core.add_federation(msg_id, invite_code).await {
+                    Err(e) => {
+                        error!("Error adding federation: {e}");
+                        core.msg(msg_id, CoreUIMsg::AddMintFailed(e.to_string()))
+                            .await;
+                    }
+                    Ok(()) => {
+                        if let Ok(new_federation_list) = core.get_mint_items().await
+                        {
+                            core.msg(
+                                msg_id,
+                                CoreUIMsg::MintListUpdated(new_federation_list),
+                            )
+                            .await;
+                        }
+                        core.msg(msg_id, CoreUIMsg::AddMintSuccess(mint)).await;
+                        info!("Rejoined federation: {id}");
+                    }
+                }
+            }
+        }
+        MintIdentifier::Cashu(ref mint_url) => {
+            match core.add_cashu_mint(msg_id, mint_url.clone()).await {
+                Err(e) => {
+                    error!("Error adding cashu mint: {e}");
+                    core.msg(msg_id, CoreUIMsg::AddMintFailed(e.to_string()))
+                        .await;
+                }
+                Ok(()) => {
+                    if let Ok(new_list) = core.get_mint_items().await {
+                        core.msg(msg_id, CoreUIMsg::MintListUpdated(new_list))
+                            .await;
+                    }
+                    info!("Rejoined cashu mint: {mint_url}");
+                    core.msg(msg_id, CoreUIMsg::AddMintSuccess(mint)).await;
+                }
+            }
+        }
+    }
+}
+
 async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
     // Initialize the ui's state
     core.init_ui_state().await.expect("Could not init ui state");
@@ -495,385 +883,11 @@ async fn process_core(core_handle: &mut CoreHandle, core: &HarborCore) {
     loop {
         let msg = core_handle.recv().await;
 
-        let core = core.clone();
-        tokio::spawn(async move {
-            if let Some(msg) = msg {
-                match msg.msg {
-                    UICoreMsg::SendLightning { mint, invoice } => {
-                        log::info!("Got UICoreMsg::Send");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        if let Err(e) = core.send_lightning(msg.id, mint, invoice, false).await {
-                            error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::SendBolt12 {
-                        mint,
-                        offer,
-                        amount_msats,
-                    } => {
-                        log::info!("Got UICoreMsg::SendBolt12");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        if let Err(e) = core
-                            .send_bolt12(msg.id, mint, offer, amount_msats, false)
-                            .await
-                        {
-                            error!("Error sending bolt12: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::ReceiveBolt12 { mint, amount } => {
-                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
-                        match core.receive_bolt12(msg.id, mint, amount, false).await {
-                            Err(e) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(offer) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveBolt12OfferGenerated(offer))
-                                    .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::ReceiveLightning { mint, amount } => {
-                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
-                        match core.receive_lightning(msg.id, mint, amount, false).await {
-                            Err(e) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(invoice) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveInvoiceGenerated(invoice))
-                                    .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::SendBip353 {
-                        mint,
-                        address,
-                        amount_sats,
-                    } => {
-                        log::info!("Got UICoreMsg::SendBip353");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        if let Err(e) = core
-                            .send_bip353(msg.id, mint, address, amount_sats, false)
-                            .await
-                        {
-                            error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::SendLnurlPay {
-                        mint,
-                        lnurl,
-                        amount_sats,
-                    } => {
-                        log::info!("Got UICoreMsg::SendLnurlPay");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        if let Err(e) = core.send_lnurl_pay(msg.id, mint, lnurl, amount_sats).await
-                        {
-                            error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::ReceiveOnChain { mint } => {
-                        core.msg(msg.id, CoreUIMsg::ReceiveGenerating).await;
-                        let federation_id = match mint {
-                            MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
-                            MintIdentifier::Fedimint(mint) => mint,
-                        };
-
-                        match core.receive_onchain(msg.id, federation_id).await {
-                            Err(e) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(address) => {
-                                core.msg(msg.id, CoreUIMsg::ReceiveAddressGenerated(address))
-                                    .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::SendOnChain {
-                        mint,
-                        address,
-                        amount_sats,
-                    } => {
-                        log::info!("Got UICoreMsg::SendOnChain");
-                        core.msg(msg.id, CoreUIMsg::Sending).await;
-                        let federation_id = match mint {
-                            MintIdentifier::Cashu(_) => panic!("should not receive cashu"), // todo
-                            MintIdentifier::Fedimint(mint) => mint,
-                        };
-                        if let Err(e) = core
-                            .send_onchain(msg.id, federation_id, address, amount_sats)
-                            .await
-                        {
-                            error!("Error sending: {e}");
-                            core.msg(msg.id, CoreUIMsg::SendFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::Transfer { to, from, amount } => {
-                        if let Err(e) = core.transfer(msg.id, to, from, amount).await {
-                            error!("Error transferring: {e}");
-                            core.msg(msg.id, CoreUIMsg::TransferFailure(e.to_string()))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::GetFederationInfo(invite_code) => {
-                        match core.get_federation_info(msg.id, invite_code).await {
-                            Err(e) => {
-                                error!("Error getting federation info: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok((config, metadata)) => {
-                                core.msg(
-                                    msg.id,
-                                    CoreUIMsg::MintInfo {
-                                        id: MintIdentifier::Fedimint(
-                                            config.calculate_federation_id(),
-                                        ),
-                                        config: Some(config),
-                                        metadata,
-                                    },
-                                )
-                                .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::GetCashuMintInfo(mint_url) => {
-                        match core.get_cashu_mint_info(msg.id, mint_url.clone()).await {
-                            Err(e) => {
-                                error!("Error getting cashu mint info: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(info) => {
-                                let metadata = FederationMeta {
-                                    federation_name: info
-                                        .as_ref()
-                                        .and_then(|i| i.name.clone())
-                                        .or(Some(mint_url.to_string())),
-                                    federation_expiry_timestamp: None,
-                                    welcome_message: None,
-                                    vetted_gateways: None,
-                                    federation_icon_url: info
-                                        .as_ref()
-                                        .and_then(|i| i.icon_url.clone()),
-                                    meta_external_url: None,
-                                    preview_message: info.and_then(|i| i.description),
-                                    popup_end_timestamp: None,
-                                    popup_countdown_message: None,
-                                };
-                                core.msg(
-                                    msg.id,
-                                    CoreUIMsg::MintInfo {
-                                        id: MintIdentifier::Cashu(mint_url),
-                                        config: None,
-                                        metadata,
-                                    },
-                                )
-                                .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::AddFederation(invite_code) => {
-                        let id = invite_code.federation_id();
-                        match core.add_federation(msg.id, invite_code).await {
-                            Err(e) => {
-                                error!("Error adding federation: {e}");
-                                core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                    .await;
-                            }
-                            Ok(()) => {
-                                if let Ok(new_federation_list) = core.get_mint_items().await {
-                                    core.msg(
-                                        msg.id,
-                                        CoreUIMsg::MintListUpdated(new_federation_list),
-                                    )
-                                    .await;
-                                }
-                                core.msg(
-                                    msg.id,
-                                    CoreUIMsg::AddMintSuccess(MintIdentifier::Fedimint(id)),
-                                )
-                                .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::AddCashuMint(url) => match core
-                        .add_cashu_mint(msg.id, url.clone())
-                        .await
-                    {
-                        Err(e) => {
-                            error!("Error adding mint: {e}");
-                            core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                .await;
-                        }
-                        Ok(()) => {
-                            if let Ok(new_federation_list) = core.get_mint_items().await {
-                                core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
-                                    .await;
-                            }
-                            core.msg(
-                                msg.id,
-                                CoreUIMsg::AddMintSuccess(MintIdentifier::Cashu(url)),
-                            )
-                            .await;
-                        }
-                    },
-                    UICoreMsg::RemoveMint(id) => {
-                        // Send status update before attempting removal
-                        core.msg(
-                            msg.id,
-                            CoreUIMsg::StatusUpdate {
-                                message: "Removing mint...".to_string(),
-                                operation_id: Some(msg.id),
-                            },
-                        )
-                        .await;
-
-                        match id {
-                            MintIdentifier::Fedimint(id) => {
-                                match core.remove_federation(msg.id, id).await {
-                                    Err(e) => {
-                                        error!("Error removing federation: {e}");
-                                        core.msg(
-                                            msg.id,
-                                            CoreUIMsg::RemoveFederationFailed(e.to_string()),
-                                        )
-                                        .await;
-                                    }
-                                    Ok(()) => {
-                                        log::info!("Removed federation: {id}");
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
-                                    }
-                                }
-                            }
-                            MintIdentifier::Cashu(url) => {
-                                match core.remove_cashu_mint(msg.id, &url).await {
-                                    Err(e) => {
-                                        error!("Error removing cashu mint: {e}");
-                                        core.msg(
-                                            msg.id,
-                                            CoreUIMsg::RemoveFederationFailed(e.to_string()),
-                                        )
-                                        .await;
-                                    }
-                                    Ok(()) => {
-                                        log::info!("Removed cashu mint: {url}");
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::RemoveFederationSuccess).await;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    UICoreMsg::RejoinMint(mint) => match mint {
-                        MintIdentifier::Fedimint(id) => {
-                            if let Ok(Some(invite_code)) =
-                                core.storage.get_federation_invite_code(id)
-                            {
-                                match core.add_federation(msg.id, invite_code).await {
-                                    Err(e) => {
-                                        error!("Error adding federation: {e}");
-                                        core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                            .await;
-                                    }
-                                    Ok(()) => {
-                                        if let Ok(new_federation_list) = core.get_mint_items().await
-                                        {
-                                            core.msg(
-                                                msg.id,
-                                                CoreUIMsg::MintListUpdated(new_federation_list),
-                                            )
-                                            .await;
-                                        }
-                                        core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
-                                        info!("Rejoined federation: {id}");
-                                    }
-                                }
-                            }
-                        }
-                        MintIdentifier::Cashu(ref mint_url) => {
-                            match core.add_cashu_mint(msg.id, mint_url.clone()).await {
-                                Err(e) => {
-                                    error!("Error adding cashu mint: {e}");
-                                    core.msg(msg.id, CoreUIMsg::AddMintFailed(e.to_string()))
-                                        .await;
-                                }
-                                Ok(()) => {
-                                    if let Ok(new_list) = core.get_mint_items().await {
-                                        core.msg(msg.id, CoreUIMsg::MintListUpdated(new_list))
-                                            .await;
-                                    }
-                                    info!("Rejoined cashu mint: {mint_url}");
-                                    core.msg(msg.id, CoreUIMsg::AddMintSuccess(mint)).await;
-                                }
-                            }
-                        }
-                    },
-                    UICoreMsg::FederationListNeedsUpdate => {
-                        if let Ok(new_federation_list) = core.get_mint_items().await {
-                            core.msg(msg.id, CoreUIMsg::MintListUpdated(new_federation_list))
-                                .await;
-                        }
-                    }
-                    UICoreMsg::GetSeedWords => {
-                        let seed_words = core.get_seed_words();
-                        core.msg(msg.id, CoreUIMsg::SeedWords(seed_words)).await;
-                    }
-                    UICoreMsg::SetOnchainReceiveEnabled(enabled) => {
-                        match core.set_onchain_receive_enabled(enabled) {
-                            Err(e) => {
-                                error!("error setting onchain receive enabled: {e}");
-                            }
-                            _ => {
-                                core.msg(msg.id, CoreUIMsg::OnchainReceiveEnabled(enabled))
-                                    .await;
-                            }
-                        }
-                    }
-                    UICoreMsg::SetTorEnabled(enabled) => match core.set_tor_enabled(enabled) {
-                        Err(e) => {
-                            error!("error setting tor enabled: {e}");
-                        }
-                        _ => {
-                            core.msg(msg.id, CoreUIMsg::TorEnabled(enabled)).await;
-                        }
-                    },
-                    UICoreMsg::TestStatusUpdates => {
-                        core.test_status_updates(msg.id).await;
-                    }
-                    UICoreMsg::Unlock(_password) => {
-                        unreachable!("should already be unlocked")
-                    }
-                    UICoreMsg::Init { .. } => {
-                        unreachable!("should already be inited")
-                    }
-                }
-            }
-        });
+        if let Some(msg) = msg {
+            let core = core.clone();
+            tokio::spawn(async move {
+                handle_core_message(msg, core).await;
+            });
+        }
     }
 }
