@@ -406,6 +406,114 @@ impl HarborWallet {
         (id, task)
     }
 
+    fn handle_bolt11_send(
+        &mut self,
+        invoice: Bolt11Invoice,
+        mint: MintIdentifier,
+    ) -> Task<Message> {
+        let (id, task) = self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
+        self.current_send_id = Some(id);
+        task
+    }
+
+    fn handle_bolt12_send(
+        &mut self,
+        offer: Offer,
+        mint: MintIdentifier,
+        invoice_str: String,
+    ) -> Task<Message> {
+        let offer_amount_sats = match offer_amount_sats(&offer) {
+            Ok(amount) => amount,
+            Err(e) => {
+                error!("Error parsing amount: {e}");
+                self.send_failure_reason = Some(e.to_string());
+                return Task::none();
+            }
+        };
+
+        let amount_msats = match self.validate_bolt12_amount(offer_amount_sats) {
+            Ok(amount) => amount,
+            Err(error_task) => return error_task,
+        };
+
+        let (id, task) = self.send_from_ui(UICoreMsg::SendBolt12 {
+            mint,
+            offer: invoice_str,
+            amount_msats,
+        });
+        self.current_send_id = Some(id);
+        task
+    }
+
+    fn validate_bolt12_amount(
+        &mut self,
+        offer_amount_sats: Option<u64>,
+    ) -> Result<Option<u64>, Task<Message>> {
+        if self.is_max {
+            return Err(Task::perform(async {}, |_| {
+                Message::AddToast(Toast {
+                    title: "Cannot send max with BOLT12 offer".to_string(),
+                    body: Some("Please enter a specific amount".to_string()),
+                    status: ToastStatus::Bad,
+                })
+            }));
+        }
+
+        if !self.send_amount_input_str.is_empty() {
+            return self.validate_user_input_amount(offer_amount_sats);
+        }
+
+        self.validate_no_amount_input(offer_amount_sats)
+    }
+
+    fn validate_user_input_amount(
+        &mut self,
+        offer_amount_sats: Option<u64>,
+    ) -> Result<Option<u64>, Task<Message>> {
+        let amount_sats = match self.send_amount_input_str.parse::<u64>() {
+            Ok(amount) => amount,
+            Err(e) => {
+                error!("Invalid amount format: {e}");
+                self.send_failure_reason = Some(e.to_string());
+                return Err(Task::none());
+            }
+        };
+
+        match offer_amount_sats {
+            Some(offer_fixed_amount) => {
+                if offer_fixed_amount != amount_sats {
+                    error!("Offer amount mismatch: expected {offer_fixed_amount} sats");
+                    self.send_failure_reason =
+                        Some(format!("Offer amount must be {offer_fixed_amount} sats"));
+                    return Err(Task::none());
+                }
+                Ok(None)
+            }
+            None => Ok(Some(amount_sats * 1000)), // Convert to msats
+        }
+    }
+
+    fn validate_no_amount_input(
+        &mut self,
+        offer_amount_sats: Option<u64>,
+    ) -> Result<Option<u64>, Task<Message>> {
+        match offer_amount_sats {
+            Some(_) => Ok(None),
+            None => {
+                error!("Amount-less offer requires amount input");
+                self.send_failure_reason =
+                    Some("Enter an amount for this type of offer".to_string());
+                Err(Task::perform(async {}, |_| {
+                    Message::AddToast(Toast {
+                        title: "Amountless offer".to_string(),
+                        body: Some("Please enter a specific amount".to_string()),
+                        status: ToastStatus::Bad,
+                    })
+                }))
+            }
+        }
+    }
+
     // Helper function to safely remove a toast by index
     fn remove_toast(&mut self, index: usize) {
         if index < self.toasts.len() {
@@ -510,9 +618,24 @@ impl HarborWallet {
                 Task::none()
             }
             Message::SendDestInputChanged(input) => {
-                let msats = Bolt11Invoice::from_str(&input)
+                // Try parsing as Bolt11 invoice first
+                let bolt11_msats = Bolt11Invoice::from_str(&input)
                     .ok()
                     .and_then(|i| i.amount_milli_satoshis());
+
+                // Try parsing as Bolt12 offer if Bolt11 parsing failed
+                let bolt12_msats = if bolt11_msats.is_none() {
+                    Offer::from_str(&input)
+                        .ok()
+                        .and_then(|offer| offer_amount_sats(&offer).ok().flatten())
+                        .map(|sats| sats * 1_000) // Convert sats to msats
+                } else {
+                    None
+                };
+
+                // Use whichever parsing succeeded
+                let msats = bolt11_msats.or(bolt12_msats);
+
                 self.input_has_amount = msats.is_some();
                 if let Some(amt) = msats {
                     self.send_amount_input_str = (amt / 1_000).to_string();
@@ -637,80 +760,9 @@ impl HarborWallet {
                     };
 
                     if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
-                        let (id, task) =
-                            self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
-                        self.current_send_id = Some(id);
-                        task
+                        self.handle_bolt11_send(invoice, mint)
                     } else if let Ok(offer) = Offer::from_str(&invoice_str) {
-                        let offer_amount_sats = match offer_amount_sats(&offer) {
-                            Ok(amount) => amount,
-                            Err(e) => {
-                                error!("Error parsing amount: {e}");
-                                self.send_failure_reason = Some(e.to_string());
-                                return Task::none();
-                            }
-                        };
-
-                        // Handle BOLT12 offer payments
-                        let amount_msats = if self.is_max {
-                            return Task::perform(async {}, |_| {
-                                Message::AddToast(Toast {
-                                    title: "Cannot send max with BOLT12 offer".to_string(),
-                                    body: Some("Please enter a specific amount".to_string()),
-                                    status: ToastStatus::Bad,
-                                })
-                            });
-                        } else if !self.send_amount_input_str.is_empty() {
-                            match self.send_amount_input_str.parse::<u64>() {
-                                Ok(amount_sats) => {
-                                    // Verify fixed amount matches user input
-                                    if let Some(offer_fixed_amount) = offer_amount_sats {
-                                        if offer_fixed_amount != amount_sats {
-                                            error!(
-                                                "Offer amount mismatch: expected {offer_fixed_amount} sats"
-                                            );
-                                            self.send_failure_reason = Some(format!(
-                                                "Offer amount must be {offer_fixed_amount} sats"
-                                            ));
-                                            return Task::none();
-                                        }
-
-                                        None
-                                    } else {
-                                        Some(amount_sats * 1000) // Convert to msats
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Invalid amount format: {e}");
-                                    self.send_failure_reason = Some(e.to_string());
-                                    return Task::none();
-                                }
-                            }
-                        } else {
-                            // Amount required for all offer types
-                            if let Some(_offer_amount) = offer_amount_sats {
-                                None
-                            } else {
-                                error!("Amount-less offer requires amount input");
-                                self.send_failure_reason =
-                                    Some("Enter an amount for this type of offer".to_string());
-                                return Task::perform(async {}, |_| {
-                                    Message::AddToast(Toast {
-                                        title: "Amountless offer".to_string(),
-                                        body: Some("Please enter a specific amount".to_string()),
-                                        status: ToastStatus::Bad,
-                                    })
-                                });
-                            }
-                        };
-
-                        let (id, task) = self.send_from_ui(UICoreMsg::SendBolt12 {
-                            mint,
-                            offer: invoice_str,
-                            amount_msats,
-                        });
-                        self.current_send_id = Some(id);
-                        task
+                        self.handle_bolt12_send(offer, mint, invoice_str)
                     } else if invoice_str.contains('@') {
                         // BIP353 address
                         if self.is_max {
@@ -1572,7 +1624,7 @@ fn offer_amount_sats(offer: &Offer) -> Result<Option<u64>, String> {
                 Ok(Some(amount_msats / 1_000))
             }
             lightning::offers::offer::Amount::Currency { .. } => {
-                return Err("Currency offers are not supported".to_string());
+                Err("Currency offers are not supported".to_string())
             }
         }
     } else {
