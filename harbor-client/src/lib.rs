@@ -148,7 +148,6 @@ pub enum UICoreMsg {
     ReceiveBolt12 {
         mint: MintIdentifier,
         amount: Option<Amount>,
-        // NOTE: The following block was accidentally duplicated during merge. Removing to fix mismatched delimiters.
     },
     SendLnurlPay {
         mint: MintIdentifier,

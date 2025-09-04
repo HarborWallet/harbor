@@ -4102,6 +4102,7 @@ dependencies = [
  "harbor-client",
  "iced",
  "keyring-lib",
+ "lightning 0.1.5",
  "log",
  "lyon_algorithms",
  "opener",

@@ -594,6 +594,7 @@ impl DBConnection for SQLConnection {
             items.push(item);
         }
 
+        // sort by timestamp so that the most recent items are at the top
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(items)

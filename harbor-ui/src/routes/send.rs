@@ -15,7 +15,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
 
     let dest_input = h_input(InputArgs {
         label: "Destination",
-        placeholder: "lnbc1... or lno... or ₿user@example.com or bc1...",
+        placeholder: "lnbc1...",
         value: &harbor.send_dest_input_str,
         on_input: Message::SendDestInputChanged,
         ..InputArgs::default()

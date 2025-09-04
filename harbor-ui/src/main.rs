@@ -55,6 +55,7 @@ use iced::widget::qr_code::Data;
 use iced::widget::row;
 use iced::{Color, clipboard};
 use iced::{Element, window};
+use lightning::offers::offer::Offer;
 use log::{debug, error, info, trace};
 use routes::Route;
 use std::collections::HashMap;
@@ -640,27 +641,67 @@ impl HarborWallet {
                             self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
                         self.current_send_id = Some(id);
                         task
-                    } else if invoice_str.starts_with("lno") {
-                        // This looks like a Bolt12 offer
+                    } else if let Ok(offer) = Offer::from_str(&invoice_str) {
+                        let offer_amount_sats = match offer_amount_sats(&offer) {
+                            Ok(amount) => amount,
+                            Err(e) => {
+                                error!("Error parsing amount: {e}");
+                                self.send_failure_reason = Some(e.to_string());
+                                return Task::none();
+                            }
+                        };
+
+                        // Handle BOLT12 offer payments
                         let amount_msats = if self.is_max {
                             return Task::perform(async {}, |_| {
                                 Message::AddToast(Toast {
-                                    title: "Cannot send max with Bolt12 offer".to_string(),
+                                    title: "Cannot send max with BOLT12 offer".to_string(),
                                     body: Some("Please enter a specific amount".to_string()),
                                     status: ToastStatus::Bad,
                                 })
                             });
                         } else if !self.send_amount_input_str.is_empty() {
                             match self.send_amount_input_str.parse::<u64>() {
-                                Ok(amount) => Some(amount * 1000), // Convert sats to msats
+                                Ok(amount_sats) => {
+                                    // Verify fixed amount matches user input
+                                    if let Some(offer_fixed_amount) = offer_amount_sats {
+                                        if offer_fixed_amount != amount_sats {
+                                            error!(
+                                                "Offer amount mismatch: expected {offer_fixed_amount} sats"
+                                            );
+                                            self.send_failure_reason = Some(format!(
+                                                "Offer amount must be {offer_fixed_amount} sats"
+                                            ));
+                                            return Task::none();
+                                        }
+
+                                        None
+                                    } else {
+                                        Some(amount_sats * 1000) // Convert to msats
+                                    }
+                                }
                                 Err(e) => {
-                                    error!("Error parsing amount: {e}");
+                                    error!("Invalid amount format: {e}");
                                     self.send_failure_reason = Some(e.to_string());
                                     return Task::none();
                                 }
                             }
                         } else {
-                            None // Amount-less Bolt12 offer
+                            // Amount required for all offer types
+                            if let Some(_offer_amount) = offer_amount_sats {
+                                None
+                            } else {
+                                error!("Amount-less offer requires amount input");
+                                self.send_failure_reason =
+                                    Some("Enter an amount for this type of offer".to_string());
+                                return Task::perform(async {}, |_| {
+                                    Message::AddToast(Toast {
+                                        title: "Amountless offer".to_string(),
+                                        body: Some("Please enter a specific amount".to_string()),
+                                        status: ToastStatus::Bad,
+                                    })
+                                });
+                            }
                         };
 
                         let (id, task) = self.send_from_ui(UICoreMsg::SendBolt12 {
@@ -1520,5 +1561,21 @@ impl HarborWallet {
                 warning: Color::from_rgb8(255, 165, 0),
             },
         )
+    }
+}
+
+fn offer_amount_sats(offer: &Offer) -> Result<Option<u64>, String> {
+    // Check if the offer has an amount constraint and validate it
+    if let Some(offer_amount) = offer.amount() {
+        match offer_amount {
+            lightning::offers::offer::Amount::Bitcoin { amount_msats } => {
+                Ok(Some(amount_msats / 1_000))
+            }
+            lightning::offers::offer::Amount::Currency { .. } => {
+                return Err("Currency offers are not supported".to_string());
+            }
+        }
+    } else {
+        Ok(None)
     }
 }

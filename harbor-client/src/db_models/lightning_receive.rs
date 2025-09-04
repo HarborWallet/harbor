@@ -87,14 +87,16 @@ impl LightningReceive {
         }
     }
 
-    pub fn payment_hash(&self) -> [u8; 32] {
-        FromHex::from_hex(self.payment_hash.as_ref().expect("missing payment hash"))
-            .expect("invalid payment hash")
+    pub fn payment_hash(&self) -> Option<[u8; 32]> {
+        self.payment_hash
+            .as_ref()
+            .map(|h| FromHex::from_hex(h).expect("invalid payment hash"))
     }
 
-    pub fn bolt11(&self) -> Bolt11Invoice {
-        Bolt11Invoice::from_str(self.bolt11.as_ref().expect("missing bolt11"))
-            .expect("invalid bolt11")
+    pub fn bolt11(&self) -> Option<Bolt11Invoice> {
+        self.bolt11
+            .as_ref()
+            .map(|b| Bolt11Invoice::from_str(b).expect("invalid bolt11"))
     }
 
     pub fn bolt12_offer(&self) -> Option<&str> {
