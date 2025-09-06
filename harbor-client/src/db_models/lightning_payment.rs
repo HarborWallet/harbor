@@ -19,8 +19,9 @@ pub struct LightningPayment {
     pub operation_id: String,
     fedimint_id: Option<String>,
     cashu_mint_url: Option<String>,
-    payment_hash: String,
-    bolt11: String,
+    payment_hash: Option<String>,
+    bolt11: Option<String>,
+    bolt12_offer: Option<String>,
     amount_msats: i64,
     fee_msats: i64,
     preimage: Option<String>,
@@ -35,8 +36,9 @@ struct NewLightningPayment {
     operation_id: String,
     fedimint_id: Option<String>,
     cashu_mint_url: Option<String>,
-    payment_hash: String,
-    bolt11: String,
+    payment_hash: Option<String>,
+    bolt11: Option<String>,
+    bolt12_offer: Option<String>,
     amount_msats: i64,
     fee_msats: i64,
     status: i32,
@@ -66,12 +68,20 @@ impl LightningPayment {
         }
     }
 
-    pub fn payment_hash(&self) -> [u8; 32] {
-        FromHex::from_hex(&self.payment_hash).expect("invalid payment hash")
+    pub fn payment_hash(&self) -> Option<[u8; 32]> {
+        self.payment_hash
+            .as_ref()
+            .map(|h| FromHex::from_hex(h).expect("invalid payment hash"))
     }
 
-    pub fn bolt11(&self) -> Bolt11Invoice {
-        Bolt11Invoice::from_str(&self.bolt11).expect("invalid bolt11")
+    pub fn bolt11(&self) -> Option<Bolt11Invoice> {
+        self.bolt11
+            .as_ref()
+            .map(|b| Bolt11Invoice::from_str(b).expect("invalid bolt11"))
+    }
+
+    pub fn bolt12_offer(&self) -> Option<&str> {
+        self.bolt12_offer.as_deref()
     }
 
     pub fn amount(&self) -> Amount {
@@ -114,8 +124,37 @@ impl LightningPayment {
             operation_id,
             fedimint_id: fedimint_id.map(|f| f.to_string()),
             cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
-            payment_hash,
-            bolt11: bolt11.to_string(),
+            payment_hash: Some(payment_hash),
+            bolt11: Some(bolt11.to_string()),
+            bolt12_offer: None,
+            amount_msats: amount.msats as i64,
+            fee_msats: fee.msats as i64,
+            status: PaymentStatus::Pending as i32,
+        };
+
+        diesel::insert_into(lightning_payments::table)
+            .values(new)
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn create_bolt12(
+        conn: &mut SqliteConnection,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let new = NewLightningPayment {
+            operation_id,
+            fedimint_id: fedimint_id.map(|f| f.to_string()),
+            cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
+            payment_hash: None,
+            bolt11: None,
+            bolt12_offer: Some(offer),
             amount_msats: amount.msats as i64,
             fee_msats: fee.msats as i64,
             status: PaymentStatus::Pending as i32,

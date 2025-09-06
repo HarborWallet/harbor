@@ -1153,14 +1153,15 @@ source = "git+https://github.com/benthecarman/arti.git?rev=e0f1f7a9a44ae0543c0b6
 
 [[package]]
 name = "cashu"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4c95072ffe3442625d7589faeeabab4c739a4b8a79c11d826f295606dad7a26"
+checksum = "c2b5eada71b5675fea6ae15f5d0aeb76d6d0c8ae057fed2f9afc491b3d2e741c"
 dependencies = [
  "bitcoin",
  "cbor-diag",
  "ciborium",
  "instant",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "once_cell",
  "regex",
@@ -1173,6 +1174,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -1216,9 +1218,9 @@ dependencies = [
 
 [[package]]
 name = "cdk"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b26c214b8cce92097d4c9c72081eceb6ba52f55e98f0d2f2987d862f07b0fd6"
+checksum = "5c3f3b7e0485c9d1f5b9ae28096ec8945a636a8f4d1f69a6ba9baa57d76e25b4"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1229,7 +1231,9 @@ dependencies = [
  "cdk-common",
  "cdk-signatory",
  "ciborium",
+ "futures",
  "getrandom 0.2.15",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "regex",
  "reqwest 0.12.12",
@@ -1242,16 +1246,19 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tokio-tungstenite 0.26.2",
+ "tokio-util",
  "tracing",
+ "trust-dns-resolver",
  "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
 name = "cdk-common"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "448d373b82da04b4bdea60f28ae5b08f057888e1bd96cc3c68270c9fb4b3fbfc"
+checksum = "51417f6e891a83a6093065ca52d17ea2e1371d6952f2a209b76e7ecd45977622"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1261,6 +1268,7 @@ dependencies = [
  "ciborium",
  "futures",
  "instant",
+ "lightning 0.1.5",
  "lightning-invoice 0.33.2",
  "serde",
  "serde_json",
@@ -1273,9 +1281,9 @@ dependencies = [
 
 [[package]]
 name = "cdk-signatory"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a43766d6de33b9ac2976ed06c571e6c5b566ee75222f48373964289b604bf4"
+checksum = "2f5a3079d8c86ad41961d7910eff164731952ebb9abd30add3c7548af9c1c6f1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1294,14 +1302,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "cdk-sqlite"
-version = "0.11.1"
+name = "cdk-sql-common"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "560aded37253bde9778f86592cfd5c8efb3c67a54891c3ecfad8a43d2b1e255d"
+checksum = "d05c7ae82839052fe425347f05ad0f110b99a253af205975ce8ee185026b4aea"
 dependencies = [
  "async-trait",
  "bitcoin",
  "cdk-common",
+ "lightning-invoice 0.33.2",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cdk-sqlite"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a62363768b26cbebb7bd7b731dbb0287f195bd16068abf486c50c0b2f208eacc"
+dependencies = [
+ "async-trait",
+ "bitcoin",
+ "cdk-common",
+ "cdk-sql-common",
  "lightning-invoice 0.33.2",
  "rusqlite",
  "serde",
@@ -2287,6 +2315,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dnssec-prover"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec4f825369fc7134da70ca4040fddc8e03b80a46d249ae38d9c1c39b7b4476bf"
+
+[[package]]
 name = "document-features"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2936,7 +2970,7 @@ dependencies = [
  "itertools 0.13.0",
  "js-sys",
  "jsonrpsee-core",
- "lightning",
+ "lightning 0.0.125",
  "lightning-invoice 0.32.0",
  "lightning-types 0.1.0",
  "macro_rules_attribute",
@@ -3055,7 +3089,7 @@ dependencies = [
  "bitcoin",
  "fedimint-core",
  "fedimint-threshold-crypto",
- "lightning",
+ "lightning 0.0.125",
  "lightning-invoice 0.32.0",
  "serde",
  "serde-big-array",
@@ -4068,6 +4102,7 @@ dependencies = [
  "harbor-client",
  "iced",
  "keyring-lib",
+ "lightning 0.1.5",
  "log",
  "lyon_algorithms",
  "opener",
@@ -4084,6 +4119,12 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 
 [[package]]
 name = "hashbrown"
@@ -4203,7 +4244,7 @@ dependencies = [
  "futures-channel",
  "futures-io",
  "futures-util",
- "idna",
+ "idna 1.0.3",
  "ipnet",
  "once_cell",
  "rand 0.9.0",
@@ -4789,6 +4830,16 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d20d6b07bfbc108882d88ed8e37d39636dcc260e15e30c45e6ba089610b917c"
+dependencies = [
+ "unicode-bidi",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "idna"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
@@ -5316,10 +5367,11 @@ checksum = "f5d4a7da358eff58addd2877a45865158f0d78c911d43a5784ceb7bbf52833b0"
 
 [[package]]
 name = "js-sys"
-version = "0.3.72"
+version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a88f1bda2bd75b0452a14784937d796722fdebfe50df998aeb3f0b7603019a9"
+checksum = "1cfaf33c695fc6e08064efbc1f72ec937429614f25eef83af942d0e227c3a28f"
 dependencies = [
+ "once_cell",
  "wasm-bindgen",
 ]
 
@@ -5578,6 +5630,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "lightning"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e540fcb289a76826c9c0b078d3dd1f05691972c5a53fb4d3120540862040a147"
+dependencies = [
+ "bech32 0.11.0",
+ "bitcoin",
+ "dnssec-prover",
+ "hashbrown 0.13.2",
+ "libm",
+ "lightning-invoice 0.33.2",
+ "lightning-types 0.2.0",
+ "possiblyrandom",
+]
+
+[[package]]
 name = "lightning-invoice"
 version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5629,6 +5697,12 @@ checksum = "1ab94c7e69044511f79ce4b4201a49324b7f5b35410f862264e044690b950a67"
 dependencies = [
  "web-time",
 ]
+
+[[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "linux-keyutils"
@@ -5744,6 +5818,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "227748d55f2f0ab4735d87fd623798cb6b664512fe979705f829c9f81c934465"
 dependencies = [
  "hashbrown 0.15.2",
+]
+
+[[package]]
+name = "lru-cache"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31e24f1ad8321ca0e8a1e0ac13f23cb668e6f5466c2c57319f6a5cf1cc8e3b1c"
+dependencies = [
+ "linked-hash-map",
 ]
 
 [[package]]
@@ -7259,6 +7342,15 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "possiblyrandom"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b122a615d72104fb3d8b26523fdf9232cd8ee06949fb37e4ce3ff964d15dffd"
+dependencies = [
+ "getrandom 0.2.15",
 ]
 
 [[package]]
@@ -10488,6 +10580,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "trust-dns-proto"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3119112651c157f4488931a01e586aa459736e9d6046d3bd9105ffb69352d374"
+dependencies = [
+ "async-trait",
+ "cfg-if",
+ "data-encoding",
+ "enum-as-inner",
+ "futures-channel",
+ "futures-io",
+ "futures-util",
+ "idna 0.4.0",
+ "ipnet",
+ "once_cell",
+ "rand 0.8.5",
+ "smallvec",
+ "thiserror 1.0.69",
+ "tinyvec",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "trust-dns-resolver"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a3e6c3aff1718b3c73e395d1f35202ba2ffa847c6a62eea0db8fb4cfe30be6"
+dependencies = [
+ "cfg-if",
+ "futures-util",
+ "ipconfig",
+ "lru-cache",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "rand 0.8.5",
+ "resolv-conf",
+ "smallvec",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "trust-dns-proto",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10729,7 +10867,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
- "idna",
+ "idna 1.0.3",
  "percent-encoding",
  "serde",
 ]
@@ -10793,12 +10931,14 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.12.1"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3758f5e68192bb96cc8f9b7e2c2cfdabb435499a28499a42f8f984092adad4b"
+checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
 dependencies = [
- "getrandom 0.2.15",
+ "getrandom 0.3.2",
+ "js-sys",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -10887,24 +11027,24 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "128d1e363af62632b8eb57219c8fd7877144af57558fb2ef0368d0087bddeb2e"
+checksum = "1edc8929d7499fc4e8f0be2262a241556cfc54a0bea223790e71446f2aab1ef5"
 dependencies = [
  "cfg-if",
  "once_cell",
+ "rustversion",
  "wasm-bindgen-macro",
 ]
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb6dd4d3ca0ddffd1dd1c9c04f94b868c37ff5fac97c30b97cff2d74fce3a358"
+checksum = "2f0a0651a5c2bc21487bde11ee802ccaf4c51935d0d3d42a6101f98161700bc6"
 dependencies = [
  "bumpalo",
  "log",
- "once_cell",
  "proc-macro2",
  "quote",
  "syn 2.0.95",
@@ -10925,9 +11065,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e79384be7f8f5a9dd5d7167216f022090cf1f9ec128e6e6a482a2cb5c5422c56"
+checksum = "7fe63fc6d09ed3792bd0897b314f53de8e16568c2b3f7982f468c0bf9bd0b407"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -10935,9 +11075,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26c6ab57572f7a24a4985830b120de1594465e5d500f24afe89e16b4e833ef68"
+checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10948,9 +11088,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.95"
+version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65fc09f10666a9f147042251e0dda9c18f166ff7de300607007e96bdebc1068d"
+checksum = "1a05d73b933a847d6cccdda8f838a22ff101ad9bf93e33684f39c1f5f0eece3d"
+dependencies = [
+ "unicode-ident",
+]
 
 [[package]]
 name = "wasm-streams"

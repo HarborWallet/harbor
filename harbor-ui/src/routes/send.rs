@@ -8,7 +8,10 @@ use crate::components::{
 use crate::{HarborWallet, Message, SendStatus};
 
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
-    let header = h_header("Send", "Send to an on-chain address or lightning invoice.");
+    let header = h_header(
+        "Send",
+        "Send to an on-chain address, lightning invoice, Bolt12 offer, or BIP353 address.",
+    );
 
     let dest_input = h_input(InputArgs {
         label: "Destination",

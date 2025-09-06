@@ -10,9 +10,10 @@ use cdk::amount::SplitTarget;
 use cdk::mint_url::MintUrl;
 use cdk::nuts::{
     CheckStateRequest, CheckStateResponse, Id, KeySet, KeysResponse, KeysetResponse,
-    MeltQuoteBolt11Request, MeltQuoteBolt11Response, MeltRequest, MintInfo, MintQuoteBolt11Request,
-    MintQuoteBolt11Response, MintQuoteState, MintRequest, MintResponse, RestoreRequest,
-    RestoreResponse, SwapRequest, SwapResponse,
+    MeltQuoteBolt11Request, MeltQuoteBolt11Response, MeltQuoteBolt12Request, MeltRequest, MintInfo,
+    MintQuoteBolt11Request, MintQuoteBolt11Response, MintQuoteBolt12Request,
+    MintQuoteBolt12Response, MintQuoteState, MintRequest, MintResponse, ProofsMethods,
+    RestoreRequest, RestoreResponse, SwapRequest, SwapResponse,
 };
 use cdk::util::unix_time;
 use cdk::wallet::{MeltQuote, MintConnector, MintQuote};
@@ -152,6 +153,62 @@ impl MintConnector for TorMintConnector {
         self.http_post(url, &request).await
     }
 
+    /// Mint Quote Bolt12 [NUT-04]
+    async fn post_mint_bolt12_quote(
+        &self,
+        request: MintQuoteBolt12Request,
+    ) -> Result<MintQuoteBolt12Response<String>, Error> {
+        let url = self
+            .mint_url
+            .join_paths(&["v1", "mint", "quote", "bolt12"])?;
+        self.http_post(url, &request).await
+    }
+
+    /// Mint Quote Bolt12 status
+    async fn get_mint_quote_bolt12_status(
+        &self,
+        quote_id: &str,
+    ) -> Result<MintQuoteBolt12Response<String>, Error> {
+        let url = self
+            .mint_url
+            .join_paths(&["v1", "mint", "quote", "bolt12", quote_id])?;
+
+        self.http_get(url).await
+    }
+
+    /// Melt Quote Bolt12 [NUT-05]
+    async fn post_melt_bolt12_quote(
+        &self,
+        request: MeltQuoteBolt12Request,
+    ) -> Result<MeltQuoteBolt11Response<String>, Error> {
+        let url = self
+            .mint_url
+            .join_paths(&["v1", "melt", "quote", "bolt12"])?;
+        self.http_post(url, &request).await
+    }
+
+    /// Melt Quote Bolt12 Status
+    async fn get_melt_bolt12_quote_status(
+        &self,
+        quote_id: &str,
+    ) -> Result<MeltQuoteBolt11Response<String>, Error> {
+        let url = self
+            .mint_url
+            .join_paths(&["v1", "melt", "quote", "bolt12", quote_id])?;
+
+        self.http_get(url).await
+    }
+
+    /// Melt Bolt12 [NUT-05]
+    /// [Nut-08] Lightning fee return if outputs defined
+    async fn post_melt_bolt12(
+        &self,
+        request: MeltRequest<String>,
+    ) -> Result<MeltQuoteBolt11Response<String>, Error> {
+        let url = self.mint_url.join_paths(&["v1", "melt", "bolt12"])?;
+        self.http_post(url, &request).await
+    }
+
     /// Swap Token [NUT-03]
     async fn post_swap(&self, swap_request: SwapRequest) -> Result<SwapResponse, Error> {
         let url = self.mint_url.join_paths(&["v1", "swap"])?;
@@ -196,8 +253,8 @@ pub fn spawn_lightning_payment_thread(
                     quote.id,
                     outgoing.preimage
                 );
-                let preimage: [u8; 32] = FromHex::from_hex(&outgoing.preimage.unwrap())
-                    .expect("preimage must be valid hex");
+                let preimage: [u8; 32] =
+                    FromHex::from_hex(&outgoing.preimage.unwrap_or_default()).unwrap_or([0u8; 32]);
                 let params = if is_transfer {
                     SendSuccessMsg::Transfer
                 } else {
@@ -286,7 +343,7 @@ pub fn spawn_lightning_receive_thread(
                 HarborCore::send_msg(&mut sender, Some(msg_id), CoreUIMsg::ReceiveSuccess(params))
                     .await;
 
-                if let Err(e) = storage.mark_ln_receive_as_success(quote.id) {
+                if let Err(e) = storage.mark_ln_receive_as_success(quote.id, None) {
                     error!("Could not mark lightning receive as success: {e}");
                 }
 
@@ -317,6 +374,113 @@ pub fn spawn_lightning_receive_thread(
 
                 break;
             }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    });
+}
+
+pub fn spawn_bolt12_receive_thread(
+    mut sender: Sender<CoreUIMsgPacket>,
+    client: Wallet,
+    storage: Arc<dyn DBConnection + Send + Sync>,
+    quote: MintQuote,
+    msg_id: Uuid,
+    is_transfer: bool,
+) {
+    spawn(async move {
+        let mut error_counter = 0;
+        loop {
+            let quote_clone = quote.clone();
+            // For bolt12, we'll check using the regular mint quote state method
+            // The wallet should handle bolt12 quotes the same way as bolt11 quotes
+            let mint_quote_response = match client.mint_bolt12_quote_state(&quote_clone.id).await {
+                Ok(response) => response,
+                Err(e) => {
+                    error!("Error getting mint quote state for bolt12: {e}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    error_counter += 1;
+                    if error_counter > 5 {
+                        log::error!("Too many errors checking bolt12 quote state, giving up");
+                        return;
+                    }
+                    continue;
+                }
+            };
+
+            let amount_mintable =
+                mint_quote_response.amount_paid - mint_quote_response.amount_issued;
+
+            if amount_mintable > 0.into() {
+                log::info!(
+                    "Bolt12 quote {} has been paid, minting tokens",
+                    quote_clone.id
+                );
+
+                match client
+                    .mint_bolt12(
+                        &quote_clone.id,
+                        Some(amount_mintable),
+                        SplitTarget::default(),
+                        None,
+                    )
+                    .await
+                {
+                    Ok(proofs) => {
+                        log::info!(
+                            "Successfully minted tokens for bolt12 quote {}",
+                            quote_clone.id
+                        );
+
+                        let params = if is_transfer {
+                            ReceiveSuccessMsg::Transfer
+                        } else {
+                            ReceiveSuccessMsg::Lightning
+                        };
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveSuccess(params),
+                        )
+                        .await;
+
+                        if let Err(e) = storage.mark_ln_receive_as_success(
+                            quote_clone.id,
+                            proofs.total_amount().ok().map(|a| u64::from(a) * 1_000),
+                        ) {
+                            error!("Could not mark bolt12 receive as success: {e}");
+                        }
+
+                        let new_balance =
+                            client.total_balance().await.expect("Failed to get balance");
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::MintBalanceUpdated {
+                                id: MintIdentifier::Cashu(client.mint_url.clone()),
+                                balance: Amount::from_sats(new_balance.into()),
+                            },
+                        )
+                        .await;
+
+                        update_history(Arc::clone(&storage), msg_id, &mut sender).await;
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to mint receive tokens for bolt12 quote {}: {e}",
+                            quote.id
+                        );
+                        HarborCore::send_msg(
+                            &mut sender,
+                            Some(msg_id),
+                            CoreUIMsg::ReceiveFailed(e.to_string()),
+                        )
+                        .await;
+                        break;
+                    }
+                }
+            }
+
+            // Check every second for payment
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });

@@ -1,6 +1,6 @@
 use crate::MintIdentifier;
 use crate::db_models::PaymentStatus;
-use crate::db_models::schema::lightning_receives;
+use crate::db_models::schema::{lightning_receive_payments, lightning_receives};
 use crate::db_models::transaction_item::{
     TransactionDirection, TransactionItem, TransactionItemKind,
 };
@@ -19,8 +19,9 @@ pub struct LightningReceive {
     pub operation_id: String,
     fedimint_id: Option<String>,
     cashu_mint_url: Option<String>,
-    payment_hash: String,
-    bolt11: String,
+    payment_hash: Option<String>,
+    bolt11: Option<String>,
+    bolt12_offer: Option<String>,
     amount_msats: i64,
     fee_msats: i64,
     status: i32,
@@ -34,11 +35,32 @@ struct NewLightningReceive {
     operation_id: String,
     fedimint_id: Option<String>,
     cashu_mint_url: Option<String>,
-    payment_hash: String,
-    bolt11: String,
+    payment_hash: Option<String>,
+    bolt11: Option<String>,
+    bolt12_offer: Option<String>,
     amount_msats: i64,
     fee_msats: i64,
     status: i32,
+}
+
+#[derive(Queryable, Insertable, Debug, Clone, PartialEq, Eq)]
+#[diesel(table_name = lightning_receive_payments)]
+pub struct LightningReceivePayment {
+    pub id: i32,
+    pub receive_operation_id: String,
+    pub amount_msats: i64,
+    pub fee_msats: i64,
+    pub payment_hash: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Insertable, Clone)]
+#[diesel(table_name = lightning_receive_payments)]
+struct NewLightningReceivePayment {
+    pub receive_operation_id: String,
+    pub amount_msats: i64,
+    pub fee_msats: i64,
+    pub payment_hash: Option<String>,
 }
 
 impl LightningReceive {
@@ -65,12 +87,20 @@ impl LightningReceive {
         }
     }
 
-    pub fn payment_hash(&self) -> [u8; 32] {
-        FromHex::from_hex(&self.payment_hash).expect("invalid payment hash")
+    pub fn payment_hash(&self) -> Option<[u8; 32]> {
+        self.payment_hash
+            .as_ref()
+            .map(|h| FromHex::from_hex(h).expect("invalid payment hash"))
     }
 
-    pub fn bolt11(&self) -> Bolt11Invoice {
-        Bolt11Invoice::from_str(&self.bolt11).expect("invalid bolt11")
+    pub fn bolt11(&self) -> Option<Bolt11Invoice> {
+        self.bolt11
+            .as_ref()
+            .map(|b| Bolt11Invoice::from_str(b).expect("invalid bolt11"))
+    }
+
+    pub fn bolt12_offer(&self) -> Option<&str> {
+        self.bolt12_offer.as_deref()
     }
 
     pub fn amount(&self) -> Amount {
@@ -108,8 +138,38 @@ impl LightningReceive {
             operation_id,
             fedimint_id: fedimint_id.map(|f| f.to_string()),
             cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
-            payment_hash,
-            bolt11: bolt11.to_string(),
+            payment_hash: Some(payment_hash),
+            bolt11: Some(bolt11.to_string()),
+            bolt12_offer: None,
+            amount_msats: amount.msats as i64,
+            fee_msats: fee.msats as i64,
+            status: PaymentStatus::Pending as i32,
+        };
+
+        diesel::insert_into(lightning_receives::table)
+            .values(new)
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_bolt12(
+        conn: &mut SqliteConnection,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let new = NewLightningReceive {
+            operation_id,
+            fedimint_id: fedimint_id.map(|f| f.to_string()),
+            cashu_mint_url: cashu_mint_url.map(|f| f.to_string()),
+            payment_hash: None,
+            bolt11: None,
+            bolt12_offer: Some(offer),
             amount_msats: amount.msats as i64,
             fee_msats: fee.msats as i64,
             status: PaymentStatus::Pending as i32,
@@ -135,12 +195,48 @@ impl LightningReceive {
     pub fn mark_as_success(
         conn: &mut SqliteConnection,
         operation_id: String,
+        amount_msats: Option<u64>,
     ) -> anyhow::Result<()> {
-        diesel::update(
-            lightning_receives::table.filter(lightning_receives::operation_id.eq(operation_id)),
-        )
-        .set(lightning_receives::status.eq(PaymentStatus::Success as i32))
-        .execute(conn)?;
+        use crate::db_models::schema::lightning_receives::dsl as lr;
+
+        // fetch the existing receive record
+        let existing: Option<Self> = lr::lightning_receives
+            .filter(lr::operation_id.eq(&operation_id))
+            .order(lr::updated_at.desc())
+            .first(conn)
+            .optional()?;
+
+        if let Some(rec) = existing {
+            if rec.bolt12_offer.is_some() {
+                let new_amount = amount_msats.map_or(rec.amount_msats, |a| a as i64);
+
+                let new_payment = NewLightningReceivePayment {
+                    receive_operation_id: rec.operation_id.clone(),
+                    amount_msats: new_amount,
+                    fee_msats: rec.fee_msats,
+                    payment_hash: rec.payment_hash.clone(),
+                };
+
+                diesel::insert_into(lightning_receive_payments::table)
+                    .values(new_payment)
+                    .execute(conn)?;
+
+                // Update the receive summary row to Success so it appears in history and update timestamp
+                diesel::update(
+                    lr::lightning_receives.filter(lr::operation_id.eq(rec.operation_id)),
+                )
+                .set(lr::status.eq(PaymentStatus::Success as i32))
+                .execute(conn)?;
+            } else {
+                // For bolt11 invoices update the existing row to success
+                diesel::update(
+                    lightning_receives::table
+                        .filter(lightning_receives::operation_id.eq(operation_id)),
+                )
+                .set(lightning_receives::status.eq(PaymentStatus::Success as i32))
+                .execute(conn)?;
+            }
+        }
 
         Ok(())
     }
@@ -163,11 +259,51 @@ impl LightningReceive {
 
     pub fn get_pending(conn: &mut SqliteConnection) -> anyhow::Result<Vec<Self>> {
         Ok(lightning_receives::table
-            .filter(lightning_receives::status.eq_any([
-                PaymentStatus::Pending as i32,
-                PaymentStatus::WaitingConfirmation as i32,
-            ]))
+            .filter(
+                lightning_receives::status
+                    .eq_any([
+                        PaymentStatus::Pending as i32,
+                        PaymentStatus::WaitingConfirmation as i32,
+                    ])
+                    .or(lightning_receives::bolt12_offer.is_not_null()),
+            )
             .load::<Self>(conn)?)
+    }
+
+    pub fn get_bolt12_payments_history(
+        conn: &mut SqliteConnection,
+    ) -> anyhow::Result<Vec<(LightningReceivePayment, Self)>> {
+        use crate::db_models::schema::lightning_receive_payments::dsl as lrp;
+        use crate::db_models::schema::lightning_receives::dsl as lr;
+
+        let results = lrp::lightning_receive_payments
+            .inner_join(lr::lightning_receives.on(lrp::receive_operation_id.eq(lr::operation_id)))
+            .select((
+                (
+                    lrp::id,
+                    lrp::receive_operation_id,
+                    lrp::amount_msats,
+                    lrp::fee_msats,
+                    lrp::payment_hash,
+                    lrp::created_at,
+                ),
+                (
+                    lr::operation_id,
+                    lr::fedimint_id,
+                    lr::cashu_mint_url,
+                    lr::payment_hash,
+                    lr::bolt11,
+                    lr::bolt12_offer,
+                    lr::amount_msats,
+                    lr::fee_msats,
+                    lr::status,
+                    lr::created_at,
+                    lr::updated_at,
+                ),
+            ))
+            .load::<(LightningReceivePayment, Self)>(conn)?;
+
+        Ok(results)
     }
 }
 

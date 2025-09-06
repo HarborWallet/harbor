@@ -23,7 +23,8 @@
 )]
 
 use crate::cashu_client::{
-    TorMintConnector, spawn_lightning_payment_thread, spawn_lightning_receive_thread,
+    TorMintConnector, spawn_bolt12_receive_thread, spawn_lightning_payment_thread,
+    spawn_lightning_receive_thread,
 };
 use crate::db::DBConnection;
 use crate::db_models::MintItem;
@@ -41,7 +42,7 @@ use bitcoin::address::NetworkUnchecked;
 use bitcoin::{Address, Network, Txid};
 use cdk::cdk_database::WalletDatabase;
 use cdk::mint_url::MintUrl;
-use cdk::nuts::{CurrencyUnit, MintInfo};
+use cdk::nuts::{CurrencyUnit, MintInfo, PaymentMethod};
 use cdk::wallet::WalletBuilder;
 use cdk_sqlite::WalletSqliteDatabase;
 use fedimint_client::{spawn_lnv2_payment_subscription, spawn_lnv2_receive_subscription};
@@ -159,9 +160,23 @@ pub enum UICoreMsg {
         mint: MintIdentifier,
         invoice: Bolt11Invoice,
     },
+    SendBolt12 {
+        mint: MintIdentifier,
+        offer: String,
+        amount_msats: Option<u64>,
+    },
+    ReceiveBolt12 {
+        mint: MintIdentifier,
+        amount: Option<Amount>,
+    },
     SendLnurlPay {
         mint: MintIdentifier,
         lnurl: LnUrl,
+        amount_sats: u64,
+    },
+    SendBip353 {
+        mint: MintIdentifier,
+        address: String,
         amount_sats: u64,
     },
     ReceiveLightning {
@@ -226,6 +241,7 @@ pub enum CoreUIMsg {
     SendFailure(String),
     ReceiveGenerating,
     ReceiveInvoiceGenerated(Bolt11Invoice),
+    ReceiveBolt12OfferGenerated(String),
     ReceiveAddressGenerated(Address),
     ReceiveSuccess(ReceiveSuccessMsg),
     ReceiveFailed(String),
@@ -392,14 +408,28 @@ impl HarborCore {
                         if let Ok(Some(quote)) =
                             client.localstore.get_mint_quote(&item.operation_id).await
                         {
-                            spawn_lightning_receive_thread(
-                                tx.clone(),
-                                client.clone(),
-                                storage.clone(),
-                                quote,
-                                Uuid::nil(),
-                                false,
-                            );
+                            // Check if this might be a bolt12 quote by examining the request
+                            if quote.payment_method == cdk::nuts::PaymentMethod::Bolt12 {
+                                // This is likely a bolt12 quote
+                                spawn_bolt12_receive_thread(
+                                    tx.clone(),
+                                    client.clone(),
+                                    storage.clone(),
+                                    quote,
+                                    Uuid::nil(),
+                                    false,
+                                );
+                            } else {
+                                // This is a bolt11 quote
+                                spawn_lightning_receive_thread(
+                                    tx.clone(),
+                                    client.clone(),
+                                    storage.clone(),
+                                    quote,
+                                    Uuid::nil(),
+                                    false,
+                                );
+                            }
                         } else {
                             storage.mark_ln_receive_as_failed(item.operation_id)?;
                         }
@@ -810,6 +840,163 @@ impl HarborCore {
         Ok(())
     }
 
+    pub async fn send_bolt12(
+        &self,
+        msg_id: Uuid,
+        from: MintIdentifier,
+        offer: String,
+        amount_msats: Option<u64>,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        self.status_update(msg_id, "Preparing to send bolt12 payment")
+            .await;
+
+        match from {
+            MintIdentifier::Cashu(mint_url) => {
+                self.send_bolt12_from_cashu(msg_id, mint_url, offer, amount_msats, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(_id) => {
+                // Fedimint doesn't support bolt12 yet
+                Err(anyhow!("Bolt12 payments are not supported on Fedimint"))
+            }
+        }
+    }
+
+    pub async fn send_bolt12_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint_url: MintUrl,
+        offer: String,
+        amount_msats: Option<u64>,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        log::info!("Paying bolt12 offer: {offer} from cashu mint: {mint_url}");
+
+        let client = self.get_cashu_client(&mint_url).await;
+
+        self.status_update(msg_id, "Getting bolt12 quote").await;
+
+        let melt_options = amount_msats.map(|amt| cdk::nuts::MeltOptions::Amountless {
+            amountless: cdk::nuts::nut23::Amountless {
+                amount_msat: cdk::Amount::from(amt),
+            },
+        });
+
+        let quote = client
+            .melt_bolt12_quote(offer.clone(), melt_options)
+            .await?;
+
+        log::info!("Sending bolt12 payment");
+
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+
+        // Persist the outgoing bolt12 payment so completion can update it later
+        let amount = Amount::from_sats(quote.amount.into());
+        self.storage.create_bolt12_payment(
+            quote.id.clone(),
+            None,
+            Some(mint_url.clone()),
+            offer.clone(),
+            amount,
+            Amount::from_sats(quote.fee_reserve.into()),
+        )?;
+
+        spawn_lightning_payment_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
+
+        log::info!("Bolt12 payment sent");
+
+        Ok(())
+    }
+
+    pub async fn receive_bolt12(
+        &self,
+        msg_id: Uuid,
+        mint_identifier: MintIdentifier,
+        amount: Option<Amount>,
+        is_transfer: bool,
+    ) -> anyhow::Result<String> {
+        match mint_identifier {
+            MintIdentifier::Cashu(mint_url) => {
+                self.receive_bolt12_from_cashu(msg_id, mint_url, amount, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(_id) => {
+                // Fedimint doesn't support bolt12 yet
+                Err(anyhow!("Bolt12 offers are not supported on Fedimint"))
+            }
+        }
+    }
+
+    pub async fn receive_bolt12_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint: MintUrl,
+        amount: Option<Amount>,
+        is_transfer: bool,
+    ) -> anyhow::Result<String> {
+        let tor_enabled = self.tor_enabled.load(Ordering::Relaxed);
+        log::info!(
+            "Creating bolt12 offer, amount: {:?} for mint: {mint}. Tor enabled: {tor_enabled}",
+            amount
+        );
+
+        self.status_update(msg_id, "Connecting to mint").await;
+
+        let client = self.get_cashu_client(&mint).await;
+
+        self.status_update(msg_id, "Generating bolt12 offer").await;
+
+        let cdk_amount = amount.map(|a| cdk::Amount::from(a.msats / 1000));
+
+        let quote = client.mint_bolt12_quote(cdk_amount, None).await?;
+
+        let offer = quote.request.clone();
+
+        log::info!("Bolt12 offer created: {offer}");
+
+        // Save receive record in DB for bolt12
+        let amt = amount.unwrap_or(Amount::ZERO);
+        self.storage.create_bolt12_receive(
+            quote.id.clone(),
+            None,
+            Some(mint.clone()),
+            offer.clone(),
+            amt,
+            Amount::ZERO,
+        )?;
+
+        // Spawn the bolt12 receive thread to monitor for payment
+        spawn_bolt12_receive_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+
+        // Send the offer generation message to the UI
+        self.msg(
+            msg_id,
+            CoreUIMsg::ReceiveBolt12OfferGenerated(offer.clone()),
+        )
+        .await;
+
+        Ok(offer)
+    }
+
     pub async fn send_lnurl_pay(
         &self,
         msg_id: Uuid,
@@ -848,6 +1035,89 @@ impl HarborCore {
         // Now we'll let send_lightning handle the rest of the status updates
         self.send_lightning(msg_id, mint_identifier, invoice, false)
             .await?;
+
+        Ok(())
+    }
+
+    pub async fn send_bip353(
+        &self,
+        msg_id: Uuid,
+        from: MintIdentifier,
+        address: String,
+        amount_sats: u64,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        self.status_update(msg_id, "Preparing to send BIP-353 payment")
+            .await;
+
+        match from {
+            MintIdentifier::Cashu(mint_url) => {
+                self.send_bip353_from_cashu(msg_id, mint_url, address, amount_sats, is_transfer)
+                    .await
+            }
+            MintIdentifier::Fedimint(_id) => {
+                Err(anyhow!("BIP-353 payments are not supported on Fedimint"))
+            }
+        }
+    }
+
+    pub async fn send_bip353_from_cashu(
+        &self,
+        msg_id: Uuid,
+        mint_url: MintUrl,
+        address: String,
+        amount_sats: u64,
+        is_transfer: bool,
+    ) -> anyhow::Result<()> {
+        log::info!(
+            "Paying BIP-353 address: {} from cashu mint: {}",
+            address,
+            mint_url
+        );
+
+        let client = self.get_cashu_client(&mint_url).await;
+
+        self.status_update(msg_id, "Resolving address and getting quote")
+            .await;
+
+        // BIP353 expects msats, convert sats->msats
+        let amount_msats = amount_sats
+            .checked_mul(1_000)
+            .ok_or_else(|| anyhow!("amount overflow"))?;
+
+        // Use CDK's BIP-353 melt flow to get a quote
+        let quote = client
+            .melt_bip353_quote(&address, cdk::Amount::from(amount_msats))
+            .await?;
+
+        log::info!("Sending BIP-353 payment");
+
+        self.status_update(msg_id, "Creating payment transaction")
+            .await;
+
+        // Persist the outgoing payment, re-using bolt12 columns with address stored in offer column
+        self.storage.create_bolt12_payment(
+            quote.id.clone(),
+            None,
+            Some(mint_url.clone()),
+            address.clone(),
+            Amount::from_sats(amount_sats),
+            Amount::from_msats(quote.fee_reserve.into()),
+        )?;
+
+        spawn_lightning_payment_thread(
+            self.tx.clone(),
+            client,
+            self.storage.clone(),
+            quote,
+            msg_id,
+            is_transfer,
+        );
+
+        self.status_update(msg_id, "Waiting for payment confirmation")
+            .await;
+
+        log::info!("BIP-353 payment sent");
 
         Ok(())
     }
@@ -1239,7 +1509,7 @@ impl HarborCore {
             .mint_url(mint_url.clone())
             .unit(CurrencyUnit::Sat)
             .localstore(self.cashu_storage.clone())
-            .seed(&seed);
+            .seed(seed);
 
         let builder = if self.tor_enabled.load(Ordering::Relaxed) {
             builder.client(TorMintConnector::new(
@@ -1254,7 +1524,7 @@ impl HarborCore {
 
         self.status_update(msg_id, "Retrieving mint metadata").await;
 
-        let info = wallet.get_mint_info().await?;
+        let info = wallet.fetch_mint_info().await?;
 
         self.status_update(msg_id, "Checking mint network").await;
 
@@ -1400,7 +1670,7 @@ impl HarborCore {
             .mint_url(mint_url.clone())
             .unit(CurrencyUnit::Sat)
             .localstore(self.cashu_storage.clone())
-            .seed(&seed);
+            .seed(seed);
 
         let builder = if self.tor_enabled.load(Ordering::Relaxed) {
             builder.client(TorMintConnector::new(
@@ -1573,6 +1843,7 @@ impl HarborCore {
                 module_kinds: Some(module_kinds),
                 metadata: metadata.unwrap_or_default(),
                 on_chain_supported,
+                bolt12_supported: false,
                 active: true,
             });
         }
@@ -1597,6 +1868,15 @@ impl HarborCore {
                 popup_countdown_message: None,
             };
 
+            let bolt12_supported = if let Some(info) = info {
+                info.nuts
+                    .nut04
+                    .get_settings(&CurrencyUnit::Sat, &PaymentMethod::Bolt12)
+                    .is_some()
+            } else {
+                false
+            };
+
             res.push(MintItem {
                 id: MintIdentifier::Cashu(c.mint_url.clone()),
                 name: metadata
@@ -1608,6 +1888,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata,
                 on_chain_supported: false,
+                bolt12_supported,
                 active: true,
             });
         }
@@ -1643,6 +1924,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata: m.into(),
                 on_chain_supported: false,
+                bolt12_supported: false,
                 active: false,
             };
             res.push(item);
@@ -1663,6 +1945,7 @@ impl HarborCore {
                 module_kinds: None,
                 metadata: info.into(),
                 on_chain_supported: false,
+                bolt12_supported: false,
                 active: false,
             };
             res.push(item);

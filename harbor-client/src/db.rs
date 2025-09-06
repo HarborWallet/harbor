@@ -1,7 +1,10 @@
 #![allow(clippy::too_many_arguments)]
 
+use crate::db_models::PaymentStatus;
 use crate::db_models::mint_metadata::MintMetadata;
 use crate::db_models::transaction_item::TransactionItem;
+use crate::db_models::transaction_item::{TransactionDirection, TransactionItemKind};
+
 use crate::db_models::{
     CashuMint, Fedimint, LightningPayment, LightningReceive, NewFedimint, NewProfile,
     OnChainPayment, OnChainReceive, Profile,
@@ -135,7 +138,21 @@ pub trait DBConnection {
         fee: Amount,
     ) -> anyhow::Result<()>;
 
-    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()>;
+    fn create_bolt12_receive(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()>;
+
+    fn mark_ln_receive_as_success(
+        &self,
+        operation_id: String,
+        amount_msats: Option<u64>,
+    ) -> anyhow::Result<()>;
 
     fn mark_ln_receive_as_failed(&self, operation_id: String) -> anyhow::Result<()>;
 
@@ -145,6 +162,16 @@ pub trait DBConnection {
         fedimint_id: Option<FederationId>,
         cashu_mint_url: Option<MintUrl>,
         bolt11: Bolt11Invoice,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()>;
+
+    fn create_bolt12_payment(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
         amount: Amount,
         fee: Amount,
     ) -> anyhow::Result<()>;
@@ -320,10 +347,36 @@ impl DBConnection for SQLConnection {
         Ok(())
     }
 
-    fn mark_ln_receive_as_success(&self, operation_id: String) -> anyhow::Result<()> {
+    fn create_bolt12_receive(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        LightningReceive::create_bolt12(
+            conn,
+            operation_id,
+            fedimint_id,
+            cashu_mint_url,
+            offer,
+            amount,
+            fee,
+        )?;
+        Ok(())
+    }
+
+    fn mark_ln_receive_as_success(
+        &self,
+        operation_id: String,
+        amount_msats: Option<u64>,
+    ) -> anyhow::Result<()> {
         let conn = &mut self.db.get()?;
 
-        LightningReceive::mark_as_success(conn, operation_id)?;
+        LightningReceive::mark_as_success(conn, operation_id, amount_msats)?;
 
         Ok(())
     }
@@ -357,6 +410,28 @@ impl DBConnection for SQLConnection {
             fee,
         )?;
 
+        Ok(())
+    }
+
+    fn create_bolt12_payment(
+        &self,
+        operation_id: String,
+        fedimint_id: Option<FederationId>,
+        cashu_mint_url: Option<MintUrl>,
+        offer: String,
+        amount: Amount,
+        fee: Amount,
+    ) -> anyhow::Result<()> {
+        let conn = &mut self.db.get()?;
+        LightningPayment::create_bolt12(
+            conn,
+            operation_id,
+            fedimint_id,
+            cashu_mint_url,
+            offer,
+            amount,
+            fee,
+        )?;
         Ok(())
     }
 
@@ -472,6 +547,8 @@ impl DBConnection for SQLConnection {
         let onchain_receives = OnChainReceive::get_history(conn)?;
         let lightning_payments = LightningPayment::get_history(conn)?;
         let lightning_receives = LightningReceive::get_history(conn)?;
+        // Also include bolt12 individual payments (each payment for a bolt12 receive)
+        let bolt12_payments = LightningReceive::get_bolt12_payments_history(conn)?;
 
         let mut items: Vec<TransactionItem> = Vec::with_capacity(
             onchain_payments.len()
@@ -493,7 +570,28 @@ impl DBConnection for SQLConnection {
         }
 
         for lightning_receive in lightning_receives {
-            items.push(lightning_receive.into());
+            if lightning_receive.bolt12_offer().is_none() {
+                items.push(lightning_receive.into());
+            }
+        }
+
+        // Convert bolt12 joined results into transaction items
+        for (payment, receive) in bolt12_payments {
+            // Build transaction item from payment + parent receive
+            let item = TransactionItem {
+                kind: TransactionItemKind::Lightning,
+                amount: fedimint_core::Amount::from_msats(payment.amount_msats as u64)
+                    .sats_round_down(),
+                fee_msats: payment.fee_msats as u64,
+                txid: None,
+                preimage: None,
+                direction: TransactionDirection::Incoming,
+                mint_identifier: receive.mint_identifier(),
+                status: PaymentStatus::Success,
+                timestamp: payment.created_at.and_utc().timestamp() as u64,
+            };
+
+            items.push(item);
         }
 
         // sort by timestamp so that the most recent items are at the top
@@ -801,9 +899,9 @@ mod tests {
         );
         assert_eq!(
             payment.payment_hash(),
-            invoice.payment_hash().to_byte_array()
+            Some(invoice.payment_hash().to_byte_array())
         );
-        assert_eq!(payment.bolt11(), invoice);
+        assert_eq!(payment.bolt11(), Some(invoice));
         assert_eq!(payment.amount(), Amount::from_sats(1_000));
         assert_eq!(payment.fee(), Amount::from_sats(1));
         assert_eq!(payment.preimage(), None);
@@ -857,9 +955,9 @@ mod tests {
         );
         assert_eq!(
             receive.payment_hash(),
-            invoice.payment_hash().to_byte_array()
+            Some(invoice.payment_hash().to_byte_array())
         );
-        assert_eq!(receive.bolt11(), invoice);
+        assert_eq!(receive.bolt11(), Some(invoice));
         assert_eq!(receive.amount(), Amount::from_sats(1_000));
         assert_eq!(receive.fee(), Amount::from_sats(1));
         assert_eq!(receive.status(), PaymentStatus::Pending);
