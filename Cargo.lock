@@ -4068,6 +4068,7 @@ dependencies = [
  "harbor-client",
  "iced",
  "keyring-lib",
+ "lnurl-rs",
  "log",
  "lyon_algorithms",
  "opener",
