@@ -1,11 +1,18 @@
+use std::str::FromStr;
+
 use iced::Element;
 use iced::widget::{column, row};
+
+use harbor_client::Bolt11Invoice;
+use harbor_client::bitcoin::Address;
+use harbor_client::bitcoin::address::NetworkUnchecked;
+use harbor_client::lightning_address::parse_lnurl;
 
 use crate::components::{
     ConfirmModalState, InputArgs, SvgIcon, basic_layout, h_button, h_checkbox, h_header, h_input,
     h_screen_header, operation_status_for_id,
 };
-use crate::{HarborWallet, Message, SendStatus};
+use crate::{HarborWallet, Message, SendDestination, SendStatus};
 
 pub fn send(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Send", "Send to an on-chain address or lightning invoice.");
@@ -34,7 +41,7 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
         SvgIcon::UpRight,
         harbor.send_status == SendStatus::Sending,
     )
-    .on_press(Message::Send(harbor.send_dest_input_str.clone()));
+    .on_press_maybe(parse_send_destination(&harbor.send_dest_input_str).map(Message::Send));
 
     let checkbox = h_checkbox(
         "Send Max",
@@ -77,4 +84,20 @@ pub fn send(harbor: &HarborWallet) -> Element<Message> {
     .spacing(48);
 
     column![h_screen_header(harbor, true, false), basic_layout(content)].into()
+}
+
+fn parse_send_destination(input: &str) -> Option<SendDestination> {
+    if let Ok(invoice) = Bolt11Invoice::from_str(input) {
+        return Some(SendDestination::Invoice(invoice));
+    }
+
+    if let Ok(lnurl) = parse_lnurl(input) {
+        return Some(SendDestination::LnUrl(lnurl));
+    }
+
+    if let Ok(address) = input.parse::<Address<NetworkUnchecked>>() {
+        return Some(SendDestination::Address(address));
+    }
+
+    None
 }

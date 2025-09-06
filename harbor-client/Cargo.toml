@@ -48,7 +48,7 @@ fedimint-lnv2-client = "0.7.1"
 
 # BEGIN BLOCK OF KEEP IN SYNC WITH FEDIMINT'S VERSION
 arti-client = { version = "0.20.0", default-features = false, features = ["tokio", "rustls"], package = "fedimint-arti-client" }
-lnurl-rs = { version = "0.9.0", default-features = false }
+lnurl-rs = { workspace = true }
 hyper = { version = "1.6.0", default-features = false, features = ["client", "http1"] }
 hyper-rustls = { version = "0.27.3", default-features = false }
 hyper-util = { version = "0.1.3", default-features = false, features = ["client", "client-legacy", "tokio"] }

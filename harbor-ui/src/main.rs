@@ -36,12 +36,12 @@ use crate::config::{Config, write_config};
 use components::{MUTINY_GREEN, MUTINY_RED};
 use harbor_client::Bolt11Invoice;
 use harbor_client::bip39::Mnemonic;
+use harbor_client::bitcoin::address::NetworkUnchecked;
 use harbor_client::bitcoin::{Address, Network};
 use harbor_client::db_models::MintItem;
 use harbor_client::db_models::transaction_item::TransactionItem;
 use harbor_client::fedimint_core::Amount;
 use harbor_client::fedimint_core::core::ModuleKind;
-use harbor_client::lightning_address::parse_lnurl;
 use harbor_client::{
     CoreUIMsg, CoreUIMsgPacket, MintConnectionInfo, MintIdentifier, ReceiveSuccessMsg,
     SendSuccessMsg, UICoreMsg, data_dir,
@@ -53,6 +53,7 @@ use iced::widget::qr_code::Data;
 use iced::widget::row;
 use iced::{Color, clipboard};
 use iced::{Element, window};
+use lnurl::lnurl::LnUrl;
 use log::{debug, error, info, trace};
 use routes::Route;
 use std::collections::HashMap;
@@ -160,6 +161,13 @@ pub enum AddFederationStatus {
 }
 
 #[derive(Debug, Clone)]
+pub enum SendDestination {
+    Invoice(Bolt11Invoice),
+    LnUrl(LnUrl),
+    Address(Address<NetworkUnchecked>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     // Setup
     UIHandlerLoaded(Arc<bridge::UIHandle>),
@@ -201,7 +209,7 @@ pub enum Message {
     SetTorEnabled(bool),
     // Async commands we fire from the UI to core
     Noop,
-    Send(String),
+    Send(SendDestination),
     Transfer,
     GenerateInvoice,
     GenerateAddress,
@@ -613,7 +621,7 @@ impl HarborWallet {
             }
             // Async commands we fire from the UI to core
             Message::Noop => Task::none(),
-            Message::Send(invoice_str) => match self.send_status {
+            Message::Send(destination) => match self.send_status {
                 SendStatus::Sending => Task::none(),
                 SendStatus::Idle => {
                     self.send_failure_reason = None;
@@ -629,70 +637,59 @@ impl HarborWallet {
                         }
                     };
 
-                    if let Ok(invoice) = Bolt11Invoice::from_str(&invoice_str) {
-                        let (id, task) =
-                            self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
-                        self.current_send_id = Some(id);
-                        task
-                    } else {
-                        match parse_lnurl(&invoice_str) {
-                            Ok(lnurl) => {
-                                // TODO: can we handle is_max somehow?
-                                let amount = if self.is_max {
-                                    return Task::done(Message::AddToast(Toast {
-                                        title: "Cannot send max with Lightning Address".to_string(),
-                                        body: Some("Please enter a specific amount".to_string()),
-                                        status: ToastStatus::Bad,
-                                    }));
-                                } else {
-                                    match self.send_amount_input_str.parse::<u64>() {
-                                        Ok(amount) => amount,
-                                        Err(e) => {
-                                            error!("Error parsing amount: {e}");
-                                            self.send_failure_reason = Some(e.to_string());
-                                            return Task::none();
-                                        }
+                    match destination {
+                        SendDestination::Invoice(invoice) => {
+                            let (id, task) =
+                                self.send_from_ui(UICoreMsg::SendLightning { mint, invoice });
+                            self.current_send_id = Some(id);
+                            task
+                        }
+                        SendDestination::LnUrl(lnurl) => {
+                            // TODO: can we handle is_max somehow?
+                            let amount = if self.is_max {
+                                return Task::done(Message::AddToast(Toast {
+                                    title: "Cannot send max with Lightning Address".to_string(),
+                                    body: Some("Please enter a specific amount".to_string()),
+                                    status: ToastStatus::Bad,
+                                }));
+                            } else {
+                                match self.send_amount_input_str.parse::<u64>() {
+                                    Ok(amount) => amount,
+                                    Err(e) => {
+                                        error!("Error parsing amount: {e}");
+                                        self.send_failure_reason = Some(e.to_string());
+                                        return Task::none();
                                     }
-                                };
-                                let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
-                                    mint,
-                                    lnurl,
-                                    amount_sats: amount,
-                                });
-                                self.current_send_id = Some(id);
-                                task
-                            }
-                            _ => {
-                                if let Ok(address) = Address::from_str(&invoice_str) {
-                                    let amount = if self.is_max {
-                                        None
-                                    } else {
-                                        match self.send_amount_input_str.parse::<u64>() {
-                                            Ok(amount) => Some(amount),
-                                            Err(e) => {
-                                                error!("Error parsing amount: {e}");
-                                                self.send_failure_reason = Some(e.to_string());
-                                                return Task::none();
-                                            }
-                                        }
-                                    };
-                                    let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
-                                        mint,
-                                        address,
-                                        amount_sats: amount,
-                                    });
-                                    self.current_send_id = Some(id);
-                                    task
-                                } else {
-                                    error!("Invalid invoice or address");
-                                    self.current_send_id = None;
-                                    Task::done(Message::AddToast(Toast {
-                                        title: "Failed to send".to_string(),
-                                        body: Some("Invalid invoice or address".to_string()),
-                                        status: ToastStatus::Bad,
-                                    }))
                                 }
-                            }
+                            };
+                            let (id, task) = self.send_from_ui(UICoreMsg::SendLnurlPay {
+                                mint,
+                                lnurl,
+                                amount_sats: amount,
+                            });
+                            self.current_send_id = Some(id);
+                            task
+                        }
+                        SendDestination::Address(address) => {
+                            let amount = if self.is_max {
+                                None
+                            } else {
+                                match self.send_amount_input_str.parse::<u64>() {
+                                    Ok(amount) => Some(amount),
+                                    Err(e) => {
+                                        error!("Error parsing amount: {e}");
+                                        self.send_failure_reason = Some(e.to_string());
+                                        return Task::none();
+                                    }
+                                }
+                            };
+                            let (id, task) = self.send_from_ui(UICoreMsg::SendOnChain {
+                                mint,
+                                address,
+                                amount_sats: amount,
+                            });
+                            self.current_send_id = Some(id);
+                            task
                         }
                     }
                 }

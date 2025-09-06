@@ -24,3 +24,4 @@ opener = { version = "0.7.2", features = ["reveal"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 keyring-lib = "1.0.2"
+lnurl-rs = { workspace = true }
