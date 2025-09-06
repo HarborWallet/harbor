@@ -127,6 +127,26 @@ impl MintIdentifier {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum MintConnectionInfo {
+    Cashu(MintUrl),
+    Fedimint(InviteCode),
+}
+
+impl FromStr for MintConnectionInfo {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(url) = MintUrl::from_str(s) {
+            Ok(Self::Cashu(url))
+        } else if let Ok(invite_code) = InviteCode::from_str(s) {
+            Ok(Self::Fedimint(invite_code))
+        } else {
+            Err(anyhow::anyhow!("Invalid mint connection info: {}", s))
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UICoreMsgPacket {
     pub id: Uuid,

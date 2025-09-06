@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use harbor_client::MintConnectionInfo;
 use iced::Element;
 use iced::widget::{column, row};
 
@@ -56,6 +59,8 @@ fn mints_list(harbor: &HarborWallet) -> Element<Message> {
 fn mints_add(harbor: &HarborWallet) -> Element<Message> {
     let header = h_header("Add Mint", "Add a new mint to your wallet.");
 
+    let mint_connection_info = MintConnectionInfo::from_str(&harbor.mint_invite_code_str).ok();
+
     let column = match &harbor.peek_federation_item {
         None => {
             let mint_input = h_input(InputArgs {
@@ -71,7 +76,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
                 SvgIcon::Eye,
                 harbor.peek_status == PeekStatus::Peeking,
             )
-            .on_press(Message::PeekMint(harbor.mint_invite_code_str.clone()));
+            .on_press_maybe(mint_connection_info.map(Message::PeekMint));
 
             let mut peek_column = column![mint_input, peek_mint_button].spacing(16);
 
@@ -91,7 +96,7 @@ fn mints_add(harbor: &HarborWallet) -> Element<Message> {
             let is_joining = harbor.add_federation_status == AddFederationStatus::Adding;
 
             let add_mint_button = h_button("Join Mint", SvgIcon::Plus, is_joining)
-                .on_press(Message::AddMint(harbor.mint_invite_code_str.clone()));
+                .on_press_maybe(mint_connection_info.map(Message::AddMint));
 
             let start_over_button = h_button("Start Over", SvgIcon::Restart, false)
                 .on_press(Message::CancelAddFederation);
