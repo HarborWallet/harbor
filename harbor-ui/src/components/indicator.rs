@@ -185,6 +185,7 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let mut children = tree.children.iter_mut();
@@ -193,6 +194,7 @@ where
             children.next().unwrap(),
             layout,
             renderer,
+            viewport,
             translation,
         );
 
