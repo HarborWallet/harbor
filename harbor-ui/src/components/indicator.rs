@@ -21,7 +21,6 @@ use iced::{Element, Event, Length, Point, Rectangle, Size, Vector};
 ///     true, // show
 /// )
 /// ```
-#[allow(missing_debug_implementations)]
 pub struct Indicator<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Theme: container::Catalog,
