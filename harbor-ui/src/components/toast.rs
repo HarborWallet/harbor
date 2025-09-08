@@ -277,6 +277,7 @@ impl Widget<Message, Theme, Renderer> for ToastManager<'_> {
         state: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         let instants = state.state.downcast_mut::<Vec<Option<Instant>>>();
@@ -287,6 +288,7 @@ impl Widget<Message, Theme, Renderer> for ToastManager<'_> {
             &mut content_state[0],
             layout,
             renderer,
+            viewport,
             translation,
         );
 

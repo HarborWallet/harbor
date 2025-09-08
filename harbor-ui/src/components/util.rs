@@ -27,11 +27,12 @@ pub fn lighten(color: Color, amount: f32) -> Color {
 }
 
 fn to_hsl(color: Color) -> Hsl {
-    Hsl::from_color(Rgb::from(color))
+    Hsl::from_color(Rgb::new(color.r, color.g, color.b))
 }
 
 fn from_hsl(hsl: Hsl) -> Color {
-    Rgb::from_color(hsl).into()
+    let rgb = Rgb::from_color(hsl);
+    Color::from_rgb(rgb.red, rgb.green, rgb.blue)
 }
 
 pub fn format_timestamp(timestamp: &u64) -> String {

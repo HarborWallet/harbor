@@ -40,11 +40,11 @@ const BOLD_FONT: Font = Font {
     style: font::Style::Normal,
 };
 
-pub fn bold_text(content: String, size: u16) -> Text<'static> {
+pub fn bold_text(content: String, size: u32) -> Text<'static> {
     text(content).font(BOLD_FONT).size(size)
 }
 
-pub fn regular_text(content: String, size: u16) -> Text<'static> {
+pub fn regular_text(content: String, size: u32) -> Text<'static> {
     text(content).font(REGULAR_FONT).size(size)
 }
 
