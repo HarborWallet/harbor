@@ -85,7 +85,6 @@ impl LightningReceive {
         PaymentStatus::from_i32(self.status)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn create(
         conn: &mut SqliteConnection,
         operation_id: String,

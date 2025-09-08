@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use crate::db_models::mint_metadata::MintMetadata;
 use crate::db_models::transaction_item::TransactionItem;
 use crate::db_models::{

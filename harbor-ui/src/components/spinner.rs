@@ -32,7 +32,6 @@ pub fn the_spinner() -> Element<'static, Message, Theme> {
     spinner.into()
 }
 
-#[allow(missing_debug_implementations)]
 pub struct Circular<'a, Theme>
 where
     Theme: StyleSheet,
