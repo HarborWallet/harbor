@@ -54,9 +54,9 @@ pub fn confirm_modal<'a>(
             text_color: Some(theme.palette().text),
             border: light_container_style(theme).border,
             shadow: Shadow {
-                color: Color::from_rgba8(0, 0, 0, 0.5),
-                offset: Vector::new(4.0, 4.0),
-                blur_radius: 8.0,
+                color: Color::TRANSPARENT,
+                offset: Vector::ZERO,
+                blur_radius: 0.0,
             },
         });
 
@@ -140,9 +140,9 @@ pub fn basic_modal<'a>(
                 text_color: Some(theme.palette().text),
                 border: light_container_style(theme).border,
                 shadow: Shadow {
-                    color: Color::from_rgba8(0, 0, 0, 0.5),
-                    offset: Vector::new(4.0, 4.0),
-                    blur_radius: 8.0,
+                    color: Color::TRANSPARENT,
+                    offset: Vector::ZERO,
+                    blur_radius: 0.0,
                 },
             });
 
