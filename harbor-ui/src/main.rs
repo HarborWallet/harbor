@@ -92,19 +92,24 @@ pub fn main() -> iced::Result {
     #[cfg(not(target_os = "macos"))]
     let window_settings = window::Settings::default();
 
-    iced::application("Harbor", HarborWallet::update, HarborWallet::view)
-        .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
-        .theme(HarborWallet::theme)
-        .window(window_settings)
-        .default_font(Font {
-            family: iced::font::Family::Name("Inter-Regular.ttf"),
-            weight: iced::font::Weight::Normal,
-            stretch: iced::font::Stretch::Normal,
-            style: iced::font::Style::Normal,
-        })
-        .subscription(HarborWallet::subscription)
-        .run()
+    iced::application(
+        HarborWallet::default,
+        HarborWallet::update,
+        HarborWallet::view,
+    )
+    .title("Harbor")
+    .font(include_bytes!("../assets/fonts/Inter-Regular.ttf").as_slice())
+    .font(include_bytes!("../assets/fonts/Inter-Bold.ttf").as_slice())
+    .theme(HarborWallet::theme)
+    .window(window_settings)
+    .default_font(Font {
+        family: iced::font::Family::Name("Inter-Regular.ttf"),
+        weight: iced::font::Weight::Normal,
+        stretch: iced::font::Stretch::Normal,
+        style: iced::font::Style::Normal,
+    })
+    .subscription(HarborWallet::subscription)
+    .run()
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
