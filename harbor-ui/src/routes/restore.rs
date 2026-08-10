@@ -1,6 +1,6 @@
 use crate::{
     UnlockStatus, WelcomeStatus,
-    components::{InputArgs, SvgIcon, h_button, h_input, harbor_logo, the_spinner},
+    components::{InputArgs, MUTINY_RED, SvgIcon, h_button, h_input, harbor_logo, the_spinner},
 };
 use iced::{Alignment, Element, Length};
 use iced::{
@@ -33,7 +33,7 @@ pub fn restore(harbor: &HarborWallet) -> Element<Message> {
                         "Failed to initialize wallet. Config error: {error}"
                     ))
                     .size(24)
-                    .color(iced::Color::from_rgb8(250, 0, 80))
+                    .color(MUTINY_RED)
                 ]
                 .spacing(32)
                 .align_x(Alignment::Center)

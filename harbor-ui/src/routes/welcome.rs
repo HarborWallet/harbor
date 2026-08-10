@@ -1,3 +1,4 @@
+use crate::components::MUTINY_RED;
 use crate::routes::Route;
 use crate::{HarborWallet, Message};
 use crate::{
@@ -33,7 +34,7 @@ pub fn welcome(harbor: &HarborWallet) -> Element<Message> {
                         "Failed to initialize wallet. Config error: {error}"
                     ))
                     .size(24)
-                    .color(iced::Color::from_rgb8(250, 0, 80))
+                    .color(MUTINY_RED)
                 ]
                 .spacing(32)
                 .align_x(Alignment::Center)
