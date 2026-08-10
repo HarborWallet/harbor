@@ -475,9 +475,9 @@ fn styled(background: Color, border: Color) -> container::Style {
             radius: (4.).into(),
         },
         shadow: Shadow {
-            color: Color::from_rgba8(0, 0, 0, 0.25),
-            offset: Vector::new(-2., -2.),
-            blur_radius: 4.,
+            color: Color::TRANSPARENT,
+            offset: Vector::ZERO,
+            blur_radius: 0.0,
         },
     }
 }
